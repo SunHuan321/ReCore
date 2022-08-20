@@ -27,6 +27,7 @@ primrec is_anonyevt :: "event \<Rightarrow> bool"
   where "is_anonyevt (AnonyEvent _) = True" |
         "is_anonyevt (BasicEvent _) = False"
 
+
 lemma basicevt_isnot_anony: "is_basicevt e \<Longrightarrow> \<not> is_anonyevt e"
   by (metis event.exhaust is_anonyevt.simps(2) is_basicevt.simps(1)) 
 

@@ -534,15 +534,21 @@ primrec
                       \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (pesllocked pes) (pesllocked pes')
                       \<and> pessafe n pes' (fst \<sigma>') h' \<Gamma> Q)))"
 
+definition 
+  pesCSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> paresys \<Rightarrow> assn \<Rightarrow> bool" 
+  ("_ \<turnstile>\<^sub>p\<^sub>e\<^sub>s { _ } _ { _ }")
+  where
+    "\<Gamma> \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q} \<equiv> \<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> pessafe n pes s h \<Gamma> Q"
+
 primrec hplus_list :: "heap list \<Rightarrow> heap"
   where
     "hplus_list     [] = Map.empty"
   | "hplus_list (x # l)  =  x ++ (hplus_list l)"
-
+                                                             
 
 lemma hplus_list_expand : "\<lbrakk> \<forall>x y. x \<in> set l \<and> y \<in> set l \<and> x \<noteq> y \<longrightarrow> disjoint (dom x) (dom y); r \<in> set l\<rbrakk> 
       \<Longrightarrow> hplus_list l = r ++  hplus_list (removeAll r l)"
-  apply (induct l, simp, clarsimp)
+  apply (induct l, simp, clarsimp) 
   apply (rule conjI, clarsimp)
   apply (metis map_add_assoc map_add_subsumed1 map_le_map_add removeAll_id)
   apply (case_tac "r \<in> set l", clarsimp)
@@ -559,43 +565,6 @@ next
   then show "disjoint (dom (hplus_list l)) (dom h)"
     by (induct l, simp_all)
 qed
-
-(*
-lemma disjoint_hplus_list1 : "\<lbrakk>disjoint (dom (hplus_list l)) (dom hF); k < length l \<rbrakk> 
-                       \<Longrightarrow> disjoint (dom (l ! k)) (dom hF)"
-  by (simp add: disjoint_hplus_list)
-
-lemma disjoint_hplus_list2 : "\<lbrakk>disjoint (dom (hplus_list l)) (dom hF); k < length l; 
-                               l' = l[k := Map.empty]\<rbrakk>
-                        \<Longrightarrow> disjoint (dom (hplus_list l')) (dom hF)"
-  by (metis (mono_tags, lifting) disjoint_hplus_list disjoint_search(1) disjoint_simps(2) dom_empty insert_iff set_update_subset_insert subset_eq)
-
-lemma disjoint_list_remove : "\<lbrakk>\<forall>k1 k2. k1 < length l \<and> k2 < length l \<and> k1 \<noteq> k2 
-                              \<longrightarrow> disjoint (dom (l ! k1)) (dom (l ! k2)); k < length l;
-                              l' = l[k := Map.empty]\<rbrakk> 
-                          \<Longrightarrow> disjoint (dom (l ! k)) (dom (hplus_list l'))"
-proof-
-    assume a0 : "\<forall>k1 k2. k1 < length l \<and> k2 < length l \<and> k1 \<noteq> k2 \<longrightarrow> disjoint (dom (l ! k1)) (dom (l ! k2))"
-    and    a1 : " k < length l"
-    and    a2 : "l' = l[k := Map.empty]"
-    then have "\<forall>k'. k' < length l' \<longrightarrow> disjoint (dom (l ! k)) (dom (l' ! k'))"
-      by (metis (full_types) disjoint_simps(2) dom_empty length_list_update nth_list_update_eq nth_list_update_neq)
-    then have "\<forall>x. x \<in> set l' \<longrightarrow> disjoint (dom x) (dom (l ! k))"
-      by (metis disjoint_search(1) in_set_conv_nth)
-    then show ?thesis
-      using disjoint_hplus_list disjoint_search(1) by blast
-  qed
-
-lemma  hplus_list_expand' : "\<forall>k1 k2. k1 < length l \<and> k2 < length l \<and> k1 \<noteq> k2 
-                          \<longrightarrow> disjoint (dom (l ! k1)) (dom (l ! k2)) \<Longrightarrow>
-                             \<forall>k. k < length l 
-                        \<longrightarrow> (l ! k) ++ (hplus_list (l[k:= Map.empty])) = hplus_list l"
-  apply (induct l, simp)
-  apply (intro allI impI)
-  apply (case_tac k, simp, clarsimp)
-  sorry
-
-*)
 
 primrec disjoint_heap_with_list :: "heap \<Rightarrow> heap list \<Rightarrow> bool"
   where
@@ -847,19 +816,19 @@ lemma pessafe_pesllocked_cancel :
   by auto
 
 lemma pessafe: 
-" \<lbrakk>\<forall>k. k < length pes \<longrightarrow> ressafe n (pes ! k) s (h ! k) \<Gamma> (Q ! k);
-   disjoint_heap_list h; disjoint_locked_list pes;
+" \<lbrakk>\<forall>k. k < length pes \<longrightarrow> ressafe n (pes ! k) s (hs ! k) \<Gamma> (Qs ! k);
+   disjoint_heap_list hs; disjoint_locked_list pes;
    \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
-          \<longrightarrow> disjoint (fvREsv (pes ! k1) \<union> fvA (Q ! k1) \<union> fvAs \<Gamma>) (wrREsv (pes ! k2));
-    length pes = length h; length pes = length Q\<rbrakk>
-   \<Longrightarrow> pessafe n pes s (hplus_list h) \<Gamma> (Aistar Q)"
-  apply (induct n arbitrary: pes s h, simp, clarsimp)
+          \<longrightarrow> disjoint (fvREsv (pes ! k1) \<union> fvA (Qs ! k1) \<union> fvAs \<Gamma>) (wrREsv (pes ! k2));
+    length pes = length hs\<rbrakk>
+   \<Longrightarrow> pessafe n pes s (hplus_list hs) \<Gamma> (Aistar Qs)"
+  apply (induct n arbitrary: pes s hs, simp, clarsimp)
   apply (rule conjI, clarsimp, erule pesaborts.cases, clarsimp)
     apply (simp add: pessafe_noaborts, clarsimp)
   apply (meson disjoint_list_equiv disjoint_search(2) disjoint_search(4) reswrites_accesses)
   apply (clarsimp, erule pesred.cases, simp)
   apply (frule_tac a = "k" in allD, clarsimp)
-  apply (drule_tac a = "hJ" and b = "(hplus_list (h[ k:= Map.empty]) ++ hF)"
+  apply (drule_tac a = "hJ" and b = "(hplus_list (hs[ k:= Map.empty]) ++ hF)"
           and c = "ac" and d = "bc" and e = "ad" and f = "bd" in all6_impD)
    apply (simp add: pessafe_hsimps2)
   apply (drule imp2D)
@@ -869,7 +838,7 @@ lemma pessafe:
     apply (simp add: disjoint_hplus_list3)
    apply (metis (no_types, lifting) disjoint_search(1) 
           disjoint_simps(4) dom_map_add hplus_list_exchange)
-  apply (clarsimp, rule_tac x = "h' ++ (hplus_list (h[k := Map.empty]))" and y = "hJ'" in ex2I, simp)
+  apply (clarsimp, rule_tac x = "h' ++ (hplus_list (hs[k := Map.empty]))" and y = "hJ'" in ex2I, simp)
   apply (rule conjI)
    apply (metis map_add_assoc map_add_commute)
   apply (rule conjI) apply auto[1]
@@ -879,7 +848,7 @@ lemma pessafe:
   apply (simp add: pesllocked_cancel)
    apply (drule resred_properties)
    apply (clarsimp, drule_tac a = "pesa[k := (ac, bc)]" and b = "ad"
-                              and c = "h[k := h']" in mall3_impD)
+                              and c = "hs[k := h']" in mall3_impD)
    apply (clarsimp, case_tac "ka = k", simp, simp)
    apply (rule_tac s = "ab" in ressafe_agrees)
     apply (rule_tac n = "Suc n" in ressafe_mon, simp, simp)
@@ -892,14 +861,29 @@ lemma pessafe:
     apply (case_tac "k1 \<noteq> k") apply (case_tac "k2 \<noteq> k", simp)
      apply auto[1] apply auto[1]
    apply simp
-  apply (subgoal_tac "h' ++ hplus_list (h[k := Map.empty]) = hplus_list (h[k := h'])", simp)
+  apply (subgoal_tac "h' ++ hplus_list (hs[k := Map.empty]) = hplus_list (hs[k := h'])", simp)
   by (metis disjoint_locked_heap_update1 hplus_list_exchange length_list_update list_update_overwrite nth_list_update_eq)
 
 
+lemma K1 : "(s, h) \<Turnstile> Aistar Ps \<Longrightarrow> (\<exists>hs. length hs = length Ps  \<and> disjoint_heap_list hs 
+                          \<and> (\<forall>k < length Ps. (s, hs ! k) \<Turnstile> Ps ! k ) \<and> hplus_list hs = h)" 
+  apply (induct Ps arbitrary: s h, simp, clarsimp)
+  apply (drule mall2_impD, simp, clarsimp)
+  apply (rule_tac x = "h1 # hs" in exI, simp)
+  apply (rule conjI) 
+  using disjoint_heap_with_equiv2 disjoint_hplus_list1 disjoint_search(1) apply blast
+  using less_Suc_eq_0_disj by auto
 
+theorem rule_pes : "  \<forall>k. k < length pes \<longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s  {Ps ! k} (pes ! k) {Qs ! k} \<Longrightarrow> \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
+          \<longrightarrow> disjoint (fvREsv (pes ! k1) \<union> fvA (Qs ! k1) \<union> fvAs \<Gamma>) (wrREsv (pes ! k2))  \<Longrightarrow> disjoint_locked_list pes \<Longrightarrow> length pes = length Ps \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {Aistar Ps} pes {Aistar Qs}"
+  apply (simp add: resCSL_def pesCSL_def, clarify)
+  apply (drule K1, clarify)
+  apply (rule pessafe, simp_all)
+  by blast
 
-
-
+corollary "\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1} res1 {Q1} \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P2} res2 {Q2} \<Longrightarrow> disjoint ((fvResv res1) \<union> fvA Q1 \<union> fvAs \<Gamma>) (wrREsv res2)
+        \<Longrightarrow> disjoint ((fvResv res2) \<union> fvA Q1 \<union> fvAs \<Gamma>) (wrREsv res1) \<Longrightarrow> dis"
+  sorry
 
 
 end
