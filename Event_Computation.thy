@@ -46,11 +46,6 @@ inductive
   red_Par : "k < length pes \<Longrightarrow>  pes ! k = res \<Longrightarrow> resred res \<sigma> res' \<sigma>' \<Longrightarrow> pesred pes \<sigma> (pes[k := res']) \<sigma>'"
 *)
 
-inductive
-  rpesred :: "rparesys \<Rightarrow> state \<Rightarrow> rparesys \<Rightarrow> state \<Rightarrow> bool"
-  where
-  red_Par: "pes ! k = (ers, es) \<Longrightarrow> resred (pres @ ers, es) \<sigma> (pres @ ers, es') \<sigma>' \<Longrightarrow> rpesred (pres, pes)  \<sigma> (pres, pes[k := (ers, es')]) \<sigma>'"
-
 subsection \<open>functions for event\<close>
 
 subsubsection \<open>locks that a event is currently holding \<close>
@@ -149,7 +144,10 @@ lemma eaborts_agrees[rule_format]:
   apply (simp add: aborts_Evt aborts_agrees)
   done
 
-subsection \<open>functions for resource event  \<close>
+subsection \<open>functions for resource event  \<close>   
+
+definition resources_re :: "rname list \<Rightarrow> revent \<Rightarrow> revent"
+  where "resources_re ers re \<equiv> (ers @ (fst re), (snd re))"
 
 subsubsection \<open>locks that a resource event is currently holding \<close>
 definition
@@ -444,6 +442,12 @@ definition
 lemma empty_peslock : "peslocked [] = {}"
   by (simp add: maps_simps(2) pesllocked_def peslocked_def)
 
+lemma peslock_notin : "r \<notin> peslocked pes \<Longrightarrow> \<forall>k < length pes. r \<notin> reslocked (pes ! k)"
+  apply (simp add: peslocked_def pesllocked_def reslocked_eq)
+  apply (induct pes, simp, clarsimp)
+  apply (case_tac k, simp add: maps_simps(1))
+  by (simp add: maps_simps(1))
+
 lemma induct_peslock : "peslocked (x # xs) = (reslocked x) \<union> peslocked (xs)"
   by (simp add: maps_simps(1) pesllocked_def peslocked_def reslocked_eq)
 
@@ -471,6 +475,8 @@ proof-
     by (simp add: pesllocked_def)
 qed
 
+
+
 inductive
   pesred :: "paresys \<Rightarrow> state \<Rightarrow> paresys \<Rightarrow> state \<Rightarrow> bool"
   where
@@ -487,6 +493,64 @@ inductive
 | aborts_Race : "\<exists>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2  \<and> \<not> disjoint (resaccesses (pes ! k1) (fst \<sigma>)) 
                          (reswrite (pes ! k2) (fst \<sigma>)) \<Longrightarrow> pesaborts pes \<sigma>"
 
+subsection \<open>functions for resource parallel event system \<close>
+
+definition resources_res :: "rname list \<Rightarrow> resys \<Rightarrow> resys"
+  where "resources_res pers res \<equiv> (pers @ (fst res), (snd res))"
+
+primrec resources_pes :: "rname list \<Rightarrow> paresys \<Rightarrow> paresys"
+  where
+  "resources_pes rs [] = []"
+| "resources_pes rs (x # xs) = (resources_res rs x) # (resources_pes rs xs)"
+
+lemma res_pes_property : "\<forall>k. k < length pes 
+              \<longrightarrow> resources_pes rs pes ! k = resources_res rs (pes ! k)"
+  apply (induct pes, simp, clarsimp)
+  using less_Suc_eq_0_disj by auto
+
+lemma res_pes_length[simp] : "length (resources_pes rs pes) = length pes"
+  by (induct pes, simp_all)
+
+lemma res_fvREsv[simp] : "fvREsv (resources_res rs res) = fvREsv res"
+  by (simp add: fvREsv_def resources_res_def)
+
+lemma res_wrREsv[simp] : "wrREsv (resources_res rs res) = wrREsv res"
+  by (simp add: resources_res_def wrREsv_def)
+
+subsubsection \<open>locks that resource parallel system is currently holding \<close>
+
+definition
+  rpesllocked :: "rparesys \<Rightarrow> rname list"
+  where
+  "rpesllocked rpes = pesllocked (resources_pes (fst rpes) (snd rpes))"
+
+definition
+  rpeslocked :: "rparesys \<Rightarrow> rname set"
+  where
+  "rpeslocked rpes = peslocked (resources_pes (fst rpes) (snd rpes))"
+
+lemma empty_rpeslock : "rpeslocked (rs,[]) = {}"
+  by (simp add: empty_peslock rpeslocked_def)
+
+lemma rpeslocked_eq : "set (rpesllocked rpes) = rpeslocked rpes"
+  by (simp add: peslocked_def rpesllocked_def rpeslocked_def)
+
+
+inductive
+  rpesred :: "rparesys \<Rightarrow> state \<Rightarrow> rparesys \<Rightarrow> state \<Rightarrow> bool"
+  where
+  red_Par: "\<lbrakk> k < length pes ;  pes ! k = (ers, es) ; rpes = resources_pes pres pes;
+             \<forall>k'. k' < length pes \<and> k \<noteq> k' 
+              \<longrightarrow> disjoint (reslocked (pres @ ers, es')) (reslocked (rpes ! k'));
+             resred (pres @ ers, es) \<sigma> (pres @ ers, es') \<sigma>' \<rbrakk> 
+      \<Longrightarrow> rpesred (pres, pes)  \<sigma> (pres, pes[k := (ers, es')]) \<sigma>'"
+
+subsubsection \<open>A resource parallel system aborts in a given state\<close>
+
+definition 
+  rpesaborts :: "rparesys \<Rightarrow> state \<Rightarrow> bool"
+  where
+  "rpesaborts rpes \<sigma> = pesaborts (resources_pes (fst rpes) (snd rpes)) \<sigma>"
 
 end
 

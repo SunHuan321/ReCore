@@ -9,7 +9,7 @@ text {* This file contains a soundness proof for CSL (with multiple resources)
 
 text {* (Adapted to Isabelle 2016-1 by Qin Yu and James Brotherston) *}
 
-subsection {* Separation logic assertions *}
+subsection {* Separation logic assertions *}          
 
 text {* A deep embedding of separation logic assertions. *}
 
@@ -255,7 +255,7 @@ done
 
 text {* Proposition 4.4: Safety depends only the free variables
         of @{term "C"}, @{term "Q"}, and @{term "\<Gamma>"}. *}
-
+                                                      
 lemma safe_agrees: 
   "\<lbrakk> safe n C s h \<Gamma> Q ; 
      agrees (fvC C \<union> fvA Q \<union> fvAs \<Gamma>) s s' \<rbrakk>
@@ -318,7 +318,7 @@ apply (rule conjI, erule order_trans, simp)+
   apply (subst map_add_commute, simp add: hsimps)
   apply (drule mall3_imp2D, erule_tac[3] mimp3D, simp_all add: hsimps)
   apply (rule_tac s="s" in safe_agrees)
-  apply (rule_tac n="Suc n" in safe_mon, simp add: hsimps, simp)
+       apply (rule_tac n="Suc n" in safe_mon, simp add: hsimps, simp)
   apply (fastforce simp add: agreesC disjoint_commute)
   apply (intro conjI | erule (1) disjoint_search)+
 (* C2 does a step *)

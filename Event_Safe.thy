@@ -2,23 +2,87 @@ theory Event_Safe
   imports CSLsound Event_Computation
 begin
 
+primrec user_event :: "event \<Rightarrow> bool"
+  where "user_event (AnonyEvent C) = user_cmd C"
+  |     "user_event (BasicEvent GC) = user_cmd (snd GC)"
+
+primrec wf_event :: "event \<Rightarrow> bool"
+  where "wf_event (AnonyEvent C) = wf_cmd C"
+  |     "wf_event (BasicEvent GC) = wf_cmd (snd GC)"
+
+lemma user_eventD : "user_event e \<Longrightarrow> wf_event e \<and> elocked e= {}"
+  by (induct e, simp_all add: user_cmdD)
+
+corollary user_event_wf[intro]: "user_event e \<Longrightarrow> wf_event e"
+  by (drule user_eventD, simp)
+
+corollary user_event_llocked[simp] : "user_event e \<Longrightarrow> ellocked e = []"
+  by (drule user_eventD, simp add: elocked_eq)
+
+definition user_revent :: "revent \<Rightarrow> bool"
+  where "user_revent re = user_event (snd re)"
+
+definition wf_revent :: "revent \<Rightarrow> bool"
+  where "wf_revent re = wf_event (snd re)"
+         
+lemma user_reventD : "user_revent re \<Longrightarrow> wf_revent re \<and> relocked re= {}"
+  by (simp add: user_revent_def wf_revent_def relocked_def user_eventD)
+
+corollary user_revent_wf[intro]: "user_revent re \<Longrightarrow> wf_revent re"
+  by (drule user_reventD, simp)
+
+corollary user_revent_llocked[simp] : "user_revent re \<Longrightarrow> rellocked re = []"
+  by (drule user_reventD, simp add: relocked_eq)
+
+primrec user_esys :: "esys \<Rightarrow> bool"
+  where "user_esys (EvtSeq res esys) = ((user_revent res) \<and> (user_esys esys))"
+  |     "user_esys (EvtSys es) = (\<forall> res \<in> es. (user_revent res))"
+
+primrec wf_esys :: "esys \<Rightarrow> bool"
+  where "wf_esys (EvtSeq res esys) = ((wf_revent res) \<and> (wf_esys esys))"
+  |     "wf_esys (EvtSys es) = (\<forall> res \<in> es. (wf_revent res))"
+
+lemma user_esysD : "user_esys esys \<Longrightarrow> wf_esys esys \<and> eslocked esys = {}"
+  by (induct esys, simp_all add: user_reventD)
+
+corollary user_esys_wf[intro]: "user_esys esys \<Longrightarrow> wf_esys esys"
+  by (drule user_esysD, simp)
+
+corollary user_esys_llocked[simp] : "user_esys esys \<Longrightarrow> esllocked esys = []"
+  by (drule user_esysD, simp add: eslocked_eq)
+
+definition user_resys :: "resys \<Rightarrow> bool"
+  where "user_resys resys = user_esys (snd resys)"
+
+definition wf_resys :: "resys \<Rightarrow> bool"
+  where "wf_resys resys = wf_esys (snd resys)"
+
+lemma user_resysD : "user_resys resys \<Longrightarrow> wf_resys resys \<and> reslocked resys = {}"
+  by (simp add: user_resys_def wf_resys_def reslocked_def user_esysD)
+
+corollary user_resys_wf[intro]: "user_resys resys \<Longrightarrow> wf_resys resys"
+  by (drule user_resysD, simp)
+
+corollary user_resys_llocked[simp] : "user_resys resys \<Longrightarrow> resllocked resys = []"
+  by (drule user_resysD, simp add: reslocked_eq)
+
 primrec
   esafe :: "nat \<Rightarrow> event \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> bool"
 where
   "esafe 0 e s h \<Gamma> Q = True"
 | "esafe (Suc n) e s h \<Gamma> Q = (
-              (e = AnonyEvent Cskip \<longrightarrow> (s, h) \<Turnstile> Q)
-            \<and> (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> eaborts e (s, h ++ hF))
-            \<and> (eaccesses e s \<subseteq> dom h)
-            \<and> (\<forall>hJ hF e' \<sigma>'. 
-                  ered e (s, h ++ hJ ++ hF) e' \<sigma>'
-                \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (ellocked e') (ellocked e)
-                \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
-                \<longrightarrow> (\<exists> h' hJ'.
-                        snd \<sigma>' = h' ++ hJ' ++ hF
-                      \<and> disjoint (dom h') (dom hJ') \<and> disjoint (dom h') (dom hF) \<and> disjoint (dom hJ') (dom hF)
-                      \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (ellocked e) (ellocked e')
-                      \<and>  esafe n e' (fst \<sigma>') h' \<Gamma> Q)))"
+  (e = AnonyEvent Cskip \<longrightarrow> (s, h) \<Turnstile> Q)
+\<and> (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> eaborts e (s, h ++ hF))
+\<and> (eaccesses e s \<subseteq> dom h)
+\<and> (\<forall>hJ hF e' \<sigma>'. 
+      ered e (s, h ++ hJ ++ hF) e' \<sigma>'
+    \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (ellocked e') (ellocked e)
+    \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
+    \<longrightarrow> (\<exists> h' hJ'.
+            snd \<sigma>' = h' ++ hJ' ++ hF
+          \<and> disjoint (dom h') (dom hJ') \<and> disjoint (dom h') (dom hF) \<and> disjoint (dom hJ') (dom hF)
+          \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (ellocked e) (ellocked e')
+          \<and>  esafe n e' (fst \<sigma>') h' \<Gamma> Q)))"
 
 lemma esafe_agrees: 
     "\<lbrakk> esafe n e s h \<Gamma> Q ; 
@@ -43,7 +107,7 @@ definition
   eCSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> event \<Rightarrow> assn \<Rightarrow> bool" 
   ("_ \<turnstile>\<^sub>e { _ } _ { _ }")
   where
-    "\<Gamma> \<turnstile>\<^sub>e {P} e {Q} \<equiv> \<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> esafe n e s h \<Gamma> Q"
+    "\<Gamma> \<turnstile>\<^sub>e {P} e {Q} \<equiv> (user_event e) \<and> (\<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> esafe n e s h \<Gamma> Q)"
 
 
 lemma list_minus_empty[simp] : "list_minus [] l = []"
@@ -67,37 +131,29 @@ lemma esafe_AnonyEvt: "safe n C s h \<Gamma> Q \<Longrightarrow> esafe n (AnonyE
 theorem rule_Inner: "\<Gamma> \<turnstile> {P} C {Q} \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>e {P} (AnonyEvent C) {Q}"
   by (simp add: eCSL_def CSL_def esafe_AnonyEvt)
 
-theorem rule_BasicEvt: "\<Gamma> \<turnstile> {Aconj (P ** (Aistar (map \<Gamma> (llocked C)))) (Apure guard)} C {Q} 
+theorem rule_BasicEvt: "\<Gamma> \<turnstile> {Aconj P (Apure guard)} C {Q} 
                     \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>e {P} (BasicEvent (guard, C)) {Q}"
-  apply (simp add: eCSL_def CSL_def)
-proof (intro allI impI)
-  fix n s h
-  assume a1: "user_cmd C \<and>
-       (\<forall>n s h.
-           (\<exists>h1. (s, h1) \<Turnstile> P \<and> (\<exists>h2. (s, h2) \<Turnstile> Aistar (map \<Gamma> (llocked C)) \<and> h = h1 ++ h2 \<and> disjoint (dom h1) (dom h2))) \<and> bdenot guard s \<longrightarrow>
-           safe n C s h \<Gamma> Q)" 
-    and a2: "(s, h) \<Turnstile> P"
-  then show "esafe n (BasicEvent (guard, C)) s h \<Gamma> Q"
-    apply (induct n, simp_all)
-    apply (rule conjI)
-    using eaborts.cases apply blast
-    apply (clarify, erule ered.cases, simp)
-    apply (rule_tac x = "h ++hJ" in exI, clarify, simp)
-    by (simp add: esafe_AnonyEvt)
-qed
+  apply (simp add: eCSL_def CSL_def, clarsimp)
+  apply (case_tac n, simp, simp)
+  apply (rule conjI)
+  using eaborts.cases apply blast
+  apply (clarsimp, erule ered.cases, simp)
+  apply (rule_tac x = "h" in exI, clarify, simp add: esafe_AnonyEvt)
+  done
 
 lemma esafe_conseq : "\<lbrakk> esafe n e s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> esafe n e s h \<Gamma> Q'"
   apply (induct n arbitrary: e s h, simp)
   apply (clarsimp, simp add : implies_def)
   apply (clarify, erule ered.cases, simp_all, clarsimp)
-   apply (drule_tac a = "hJ" and b = "hF" and c = "AnonyEvent C'" and d = "ab" and e = "bb" in all5_impD)
+   apply (drule_tac a = "hJ" and b = "hF" and c = "AnonyEvent C'" 
+          and d = "ab" and e = "bb" in all5_impD)
     apply (simp add: ered.red_AnonyEvt)
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-  apply (drule_tac a = "hJ" and b = "hF" and c = "AnonyEvent C" and d = "a" and e = "b" in all5_impD)
+  apply (drule_tac a = "hJ" and b = "hF" and c = "AnonyEvent C" 
+          and d = "a" and e = "b" in all5_impD)
   using ered.red_BasicEvt apply blast
   apply (clarsimp, rule_tac x = "h'" in exI, simp)
   done
-
 
 theorem rule_Evtconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>e {P'} e {Q'} \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>e {P} e {Q}"
   by (meson eCSL_def esafe_conseq implies_def)
@@ -107,18 +163,18 @@ primrec
 where
   "resafe 0 e s h \<Gamma> Q = True"
 | "resafe (Suc n) re s h \<Gamma> Q = (
-              (snd re = AnonyEvent Cskip \<longrightarrow> (s, h) \<Turnstile> Q)
-            \<and> (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> reaborts re (s, h ++ hF))
-            \<and> (reaccesses re s \<subseteq> dom h)
-            \<and> (\<forall>hJ hF re' \<sigma>'. 
-                  rered re (s, h ++ hJ ++ hF) re' \<sigma>'
-                \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (rellocked re') (rellocked re)
-                \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
-                \<longrightarrow> (\<exists>h' hJ'.
-                        snd \<sigma>' = h' ++ hJ' ++ hF
-                      \<and> disjoint (dom h') (dom hJ') \<and> disjoint (dom h') (dom hF) \<and> disjoint (dom hJ') (dom hF)
-                      \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (rellocked re) (rellocked re')
-                      \<and> resafe n re' (fst \<sigma>') h' \<Gamma> Q)))"
+  (snd re = AnonyEvent Cskip \<longrightarrow> (s, h) \<Turnstile> Q)
+\<and> (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> reaborts re (s, h ++ hF))
+\<and> (reaccesses re s \<subseteq> dom h)
+\<and> (\<forall>hJ hF re' \<sigma>'. 
+      rered re (s, h ++ hJ ++ hF) re' \<sigma>'
+    \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (rellocked re') (rellocked re)
+    \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
+    \<longrightarrow> (\<exists>h' hJ'.
+            snd \<sigma>' = h' ++ hJ' ++ hF
+          \<and> disjoint (dom h') (dom hJ') \<and> disjoint (dom h') (dom hF) \<and> disjoint (dom hJ') (dom hF)
+          \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (rellocked re) (rellocked re')
+          \<and> resafe n re' (fst \<sigma>') h' \<Gamma> Q)))"
 
 lemma resafe_agrees: 
     "\<lbrakk> resafe n re s h \<Gamma> Q ; 
@@ -143,54 +199,49 @@ definition
   reCSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> revent \<Rightarrow> assn \<Rightarrow> bool" 
   ("_ \<turnstile>\<^sub>r\<^sub>e { _ } _ { _ }")
   where
-    "\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} re {Q} \<equiv> \<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> resafe n re s h \<Gamma> Q"
+    "\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} re {Q} \<equiv> (user_revent re) \<and> (\<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> resafe n re s h \<Gamma> Q)"
 
-lemma resafe_AnonyEvent: "esafe n (AnonyEvent C) s h \<Gamma> Q  \<Longrightarrow> resafe n (rs, (AnonyEvent C)) s h \<Gamma> Q"
+lemma resafe_AnonyEvt: "esafe n (AnonyEvent C) s h \<Gamma> Q  \<Longrightarrow> resafe n (rs, (AnonyEvent C)) s h \<Gamma> Q"
   apply (induct n arbitrary: C s h, simp_all)
   apply (rule conjI)
    apply (simp add: reaborts_def)
   apply (rule conjI)
    apply (simp add: reaccesses_def)
   apply (clarify, erule rered.cases, simp_all, clarify)
-  apply (drule_tac a = "hJ" and b = "hF" and c = "AnonyEvent C'" and d = "ac" and e = "bc" in all5_impD)
+  apply (drule_tac a = "hJ" and b = "hF" and c = "AnonyEvent C'" 
+        and d = "ac" and e = "bc" in all5_impD)
    apply (simp add: ered.red_AnonyEvt)
   apply (simp add : rellocked_def, clarify)
   apply (rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
   done
 
 theorem rule_rInner: "\<Gamma> \<turnstile> {P} C {Q} \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} (rs, AnonyEvent C) {Q}"
-  using eCSL_def reCSL_def resafe_AnonyEvent rule_Inner by auto
+  using eCSL_def reCSL_def resafe_AnonyEvt rule_Inner user_revent_def by auto
 
-theorem rule_rBasicEvt: "\<Gamma> \<turnstile> {Aconj (P ** (Aistar (map \<Gamma> (llocked (Cresources rs C)))))
-             (Apure guard)} (Cresources rs C) {Q} \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} (rs, BasicEvent (guard, C)) {Q}"
-    apply (simp add: reCSL_def CSL_def)
-proof (intro allI impI)
-  fix n s h
-  assume a1: " user_cmd C \<and>
-       (\<forall>n s h.
-           (\<exists>h1. (s, h1) \<Turnstile> P \<and> (\<exists>h2. (s, h2) \<Turnstile> Aistar (map \<Gamma> (list_minus (llocked C) rs)) \<and> h = h1 ++ h2 \<and> disjoint (dom h1) (dom h2))) \<and>
-           bdenot guard s \<longrightarrow>
-           safe n (Cresources rs C) s h \<Gamma> Q)" 
-    and a2: "(s, h) \<Turnstile> P"
-  then show " resafe n (rs, BasicEvent (guard, C)) s h \<Gamma> Q"
-    apply (induct n, simp_all)
-    apply (rule conjI)
-    using eaborts.cases reaborts_def apply auto[1]
-    apply (rule conjI)
-    apply (simp add: reaccesses_def)
-    apply (clarify, erule rered.cases, simp_all add: rellocked_def)
-    apply (rule_tac x = "h ++hJ"  in exI, clarsimp)
-    by (simp add: esafe_AnonyEvt resafe_AnonyEvent)
-qed
+theorem rule_rBasicEvt: "\<Gamma> \<turnstile> {Aconj P (Apure guard)} (Cresources rs C) {Q}
+                     \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} (rs, BasicEvent (guard, C)) {Q}"
+  apply (simp add: reCSL_def CSL_def, clarsimp)
+  apply (simp add: user_revent_def, clarsimp)
+  apply (case_tac n, simp, simp)
+  apply (rule conjI, simp add: reaborts_def)
+  using eaborts.cases apply blast
+  apply (rule conjI, simp add: reaccesses_def)
+  apply (clarsimp, erule rered.cases, simp, simp add: rellocked_def, clarify)
+  apply (rule_tac x = "h" in exI, clarsimp)
+  apply (rule resafe_AnonyEvt, simp add: esafe_AnonyEvt)
+  done
+
 
 lemma resafe_conseq : "\<lbrakk> resafe n re s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> resafe n re s h \<Gamma> Q'"
     apply (induct n arbitrary: re s h, simp)
   apply (clarsimp, simp add : implies_def)
   apply (clarify, erule rered.cases, simp_all, clarsimp)
-   apply (drule_tac a = "hJ" and b = "hF" and c = "rs" and d = "AnonyEvent C'" and e = "ad" and f = "bd" in all6_impD)
+   apply (drule_tac a = "hJ" and b = "hF" and c = "rs" and d = "AnonyEvent C'" 
+          and e = "ad" and f = "bd" in all6_impD)
   apply (simp add: rered.red_AnonyEvt)
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-  apply (drule_tac a = "hJ" and b = "hF" and c = "rs" and d = "AnonyEvent (Cresources rs C)" and e = "ab" and f = "bb" in all6_impD)
+  apply (drule_tac a = "hJ" and b = "hF" and c = "rs" and d = "AnonyEvent (Cresources rs C)" 
+         and e = "ab" and f = "bb" in all6_impD)
   using rered.red_BasicEvt apply blast
   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
   done
@@ -203,17 +254,17 @@ primrec
 where
   "essafe 0 es s h \<Gamma> Q = True"
 | "essafe (Suc n) es s h \<Gamma> Q = (
-             (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> esaborts es (s, h ++ hF))
-            \<and> (esaccesses es s \<subseteq> dom h)
-            \<and> (\<forall>hJ hF es' \<sigma>'. 
-                  esred es (s, h ++ hJ ++ hF) es' \<sigma>'
-                \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (esllocked es') (esllocked es)
-                \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
-                \<longrightarrow> (\<exists>h' hJ'.
-                        snd \<sigma>' = h' ++ hJ' ++ hF
-                      \<and> disjoint (dom h') (dom hJ') \<and> disjoint (dom h') (dom hF) \<and> disjoint (dom hJ') (dom hF)
-                      \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (esllocked es) (esllocked es')
-                      \<and> essafe n es' (fst \<sigma>') h' \<Gamma> Q)))"
+ (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> esaborts es (s, h ++ hF))
+\<and> (esaccesses es s \<subseteq> dom h)
+\<and> (\<forall>hJ hF es' \<sigma>'. 
+      esred es (s, h ++ hJ ++ hF) es' \<sigma>'
+    \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (esllocked es') (esllocked es)
+    \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
+    \<longrightarrow> (\<exists>h' hJ'.
+            snd \<sigma>' = h' ++ hJ' ++ hF
+          \<and> disjoint (dom h') (dom hJ') \<and> disjoint (dom h') (dom hF) \<and> disjoint (dom hJ') (dom hF)
+          \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (esllocked es) (esllocked es')
+          \<and> essafe n es' (fst \<sigma>') h' \<Gamma> Q)))"
 
 lemma essafe_agrees: 
     "\<lbrakk> essafe n esys s h \<Gamma> Q ; 
@@ -237,7 +288,7 @@ definition
   esCSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> esys \<Rightarrow> assn \<Rightarrow> bool" 
   ("_ \<turnstile>\<^sub>e\<^sub>s { _ } _ { _ }")
   where
-    "\<Gamma> \<turnstile>\<^sub>e\<^sub>s {P} esys {Q} \<equiv> \<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> essafe n esys s h \<Gamma> Q"
+    "\<Gamma> \<turnstile>\<^sub>e\<^sub>s {P} esys {Q} \<equiv> (user_esys esys) \<and> (\<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> essafe n esys s h \<Gamma> Q)"
 
 lemma essafe_mon:
   "\<lbrakk> essafe n es s h \<Gamma> Q; m \<le> n \<rbrakk> \<Longrightarrow> essafe m es s h \<Gamma> Q"
@@ -249,7 +300,8 @@ apply (rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
   done
 
 lemma essafe_EvtSeq :"\<lbrakk>resafe n re s h \<Gamma> Q;
-        \<forall>m s' h'. m \<le> n \<and> (s', h') \<Turnstile> (Q ** (Aistar (map \<Gamma> (esllocked esys)))) \<longrightarrow> essafe m esys s' h' \<Gamma> R\<rbrakk> 
+        \<forall>m s' h'. m \<le> n \<and> (s', h') \<Turnstile> (Q ** (Aistar (map \<Gamma> (esllocked esys)))) 
+                \<longrightarrow> essafe m esys s' h' \<Gamma> R\<rbrakk> 
       \<Longrightarrow>  essafe n (EvtSeq re esys) s h \<Gamma> R"
   apply (induct n arbitrary: re s h, simp, clarsimp)
   apply (rule conjI, clarsimp)
@@ -264,20 +316,15 @@ lemma essafe_EvtSeq :"\<lbrakk>resafe n re s h \<Gamma> Q;
   apply (rule_tac x = "hJ" in exI, simp)
   done
 
-lemma essafe_EvtSeq' :"\<lbrakk>resafe n re s h \<Gamma> Q;
-        \<forall>m s' h'. m \<le> n \<and> (s', h') \<Turnstile> Q \<longrightarrow> essafe m (EvtSys es) s' h' \<Gamma> R\<rbrakk> 
-      \<Longrightarrow>  essafe n (EvtSeq re (EvtSys es)) s h \<Gamma> R"
-  by (simp add: essafe_EvtSeq)
+lemma essafe_EvtSeq' :"\<lbrakk>resafe n re s h \<Gamma> Q; user_esys esys;
+        \<forall>m s' h'. m \<le> n \<and> (s', h') \<Turnstile> Q  \<longrightarrow> essafe m esys s' h' \<Gamma> R\<rbrakk> 
+      \<Longrightarrow>  essafe n (EvtSeq re esys) s h \<Gamma> R"
+  by (rule essafe_EvtSeq, simp_all)
 
 theorem rule_EvtSeq :"\<lbrakk>\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} re {Q};
-                 \<Gamma> \<turnstile>\<^sub>e\<^sub>s {Q ** (Aistar (map \<Gamma> (esllocked esys)))} esys {R}\<rbrakk> 
+                 \<Gamma> \<turnstile>\<^sub>e\<^sub>s {Q } esys {R}\<rbrakk> 
                 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>e\<^sub>s {P} (EvtSeq re esys) {R}"
-  apply (auto simp add: reCSL_def esCSL_def intro!: essafe_EvtSeq)
-  done
-
-corollary rule_EvtSeq' :   "\<lbrakk>\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} re {Q};  \<Gamma> \<turnstile>\<^sub>e\<^sub>s {Q} (EvtSys es) {R} \<rbrakk> 
-                        \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>e\<^sub>s {P} (EvtSeq re (EvtSys es)) {R}"
-  using esCSL_def rule_EvtSeq by auto
+  by (auto simp add: reCSL_def esCSL_def intro!: essafe_EvtSeq)
 
 definition get_int_pre :: "state \<Rightarrow> revent set \<Rightarrow> (revent \<Rightarrow> assn) \<Rightarrow> bool"
   where "get_int_pre \<sigma> es Pre \<equiv> \<forall> re \<in> es.  \<sigma> \<Turnstile> (Pre re)" 
@@ -291,17 +338,14 @@ lemma pre_conj : "\<lbrakk> \<forall>re \<in> es. P \<sqsubseteq> (Pre re) ; \<s
 lemma post_dconj : "\<lbrakk>\<forall>re\<in>es. (Post re) \<sqsubseteq> Q; get_union_post \<sigma> es Post\<rbrakk> \<Longrightarrow> \<sigma> \<Turnstile> Q"
   using get_union_post_def implies_def by blast
 
-lemma essafe_EvtSys : "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re) ** (Aistar (map \<Gamma> (rellocked re)))} re {Post re};
-                         \<forall> re \<in> es. (Post re) \<sqsubseteq> Q;
+lemma essafe_EvtSys : "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re)} re {Post re};
+                         \<forall> re \<in> es. (Post re) \<sqsubseteq> Q; 
                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<sqsubseteq> Pre re2\<rbrakk>
                         \<Longrightarrow> \<forall>n s h. get_int_pre (s, h) es Pre \<longrightarrow> essafe n (EvtSys es) s h \<Gamma> Q"
   apply (simp add: reCSL_def)
 proof(intro allI impI)
   fix n s h
-  assume a0 : "\<forall>re\<in>es.
-          \<forall>n s h.
-             (\<exists>h1. (s, h1) \<Turnstile> Pre re \<and> (\<exists>h2. (s, h2) \<Turnstile> Aistar (map \<Gamma> (rellocked re)) \<and> h = h1 ++ h2 \<and> disjoint (dom h1) (dom h2))) \<longrightarrow>
-             resafe n re s h \<Gamma> (Post re)"
+  assume a0 : "\<forall>re\<in>es. user_revent re \<and> (\<forall>n s h. (s, h) \<Turnstile> Pre re \<longrightarrow> resafe n re s h \<Gamma> (Post re))"
   and    a1 : "\<forall>re\<in>es. Post re \<sqsubseteq> Q"
   and    a2 : "\<forall>a b aa ba. (a, b) \<in> es \<and> (aa, ba) \<in> es \<longrightarrow> Post (a, b) \<sqsubseteq> Pre (aa, ba)"
   and    a3 : "get_int_pre (s, h) es Pre"
@@ -310,53 +354,39 @@ proof(intro allI impI)
     apply (rule conjI)
      apply (meson esaborts.cases esys.simps(4))
     apply (clarify, erule esred.cases, simp_all)
-    apply (rule_tac x = "ha ++ hJ" in exI, clarsimp)
-  proof-
-    fix n ha hJ hF aa ba ab
-    assume a00: "(\<And>s h. get_int_pre (s, h) es Pre \<Longrightarrow> essafe n (EvtSys es) s h \<Gamma> Q)"
-    and    a01: " get_int_pre (ab, ha) es Pre"
-    and    a02: "(ab, hJ) \<Turnstile> Aistar (map \<Gamma> (rellocked (aa, ba)))"
-    and    a03: "disjoint (dom ha) (dom hJ)"
-    and    a04: "(aa, ba) \<in> es"
-    then have "(ab, ha) \<Turnstile> Pre (aa, ba)" 
-      by (simp add: get_int_pre_def)
-    with a0  have "resafe n (aa, ba) ab (ha ++ hJ) \<Gamma> (Post (aa, ba))"
-      using a02 a03 a04 by blast
-    with a2 have "\<forall>re \<in> es. \<forall>\<sigma>. \<sigma> \<Turnstile> Post re \<longrightarrow> get_int_pre \<sigma> es Pre"
-      using get_int_pre_def implies_def by auto
-    then have "\<forall>s' h'. (s', h') \<Turnstile> Post (aa, ba) \<longrightarrow> essafe n (EvtSys es) s' h' \<Gamma> Q"
-      using a00 a04 by auto
-    then have "\<forall>m s' h'. m \<le> n \<and> (s', h') \<Turnstile> Post (aa, ba) \<longrightarrow> essafe m (EvtSys es) s' h' \<Gamma> Q"
-      using essafe_mon by blast
-    then show "essafe n (EvtSeq (aa, ba) (EvtSys es)) ab (ha ++ hJ) \<Gamma> Q"
-      using \<open>resafe n (aa, ba) ab (ha ++ hJ) \<Gamma> (Post (aa, ba))\<close> essafe_EvtSeq by auto
-  qed
+    apply (rule_tac x = "ha" in exI, clarsimp)
+    apply (rule_tac Q = "Post (aa, ba)" in essafe_EvtSeq)
+     apply (subgoal_tac "(ab, ha) \<Turnstile> Pre (aa, ba)", simp)
+     apply (simp add: get_int_pre_def)
+    apply (clarsimp, drule_tac a = "s'" and b = "h'" in mall2_impD)
+    using get_int_pre_def implies_def apply auto[1]
+    using essafe_mon by blast
 qed
 
-theorem rule_EvtSys :  "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re) ** (Aistar (map \<Gamma> (rellocked re)))} re {Post re};
+theorem rule_EvtSys :  "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re)} re {Post re};
                          \<forall> re \<in> es. P \<sqsubseteq> Pre re;
                          \<forall> re \<in> es. (Post re) \<sqsubseteq> Q;
                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<sqsubseteq> Pre re2\<rbrakk>
                         \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>e\<^sub>s {P} (EvtSys es) {Q}"
-  apply (subgoal_tac "\<forall>n s h. get_int_pre (s, h) es Pre \<longrightarrow> essafe n (EvtSys es) s h \<Gamma> Q")
-   defer
-   apply (simp add: essafe_EvtSys)
-  apply (simp add: esCSL_def, clarsimp)
-  apply (drule_tac a = "n" and b = "s" and c = "h" in all3_impD)
-   apply (simp add: get_int_pre_def implies_def)
-  by (simp)
+  apply (simp add: esCSL_def)
+  apply (rule conjI, simp add: reCSL_def)
+  apply (clarsimp, drule essafe_EvtSys, simp_all)
+  by (simp add: pre_conj)
+
 
 lemma essafe_conseq : "\<lbrakk> essafe n es s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> essafe n es s h \<Gamma> Q'"
   apply (induct n arbitrary: es s h, simp)
   apply (clarsimp, simp add : implies_def)
   apply (erule esred.cases, simp_all, clarify)
-    apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq (ac, bc) res" and d = "ad" and e = "bd" in all5_impD)
+    apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq (ac, bc) res" 
+          and d = "ad" and e = "bd" in all5_impD)
      apply (simp add: esred.red_EvtSeq1)
     apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
    apply (drule_tac a = "hJ" and b = "hF" and c = "res" and d = "a" and e = "b" in all5_impD)
     apply (simp add: esred.red_EvtSeq2)
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-  apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq re (EvtSys revts)" and d = "a" and e = "b" in all5_impD)
+  apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq re (EvtSys revts)" and d = "a" 
+        and e = "b" in all5_impD)
    apply (simp add: esred.red_EvtSet)
   apply (clarsimp, rule_tac x = "h'" in exI, simp)
   done
@@ -369,17 +399,17 @@ primrec
 where
   "ressafe 0 res s h \<Gamma> Q = True"
 | "ressafe (Suc n) res s h \<Gamma> Q = (
-             (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> resaborts res (s, h ++ hF))
-            \<and> (resaccesses res s \<subseteq> dom h)
-            \<and> (\<forall>hJ hF res' \<sigma>'. 
-                  resred res (s, h ++ hJ ++ hF) res' \<sigma>'
-                \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (resllocked res') (resllocked res)
-                \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
-                \<longrightarrow> (\<exists>h' hJ'.
-                        snd \<sigma>' = h' ++ hJ' ++ hF
-                      \<and> disjoint (dom h') (dom hJ') \<and> disjoint (dom h') (dom hF) \<and> disjoint (dom hJ') (dom hF)
-                      \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (resllocked res) (resllocked res')
-                      \<and> ressafe n res' (fst \<sigma>') h' \<Gamma> Q)))"
+ (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> resaborts res (s, h ++ hF))
+\<and> (resaccesses res s \<subseteq> dom h)
+\<and> (\<forall>hJ hF res' \<sigma>'. 
+      resred res (s, h ++ hJ ++ hF) res' \<sigma>'
+    \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (resllocked res') (resllocked res)
+    \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
+    \<longrightarrow> (\<exists>h' hJ'.
+            snd \<sigma>' = h' ++ hJ' ++ hF
+          \<and> disjoint (dom h') (dom hJ') \<and> disjoint (dom h') (dom hF) \<and> disjoint (dom hJ') (dom hF)
+          \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (resllocked res) (resllocked res')
+          \<and> ressafe n res' (fst \<sigma>') h' \<Gamma> Q)))"
 
 lemma ressafe_mon:
   "\<lbrakk> ressafe n res s h \<Gamma> Q; m \<le> n \<rbrakk> \<Longrightarrow> ressafe m res s h \<Gamma> Q"
@@ -412,10 +442,7 @@ definition
   resCSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> resys \<Rightarrow> assn \<Rightarrow> bool" 
   ("_ \<turnstile>\<^sub>r\<^sub>e\<^sub>s { _ } _ { _ }")
   where
-    "\<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P} resys {Q} \<equiv> \<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> ressafe n resys s h \<Gamma> Q"
-
-definition resources_re :: "rname list \<Rightarrow> revent \<Rightarrow> revent"
-  where "resources_re ers re \<equiv> (ers @ (fst re), (snd re))"
+    "\<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P} resys {Q} \<equiv> (user_resys resys) \<and> (\<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> ressafe n resys s h \<Gamma> Q)"
 
 lemma ressafe_EvtSeq : "\<lbrakk>resafe n re s h \<Gamma> Q;
         \<forall>m s' h'. m \<le> n \<and> (s', h') \<Turnstile> (Q ** (Aistar (map \<Gamma> (esllocked esys)))) \<longrightarrow> ressafe m (ers, esys) s' h' \<Gamma> R\<rbrakk> 
@@ -435,33 +462,27 @@ lemma ressafe_EvtSeq : "\<lbrakk>resafe n re s h \<Gamma> Q;
   apply (clarsimp,rule_tac x = "hJ" in exI)
   by simp
 
-lemma ressafe_EvtSeq' : "\<lbrakk>resafe n re s h \<Gamma> Q;
-        \<forall>m s' h'. m \<le> n \<and> (s', h') \<Turnstile> Q \<longrightarrow> ressafe m (ers, (EvtSys es)) s' h' \<Gamma> R\<rbrakk> 
-      \<Longrightarrow>  ressafe n (ers, (EvtSeq re (EvtSys es))) s h \<Gamma> R"
+lemma ressafe_EvtSeq' : "\<lbrakk>resafe n re s h \<Gamma> Q; user_esys esys;
+        \<forall>m s' h'. m \<le> n \<and> (s', h') \<Turnstile> Q \<longrightarrow> ressafe m (ers, esys) s' h' \<Gamma> R\<rbrakk> 
+      \<Longrightarrow>  ressafe n (ers, (EvtSeq re esys)) s h \<Gamma> R"
   by (simp add: ressafe_EvtSeq)
 
 theorem rule_rEvtSeq :"\<lbrakk>\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} re {Q};
-                 \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {Q ** (Aistar (map \<Gamma> (esllocked esys)))} (ers,esys) {R}\<rbrakk> 
+                 \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {Q } (ers,esys) {R}\<rbrakk> 
                 \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P} (ers, (EvtSeq re esys)) {R}"
-  apply (auto simp add: reCSL_def resCSL_def intro!: ressafe_EvtSeq)
+  apply (auto simp add: reCSL_def resCSL_def user_resys_def intro!: ressafe_EvtSeq)
   done
 
-corollary rule_rEvtSeq' :   "\<lbrakk>\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} re {Q};  \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {Q} (ers, (EvtSys es)) {R} \<rbrakk> 
-                        \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P} (ers, (EvtSeq re (EvtSys es))) {R}"
-  using reCSL_def resCSL_def rule_rEvtSeq by simp
-
-lemma essafe_rEvtSys : "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re) ** (Aistar (map \<Gamma> (rellocked (resources_re ers re))))} (resources_re ers re) {Post re};
+lemma ressafe_EvtSys : "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re)} (resources_re ers re) {Post re};
                          \<forall> re \<in> es. (Post re) \<sqsubseteq> Q;
                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<sqsubseteq> Pre re2\<rbrakk>
-                        \<Longrightarrow> \<forall>n s h. get_int_pre (s, h) es Pre \<longrightarrow> ressafe n (ers, (EvtSys es)) s h \<Gamma> Q"
+                        \<Longrightarrow> \<forall>n s h. get_int_pre (s, h) es Pre
+                             \<longrightarrow> ressafe n (ers, (EvtSys es)) s h \<Gamma> Q"
   apply (simp add: reCSL_def)
 proof(intro allI impI)
   fix n s h
-  assume a0: " \<forall>re\<in>es.
-          \<forall>n s h.
-             (\<exists>h1. (s, h1) \<Turnstile> Pre re \<and>
-                   (\<exists>h2. (s, h2) \<Turnstile> Aistar (map \<Gamma> (rellocked (resources_re ers re))) \<and> h = h1 ++ h2 \<and> disjoint (dom h1) (dom h2))) \<longrightarrow>
-             resafe n (resources_re ers re) s h \<Gamma> (Post re)"
+  assume a0: "  \<forall>re\<in>es. user_revent (resources_re ers re) \<and>
+          (\<forall>n s h. (s, h) \<Turnstile> Pre re \<longrightarrow> resafe n (resources_re ers re) s h \<Gamma> (Post re))"
   and    a1: "\<forall>re\<in>es. Post re \<sqsubseteq> Q"
   and    a2: "\<forall>a b aa ba. (a, b) \<in> es \<and> (aa, ba) \<in> es \<longrightarrow> Post (a, b) \<sqsubseteq> Pre (aa, ba)"
   and    a3: "get_int_pre (s, h) es Pre"
@@ -472,30 +493,27 @@ proof(intro allI impI)
     apply (rule conjI)
      apply (simp add: reaccesses_def resaccesses_def)
     apply (clarify, erule resred.cases, simp_all)
-    apply (simp add: resllocked_def, clarify, rule_tac x = "ha ++ hJ" in exI, clarsimp)
-  proof-
-    fix n ha hJ hF rs e ab
-    assume a00: "(\<And>s h. get_int_pre (s, h) es Pre \<Longrightarrow> ressafe n (ers, EvtSys es) s h \<Gamma> Q)"
-    and    a01: "get_int_pre (ab, ha) es Pre"
-    and    a02: "(ab, hJ) \<Turnstile> Aistar (map \<Gamma> (rellocked (ers @ rs, e)))"
-    and    a03: "disjoint (dom ha) (dom hJ)"
-    and    a04: "(rs, e) \<in> es"
-    then have "(ab, ha) \<Turnstile> Pre (rs,e)"
-      by (simp add: get_int_pre_def)
-    with a0  have "resafe n (resources_re ers (rs, e)) ab (ha ++ hJ) \<Gamma> (Post (rs, e))"
-      using a02 a03 a04 resources_re_def by fastforce
-    then have "resafe n (ers @ rs, e) ab (ha ++ hJ) \<Gamma> (Post (rs, e))"
-      by (simp add: resources_re_def)
-    with a2 have "\<forall>re \<in> es. \<forall>\<sigma>. \<sigma> \<Turnstile> Post re \<longrightarrow> get_int_pre \<sigma> es Pre"
-      using get_int_pre_def implies_def by auto
-    then have "\<forall>s' h'. (s', h') \<Turnstile> Post (rs, e)  \<longrightarrow>  ressafe n (ers, EvtSys es) s' h' \<Gamma> Q"
-      using a00 a04 by blast
-    then have "\<forall>m s' h'. m\<le> n \<and> (s', h') \<Turnstile> Post (rs, e) \<longrightarrow> ressafe m (ers, EvtSys es) s' h' \<Gamma> Q"
-      using ressafe_mon by blast
-    then show "ressafe n (ers, EvtSeq (ers @ rs, e) (EvtSys es)) ab (ha ++ hJ) \<Gamma> Q"
-      using \<open>resafe n (ers @ rs, e) ab (ha ++ hJ) \<Gamma> (Post (rs, e))\<close> ressafe_EvtSeq' by auto
-  qed
+    apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def)
+    apply (subgoal_tac "user_event e")
+    apply (rule_tac x = "ha" in exI, clarsimp)
+    apply (rule_tac Q = "Post (rs, e)" in ressafe_EvtSeq)
+      apply (subgoal_tac "(ab, ha) \<Turnstile> Pre (rs, e)")
+       apply auto[1]
+      apply (simp add: get_int_pre_def)
+     apply (clarsimp, drule_tac a = "s'" and b = "h'" in mall2_impD)
+      apply (metis a2 pre_conj prod.exhaust_sel)
+    using ressafe_mon apply blast
+    by auto
 qed
+
+theorem rule_rEvtSys :  "\<lbrakk>\<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re)} (resources_re ers re) {Post re};
+                         \<forall> re \<in> es. (Post re) \<sqsubseteq> Q; \<forall> re \<in> es. P \<sqsubseteq> (Pre re); 
+                         \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<sqsubseteq> Pre re2\<rbrakk>
+                        \<Longrightarrow>  \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P} (ers, (EvtSys es)) {Q}"
+  apply (simp add: resCSL_def)
+  apply (rule conjI, simp add: reCSL_def resources_re_def user_resys_def user_revent_def)
+  apply (clarsimp, drule ressafe_EvtSys, simp_all)
+  by (simp add: pre_conj)
 
 lemma ressafe_conseq : "\<lbrakk> ressafe n res s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> ressafe n res s h \<Gamma> Q'"
   apply (induct n arbitrary: res s h, simp)
@@ -523,22 +541,17 @@ primrec
   where
   "pessafe 0 pes s h \<Gamma> Q = True"
 | "pessafe (Suc n) pes s h \<Gamma> Q =  (
-             (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> pesaborts pes (s, h ++ hF))
-            \<and> (\<forall>hJ hF pes' \<sigma>'. 
-                  pesred pes (s, h ++ hJ ++ hF) pes' \<sigma>'
-                \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (pesllocked pes') (pesllocked pes)
-                \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
-                \<longrightarrow> (\<exists>h' hJ'.
-                        snd \<sigma>' = h' ++ hJ' ++ hF
-                      \<and> disjoint (dom h') (dom hJ') \<and> disjoint (dom h') (dom hF) \<and> disjoint (dom hJ') (dom hF)
-                      \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (pesllocked pes) (pesllocked pes')
-                      \<and> pessafe n pes' (fst \<sigma>') h' \<Gamma> Q)))"
+ (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> pesaborts pes (s, h ++ hF))
+\<and> (\<forall>hJ hF pes' \<sigma>'. 
+      pesred pes (s, h ++ hJ ++ hF) pes' \<sigma>'
+    \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (pesllocked pes') (pesllocked pes)
+    \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
+    \<longrightarrow> (\<exists>h' hJ'.
+            snd \<sigma>' = h' ++ hJ' ++ hF
+          \<and> disjoint (dom h') (dom hJ') \<and> disjoint (dom h') (dom hF) \<and> disjoint (dom hJ') (dom hF)
+          \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (pesllocked pes) (pesllocked pes')
+          \<and> pessafe n pes' (fst \<sigma>') h' \<Gamma> Q)))"
 
-definition 
-  pesCSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> paresys \<Rightarrow> assn \<Rightarrow> bool" 
-  ("_ \<turnstile>\<^sub>p\<^sub>e\<^sub>s { _ } _ { _ }")
-  where
-    "\<Gamma> \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q} \<equiv> \<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> pessafe n pes s h \<Gamma> Q"
 
 primrec hplus_list :: "heap list \<Rightarrow> heap"
   where
@@ -555,7 +568,8 @@ lemma hplus_list_expand : "\<lbrakk> \<forall>x y. x \<in> set l \<and> y \<in> 
    apply (simp add: map_add_assoc map_add_commute)
   by simp
 
-lemma disjoint_hplus_list : " disjoint (dom (hplus_list l)) (dom h) \<longleftrightarrow> (\<forall>r \<in> set l.  disjoint (dom r) (dom h))"
+lemma disjoint_hplus_list : " disjoint (dom (hplus_list l)) (dom h)
+                       \<longleftrightarrow> (\<forall>r \<in> set l.  disjoint (dom r) (dom h))"
 proof
   assume a0 :"disjoint (dom (hplus_list l)) (dom h)"
   then show  "(\<forall>r\<in>set l. disjoint (dom r) (dom h))"
@@ -569,7 +583,8 @@ qed
 primrec disjoint_heap_with_list :: "heap \<Rightarrow> heap list \<Rightarrow> bool"
   where
     "disjoint_heap_with_list h [] = True"                              
-  | "disjoint_heap_with_list h (x # xs) = (disjoint (dom h) (dom x) \<and> disjoint_heap_with_list h xs)"
+  | "disjoint_heap_with_list h (x # xs) = 
+    (disjoint (dom h) (dom x) \<and> disjoint_heap_with_list h xs)"
 
 lemma disjoint_heap_with_equiv1 : "disjoint_heap_with_list a l 
                                \<longleftrightarrow> (\<forall>x \<in> set l. disjoint (dom a) (dom x))"
@@ -626,7 +641,8 @@ next
   show ?case
     apply (auto simp add: Cons nth_Cons split: nat.split_asm)
       apply (metis (no_types, lifting) disjoint_hplus_list1 
-              Nitpick.case_nat_unfold One_nat_def Suc_pred disjoint_with_hplus disjoint_search(1) less_Suc0 not_less_eq)
+              Nitpick.case_nat_unfold One_nat_def Suc_pred 
+              disjoint_with_hplus disjoint_search(1) less_Suc0 not_less_eq)
      apply (metis disjoint_heap_with_equiv2 not_less_eq not_less_zero)
     by blast
 qed
@@ -656,10 +672,12 @@ proof-
     by (simp add: a3 map_add_left_commute)
 qed
 
-lemma disjoint_locked_heap_update : "\<lbrakk> \<forall>k'. k' < length l \<and> k' \<noteq> k \<longrightarrow> disjoint (dom x) (dom (l ! k'));
+lemma disjoint_locked_heap_update : 
+        "\<lbrakk> \<forall>k'. k' < length l \<and> k' \<noteq> k \<longrightarrow> disjoint (dom x) (dom (l ! k'));
         disjoint_heap_list l ; k < length l; l' = l[k := x] \<rbrakk>
     \<Longrightarrow> disjoint_heap_list l'"
-  by (metis disjoint_list_equiv disjoint_search(1) length_list_update nth_list_update_eq nth_list_update_neq)
+  by (metis disjoint_list_equiv disjoint_search(1) length_list_update 
+      nth_list_update_eq nth_list_update_neq)
 
 lemma disjoint_locked_heap_update1 : "\<lbrakk> disjoint (dom x) (dom (hplus_list (l[k := Map.empty])));
         disjoint_heap_list l ; k < length l; l' = l[k := x] \<rbrakk>
@@ -786,23 +804,31 @@ lemma disjoint_with_drop : "\<lbrakk> disjoint_locked_list l; k < length l\<rbra
 
 lemma disjoint_between_take_drop : "\<lbrakk> disjoint_locked_list l; k < length l\<rbrakk> \<Longrightarrow>
                             disjoint_locked_between_list (take k l) (drop (Suc k) l)"
-  by (simp add: disjoint_locked_list_equiv disjoint_locked_between_equiv2 disjoint_locked_with_equiv2)
+  by (simp add: disjoint_locked_list_equiv 
+          disjoint_locked_between_equiv2 disjoint_locked_with_equiv2)
 
 lemma envs_app' : "disjoint (set a) (set b) \<Longrightarrow> disjoint (set a) (set c) \<Longrightarrow> disjoint (set b) (set c)
     \<Longrightarrow> envs \<Gamma> (a @ b @ c) (a @ b' @ c) = envs \<Gamma> b b'"
   by (simp add: envs_app(1) envs_app(2))
 
-lemma disjoint_locked_list_update : "\<lbrakk> \<forall>k'. k' < length l \<and> k' \<noteq> k \<longrightarrow> disjoint (reslocked re) (reslocked (l ! k'));
+lemma disjoint_locked_list_update : 
+        "\<lbrakk> \<forall>k'. k' < length l \<and> k' \<noteq> k \<longrightarrow> disjoint (reslocked re) (reslocked (l ! k'));
         disjoint_locked_list l ; k < length l \<rbrakk>
     \<Longrightarrow> disjoint_locked_list (l [k := re])"
-  by (smt disjoint_locked_list_equiv disjoint_search(1) length_list_update nth_list_update_eq nth_list_update_neq)
+  apply (simp add: disjoint_locked_list_equiv, clarify)
+  apply (case_tac "k1 = k", simp)
+  apply (case_tac "k2 = k")
+   apply auto[1]
+  by simp
 
-lemma pesllocked_cancel : "\<lbrakk>disjoint_locked_list pes; pes ! k = res; pes' = pes[k := res']; k < length pes\<rbrakk>
+lemma pesllocked_cancel : "\<lbrakk>disjoint_locked_list pes; pes ! k = res;
+             pes' = pes[k := res']; k < length pes\<rbrakk>
         \<Longrightarrow> envs \<Gamma> (pesllocked pes) (pesllocked pes')
           = envs \<Gamma> (resllocked res) (resllocked res')"
   apply (simp add: peslocked_split)
   apply (rule envs_app')
-    apply (metis disjoint_locked_with_property disjoint_search(1) disjoint_with_take peslocked_def reslocked_eq)
+    apply (metis disjoint_locked_with_property disjoint_search(1)
+              disjoint_with_take peslocked_def reslocked_eq)
    apply (simp add: peslocked_eq disjoint_between_take_drop disjoint_locked_between_property)
   by (metis disjoint_locked_with_property disjoint_with_drop peslocked_def reslocked_eq)
 
@@ -862,10 +888,46 @@ lemma pessafe:
      apply auto[1] apply auto[1]
    apply simp
   apply (subgoal_tac "h' ++ hplus_list (hs[k := Map.empty]) = hplus_list (hs[k := h'])", simp)
-  by (metis disjoint_locked_heap_update1 hplus_list_exchange length_list_update list_update_overwrite nth_list_update_eq)
+  by (metis disjoint_locked_heap_update1 hplus_list_exchange 
+        length_list_update list_update_overwrite nth_list_update_eq)
 
+primrec user_pesys :: "paresys \<Rightarrow> bool"
+  where "user_pesys [] = True"
+  |     "user_pesys (x # xs) = ((user_resys x) \<and> (user_pesys xs))"
 
-lemma K1 : "(s, h) \<Turnstile> Aistar Ps \<Longrightarrow> (\<exists>hs. length hs = length Ps  \<and> disjoint_heap_list hs 
+primrec wf_pesys :: "paresys \<Rightarrow> bool"
+  where "wf_pesys [] = True"
+  |     "wf_pesys (x # xs) = ((wf_resys x) \<and> (wf_pesys xs) \<and> 
+    (disjoint_locked_list (x # xs)))"
+
+lemma wf_peslocked : "wf_pesys pes \<Longrightarrow> disjoint_locked_list pes"
+  by (induct pes, simp, simp)
+
+lemma user_pesysD : "user_pesys pes \<Longrightarrow> wf_pesys pes \<and> peslocked pes = {}"
+  apply (induct pes, simp add: empty_peslock)
+  apply (rule conjI, simp add: wf_pesys.simps)
+   apply (rule conjI, simp add: user_resysD)
+   apply (metis disjoint_locked_list.simps(1) disjoint_locked_with_equiv1 disjoint_simps(1) 
+          list.exhaust user_resysD wf_pesys.simps(2))
+  by (simp add: induct_peslock user_resysD)
+
+lemma user_pesys_wf[intro] : "user_pesys pes \<Longrightarrow> wf_pesys pes"
+  by (drule user_pesysD, simp)
+
+lemma user_pesys_llocked[simp]: "user_pesys pes \<Longrightarrow> pesllocked pes = []"
+  by (drule user_pesysD, simp add: peslocked_def)
+
+lemma user_pesysI[simp] : "\<forall>k < length pes. user_resys (pes ! k) \<Longrightarrow> user_pesys pes"
+  apply (induct pes, simp)
+  by force
+
+definition 
+  pesCSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> paresys \<Rightarrow> assn \<Rightarrow> bool" 
+  ("_ \<turnstile>\<^sub>p\<^sub>e\<^sub>s { _ } _ { _ }")
+  where
+    "\<Gamma> \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q} \<equiv> (user_pesys pes) \<and> (\<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> pessafe n pes s h \<Gamma> Q)"
+
+lemma split_Aistar : "(s, h) \<Turnstile> Aistar Ps \<Longrightarrow> (\<exists>hs. length hs = length Ps  \<and> disjoint_heap_list hs 
                           \<and> (\<forall>k < length Ps. (s, hs ! k) \<Turnstile> Ps ! k ) \<and> hplus_list hs = h)" 
   apply (induct Ps arbitrary: s h, simp, clarsimp)
   apply (drule mall2_impD, simp, clarsimp)
@@ -874,17 +936,156 @@ lemma K1 : "(s, h) \<Turnstile> Aistar Ps \<Longrightarrow> (\<exists>hs. length
   using disjoint_heap_with_equiv2 disjoint_hplus_list1 disjoint_search(1) apply blast
   using less_Suc_eq_0_disj by auto
 
-theorem rule_pes : "  \<forall>k. k < length pes \<longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s  {Ps ! k} (pes ! k) {Qs ! k} \<Longrightarrow> \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
-          \<longrightarrow> disjoint (fvREsv (pes ! k1) \<union> fvA (Qs ! k1) \<union> fvAs \<Gamma>) (wrREsv (pes ! k2))  \<Longrightarrow> disjoint_locked_list pes \<Longrightarrow> length pes = length Ps \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {Aistar Ps} pes {Aistar Qs}"
+theorem rule_pes : " \<lbrakk>\<forall>k. k < length pes \<longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s  {Ps ! k} (pes ! k) {Qs ! k};
+                  \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
+                  \<longrightarrow> disjoint (fvREsv (pes ! k1) \<union> fvA (Qs ! k1) \<union> fvAs \<Gamma>) (wrREsv (pes ! k2));
+                  length pes = length Ps \<rbrakk> 
+                  \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {Aistar Ps} pes {Aistar Qs}"
   apply (simp add: resCSL_def pesCSL_def, clarify)
-  apply (drule K1, clarify)
+  apply (drule split_Aistar, clarify)
   apply (rule pessafe, simp_all)
+  apply (simp add: user_pesysD wf_peslocked)
   by blast
 
-corollary "\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1} res1 {Q1} \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P2} res2 {Q2} \<Longrightarrow> disjoint ((fvResv res1) \<union> fvA Q1 \<union> fvAs \<Gamma>) (wrREsv res2)
-        \<Longrightarrow> disjoint ((fvResv res2) \<union> fvA Q1 \<union> fvAs \<Gamma>) (wrREsv res1) \<Longrightarrow> dis"
-  sorry
+lemma pessafe_conseq : "\<lbrakk> pessafe n pes s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> pessafe n pes s h \<Gamma> Q'"
+    apply (induct n arbitrary: pes s h, simp)
+  apply (clarsimp, simp add : implies_def)
+  apply (erule pesred.cases, simp_all, clarsimp)
+  apply (drule_tac a = "hJ" and b = "hF" and c = "pesa[k := (ac, bc)]" 
+          and d = "ad" and e = "bd" in all5_impD)
+  using pesred.red_Par apply blast
+   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
+  done
 
+theorem rule_pesconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P'} pes {Q'} \<rbrakk> \<Longrightarrow>  \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q}"
+  apply (simp add: pesCSL_def)
+  using implies_def pessafe_conseq by blast
+
+corollary rule_pes2' : "\<lbrakk>\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1} res1 {Q1} ; \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P2} res2 {Q2};
+           disjoint ((fvREsv res1) \<union> fvA Q1 \<union> fvAs \<Gamma>) (wrREsv res2);
+           disjoint ((fvREsv res2) \<union> fvA Q2 \<union> fvAs \<Gamma>) (wrREsv res1)\<rbrakk>
+           \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {Aistar [P1, P2]} [res1, res2] {Aistar [Q1, Q2]}"
+  apply (rule rule_pes, simp_all add: less_Suc_eq)
+  by auto
+
+corollary rule_pes2 : "\<lbrakk>\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1} res1 {Q1} ; \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P2} res2 {Q2};
+           disjoint ((fvREsv res1) \<union> fvA Q1 \<union> fvAs \<Gamma>) (wrREsv res2);
+           disjoint ((fvREsv res2) \<union> fvA Q2 \<union> fvAs \<Gamma>) (wrREsv res1)\<rbrakk>
+           \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P1 ** P2} [res1, res2] {Q1 ** Q2}"
+  apply (rule_tac P' = "Aistar [P1, P2]" and Q' = "Aistar [Q1, Q2]" in rule_pesconseq)
+    apply (simp add: implies_def)
+   apply (simp add: implies_def)
+  using rule_pes2' by auto
+
+primrec 
+  rpessafe :: "nat \<Rightarrow> rparesys \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> bool"
+  where
+  "rpessafe 0 rpes s h \<Gamma> Q = True"
+| "rpessafe (Suc n) rpes s h \<Gamma> Q =  (
+ (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> rpesaborts rpes (s, h ++ hF))
+\<and> (\<forall>hJ hF rpes' \<sigma>'. 
+      rpesred rpes (s, h ++ hJ ++ hF) rpes' \<sigma>'
+    \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (rpesllocked rpes') (rpesllocked rpes)
+    \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
+    \<longrightarrow> (\<exists>h' hJ'.
+            snd \<sigma>' = h' ++ hJ' ++ hF
+          \<and> disjoint (dom h') (dom hJ') \<and> disjoint (dom h') (dom hF) \<and> disjoint (dom hJ') (dom hF)
+          \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (rpesllocked rpes) (rpesllocked rpes')
+          \<and> rpessafe n rpes' (fst \<sigma>') h' \<Gamma> Q)))"
+
+definition user_rpesys :: "rparesys \<Rightarrow> bool"
+  where "user_rpesys rpes = user_pesys (resources_pes (fst rpes) (snd rpes))"
+
+definition wf_rpesys :: "rparesys \<Rightarrow> bool"
+  where "wf_rpesys rpes = wf_pesys (resources_pes (fst rpes) (snd rpes))"
+
+lemma user_rpesys_equiv: "user_pesys (resources_pes rs pes) \<Longrightarrow>  user_rpesys (rs, pes)"
+  by (simp add: user_rpesys_def)
+
+lemma wf_rpesys_equiv: "wf_pesys (resources_pes rs pes) \<Longrightarrow>  wf_rpesys (rs, pes)"
+  by (simp add: wf_rpesys_def)
+
+definition 
+  rpesCSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> rparesys \<Rightarrow> assn \<Rightarrow> bool" 
+  ("_ \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s { _ } _ { _ }")
+  where
+    "\<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P} rpes {Q} \<equiv> (user_rpesys rpes) \<and> (\<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> rpessafe n rpes s h \<Gamma> Q)"
+
+lemma res_pes_update : "k < length pesa \<Longrightarrow>
+      resources_pes pres pesa[k := (pres @ ers, es)] = resources_pes pres (pesa[k := (ers, es)])"
+  apply (induct pesa arbitrary: k, simp)
+  apply (case_tac "k", simp add: resources_res_def)
+  apply (simp add: list_update_code)
+  done
+
+lemma rpes_equiv : 
+  "pessafe n (resources_pes rs pes) s h \<Gamma> Q \<Longrightarrow> rpessafe n (rs, pes) s h \<Gamma> Q"
+  apply (induct n arbitrary : pes s h, simp, clarsimp)
+  apply (rule conjI, simp add: rpesaborts_def)
+  apply (clarsimp, erule rpesred.cases, simp)
+  apply (drule_tac a = "hJ" and b = "hF" and c = "resources_pes pres pesa[k := (pres @ ers, es')]" 
+        and d = "aa" and e = "ba" in all5_impD, simp)
+   apply (rule pesred.red_Par, simp, simp)
+    apply (simp add: res_pes_property resources_res_def)
+   apply (simp add: res_pes_property resources_res_def)
+  apply (drule imp2D, simp add: rpesllocked_def)
+    apply (simp add: res_pes_update, simp, clarsimp)
+  apply (rule_tac x = "h'" and y = "hJ'" in ex2I, clarsimp)
+  apply (simp add: rpesllocked_def res_pes_update)
+  done
+
+theorem rule_rpes1 : " \<lbrakk>\<forall>k. k < length pes \<longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s  {Ps ! k} (resources_res rs) (pes ! k) {Qs ! k};
+                  \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
+                  \<longrightarrow> disjoint (fvREsv (pes ! k1) \<union> fvA (Qs ! k1) \<union> fvAs \<Gamma>) (wrREsv (pes ! k2));
+                  length pes = length Ps \<rbrakk> 
+                  \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {Aistar Ps} (resources_pes rs pes) {Aistar Qs}"
+  apply (rule rule_pes, simp_all, clarify)
+   apply (simp add: res_pes_property)
+  using res_pes_property by auto
+
+theorem rule_rpes : " \<lbrakk>\<forall>k. k < length pes \<longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s  {Ps ! k} (resources_res rs) (pes ! k) {Qs ! k};
+                  \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
+                  \<longrightarrow> disjoint (fvREsv (pes ! k1) \<union> fvA (Qs ! k1) \<union> fvAs \<Gamma>) (wrREsv (pes ! k2));
+                  length pes = length Ps \<rbrakk> 
+                  \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {Aistar Ps} (rs, pes) {Aistar Qs}"
+  apply (drule rule_rpes1, simp_all)
+   apply auto[1]
+  apply (simp add: pesCSL_def rpesCSL_def rpes_equiv user_rpesys_equiv)
+  done
+
+lemma rpessafe_conseq : "\<lbrakk> rpessafe n (rs, pes) s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> rpessafe n (rs, pes) s h \<Gamma> Q'"
+    apply (induct n arbitrary: pes s h, simp)
+  apply (clarsimp, simp add : implies_def)
+  apply (erule rpesred.cases, simp_all, clarsimp)
+  apply (drule_tac a = "hJ" and b = "hF" and  c = "rs" and 
+          d = "pesa[k := (ers, es')]" and e = "ac" and f = "bc" in all6_impD)
+  using rpesred.red_Par apply blast
+   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
+  done
+
+theorem rule_rpesconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P'} rpes {Q'} \<rbrakk> \<Longrightarrow>  \<Gamma>  \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P} rpes {Q}"
+  apply (simp add: rpesCSL_def)
+  by (metis implies_def rpessafe_conseq surj_pair)
+
+corollary rule_rpes2' : "\<lbrakk>\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1} (resources_res rs res1) {Q1} ; 
+                         \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P2} (resources_res rs res2) {Q2};
+           disjoint ((fvREsv res1) \<union> fvA Q1 \<union> fvAs \<Gamma>) (wrREsv res2);
+           disjoint ((fvREsv res2) \<union> fvA Q2 \<union> fvAs \<Gamma>) (wrREsv res1)\<rbrakk>
+           \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P1 ** P2} (resources_pes rs [res1, res2]) {Q1 ** Q2}"
+  apply (rule_tac P' = "Aistar [P1, P2]" and Q' = "Aistar [Q1, Q2]" in rule_pesconseq)
+    apply (simp add: implies_def)
+   apply (simp add: implies_def)
+  using rule_pes2' by auto
+
+corollary rule_rpes2 : "\<lbrakk>\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1} (resources_res rs res1) {Q1} ; 
+                         \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P2} (resources_res rs res2) {Q2};
+           disjoint ((fvREsv res1) \<union> fvA Q1 \<union> fvAs \<Gamma>) (wrREsv res2);
+           disjoint ((fvREsv res2) \<union> fvA Q2 \<union> fvAs \<Gamma>) (wrREsv res1)\<rbrakk>
+           \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2} (rs, [res1, res2]) {Q1 ** Q2}"
+  apply (drule rule_rpes2', simp_all)
+   apply auto[1]
+  apply (simp add: pesCSL_def rpesCSL_def rpes_equiv user_rpesys_equiv)
+  done
 
 end
 

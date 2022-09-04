@@ -14,6 +14,7 @@ lemma all2D: " \<lbrakk> \<forall>a b. P a b \<rbrakk> \<Longrightarrow> P a b" 
 lemma all3D: " \<lbrakk> \<forall>a b c. P a b c \<rbrakk> \<Longrightarrow> P a b c" by (erule allE)+
 lemma all4D: " \<lbrakk> \<forall>a b c d. P a b c d \<rbrakk> \<Longrightarrow> P a b c d" by (erule allE)+
 lemma all5D: " \<lbrakk> \<forall>a b c d e. P a b c d e \<rbrakk> \<Longrightarrow> P a b c d e" by (erule allE)+
+lemma all6D: " \<lbrakk> \<forall>a b c d e f. P a b c d e f\<rbrakk> \<Longrightarrow> P a b c d e f" by (erule allE)+
 (* added by Huan *)
 lemma all2DtoD : " \<lbrakk> \<forall>a b. P a b\<rbrakk> \<Longrightarrow> \<forall>b. P a b" by simp
 lemma all4Dto3D: " \<lbrakk> \<forall>a b c d. P a b c d \<rbrakk> \<Longrightarrow> \<forall>b c d. P a b c d" by simp
@@ -23,6 +24,7 @@ lemma all2_impD: "\<lbrakk> \<forall>a b. P a b \<longrightarrow> Q a b; P a b \
 lemma all3_impD: "\<lbrakk> \<forall>a b c. P a b c \<longrightarrow> Q a b c; P a b c \<rbrakk>\<Longrightarrow> Q a b c"  by (drule allD mp)+
 lemma all4_impD: "\<lbrakk> \<forall>a b c d. P a b c d \<longrightarrow> Q a b c d; P a b c d \<rbrakk>\<Longrightarrow> Q a b c d"  by (drule allD mp)+
 lemma all5_impD: "\<lbrakk> \<forall>a b c d e. P a b c d e \<longrightarrow> Q a b c d e; P a b c d e \<rbrakk>\<Longrightarrow> Q a b c d e"  by (drule allD mp)+
+lemma all6_impD: "\<lbrakk> \<forall>a b c d e f. P a b c d e f\<longrightarrow> Q a b c d e f; P a b c d e f\<rbrakk>\<Longrightarrow> Q a b c d e f"  by (drule allD mp)+
 
 lemma imp2D: "\<lbrakk> P \<longrightarrow> Q \<longrightarrow> R; P; Q \<rbrakk> \<Longrightarrow> R" by (drule (1) mp)+ 
 lemma all_imp2D: "\<lbrakk> \<forall>a. P a \<longrightarrow> Q a \<longrightarrow> R a; P a; Q a \<rbrakk>\<Longrightarrow> R a"  by (drule allD | drule (1) mp)+
@@ -237,6 +239,8 @@ lemma list_minus_removeAll_irr:
 by (induct y, simp_all add: removeAllC, clarify)
    (subst list_minus_removeAll2 [THEN sym], simp)
 
+lemma distinct_list_minus: "distinct l \<Longrightarrow> distinct (list_minus l r)"
+  by (induct r, auto simp add: list_minus_def distinct_removeAll)
 subsubsection {* Formalization of map Add by Sun*}
 
 lemma map_set_property : " \<forall>re. re \<in> set l \<longrightarrow> P (\<Gamma> re) \<Longrightarrow> \<forall>r. r \<in> set (map \<Gamma> l) \<longrightarrow> P r "

@@ -1,5 +1,5 @@
 theory RGSepSound
-  imports CSLsound
+  imports CSLsound Event_Safe
 begin
 subsection {* state definition *}
 type_synonym localVariable = "heap"
@@ -73,15 +73,6 @@ the resulting configuration remains safe for another n steps, and
 (v) after any step it does, re-establish the resource invariant and be safe for 
 another n steps.
 *}
-
-
-primrec hplus_list :: "heap list \<Rightarrow> heap"
-  where
-    "hplus_list     [] = Map.empty"
-  | "hplus_list (x # l)  =  x ++ (hplus_list l)"
-
-
-
 
 lemma disjoint_hplus_list : "\<forall>r. r\<in> set l \<longrightarrow> disjoint (dom h) (dom r) \<Longrightarrow> disjoint (dom h) (dom (hplus_list l))"
                             "\<forall>r. r\<in> set l \<longrightarrow> disjoint (dom h) (dom r) \<Longrightarrow> disjoint (dom (hplus_list l)) (dom h)"
@@ -267,6 +258,9 @@ theorem RGrule_skip:
 definition RGUnion :: "rely \<Rightarrow> rely \<Rightarrow> rely" 
   where "RGUnion R G r \<equiv>  (R r) \<union> (G r) "
 
+definition RGInter :: "rely \<Rightarrow> rely \<Rightarrow> rely" 
+  where "RGInter R G r \<equiv>  (R r) \<inter> (G r) "
+
 lemma locked_diff : "disjoint (set (llocked C2)) (set (llocked C1')) \<Longrightarrow> \<forall>r. r \<in> set (llocked C1') \<and> r \<notin> set (llocked C1) 
       \<longrightarrow> (r \<in> set (llocked C1') \<or> r \<in> set (llocked C2)) \<and> r \<notin> set (llocked C1) \<and> r \<notin> set (llocked C2)"
   by (metis Set.set_insert disjoint_def disjoint_insert(1))
@@ -316,7 +310,7 @@ lemma RGsafe_par:
   apply (rule conjI, erule order_trans, simp)+
 (*rely *)
   apply(rule conjI, simp add: RGUnion_def)
-(* step *)
+(* step *)                       
   apply (clarsimp, erule red_par_cases)
 (* C1 does a step *)
     apply (clarify, drule_tac a = "h2 ++ hF" and b = "C1'" and c = "a" and d = "b" in all4_impD)
@@ -785,6 +779,37 @@ apply (clarsimp, erule red.cases, simp_all)
   apply (clarify, drule (1) all4_impD, clarsimp)
   by (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp)
 
+definition Stable_State :: "rgsep_assn \<Rightarrow> RGstate \<Rightarrow> rely \<Rightarrow> bool"
+  where " Stable_State P \<sigma> R = (
+    \<forall>s h \<Gamma>. \<sigma> = (s, h, \<Gamma>) \<longrightarrow> (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P \<and> (
+    \<forall>\<Gamma>'. (\<forall>r. \<Gamma> r \<noteq> \<Gamma>' r \<longrightarrow> (\<Gamma> r, \<Gamma>' r) \<in> R r \<and> disjoint (dom h) (dom (\<Gamma>' r))) 
+    \<longrightarrow> (s, h, \<Gamma>') \<^sup>\<Turnstile>rgsep P
+)
+)"
+
+lemma RGsafe_seq' :
+"\<lbrakk>rgsep_safe n C s h \<Gamma> Rely Guar Q; user_cmd C2;
+  \<forall>m s' h' \<Gamma>'. m \<le> n \<and> (s', h', \<Gamma>')  \<^sup>\<Turnstile>rgsep  Q \<and> (Stable_State Q (s', h', \<Gamma>') Rely) 
+     \<longrightarrow> rgsep_safe m C2 s' h' \<Gamma>' Rely Guar R \<rbrakk>
+  \<Longrightarrow> rgsep_safe n (Cseq C C2) s h \<Gamma> Rely Guar R"
+  apply (induct n arbitrary: C s h \<Gamma> Q, simp, clarsimp)
+(* no abort *)
+  apply (rule conjI, clarsimp)
+   apply (erule aborts.cases, simp_all, clarsimp)
+(* rely *)
+  apply (rule conjI, clarsimp)
+  apply (metis le_Suc_eq)
+apply (clarsimp, erule red.cases, simp_all)
+(* seq1 *)
+   apply (rule_tac x = "h" in exI, clarsimp)
+   apply (rule_tac x = "\<Gamma>" in exI, simp)
+  apply (case_tac n, simp, simp)
+   apply (drule_tac a = "n" and b = "aa" and c = "h" and d = "\<Gamma>" in all4_impD)
+    apply (simp add: Stable_State_def, clarsimp)
+(* seq2 *)
+  apply (clarify, drule (1) all4_impD, clarsimp)
+  by (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp)
+
 theorem RGrule_seq:
 " \<lbrakk>Rely , Guar  \<^sup>\<turnstile>rgsep {P} C1 {Q} ; Rely , Guar  \<^sup>\<turnstile>rgsep {Q} C2 {R} \<rbrakk>
   \<Longrightarrow> Rely , Guar  \<^sup>\<turnstile>rgsep {P} Cseq C1 C2 {R}
@@ -932,6 +957,8 @@ theorem RGrule_disj:
   apply (intro impI)
   apply (rule_tac R = "R" and G = "G" and Q = "Q2" in RGsafe_conseq, simp_all add: rgsep_implies_def RGsubset_def)
   done
+
+
 
 
 end
