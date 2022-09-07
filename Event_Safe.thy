@@ -5,7 +5,7 @@ begin
 primrec user_event :: "event \<Rightarrow> bool"
   where "user_event (AnonyEvent C) = user_cmd C"
   |     "user_event (BasicEvent GC) = user_cmd (snd GC)"
-
+                                                                           
 primrec wf_event :: "event \<Rightarrow> bool"
   where "wf_event (AnonyEvent C) = wf_cmd C"
   |     "wf_event (BasicEvent GC) = wf_cmd (snd GC)"
@@ -204,7 +204,7 @@ definition
 lemma resafe_AnonyEvt: "esafe n (AnonyEvent C) s h \<Gamma> Q  \<Longrightarrow> resafe n (rs, (AnonyEvent C)) s h \<Gamma> Q"
   apply (induct n arbitrary: C s h, simp_all)
   apply (rule conjI)
-   apply (simp add: reaborts_def)
+   apply (simp add: reaborts_equiv)
   apply (rule conjI)
    apply (simp add: reaccesses_def)
   apply (clarify, erule rered.cases, simp_all, clarify)
@@ -223,7 +223,7 @@ theorem rule_rBasicEvt: "\<Gamma> \<turnstile> {Aconj P (Apure guard)} (Cresourc
   apply (simp add: reCSL_def CSL_def, clarsimp)
   apply (simp add: user_revent_def, clarsimp)
   apply (case_tac n, simp, simp)
-  apply (rule conjI, simp add: reaborts_def)
+  apply (rule conjI, simp add: reaborts_equiv)
   using eaborts.cases apply blast
   apply (rule conjI, simp add: reaccesses_def)
   apply (clarsimp, erule rered.cases, simp, simp add: rellocked_def, clarify)
@@ -351,16 +351,25 @@ proof(intro allI impI)
   and    a3 : "get_int_pre (s, h) es Pre"
   then show "essafe n (EvtSys es) s h \<Gamma> Q"
     apply (induct n arbitrary: s h, simp_all)
-    apply (rule conjI)
-     apply (meson esaborts.cases esys.simps(4))
-    apply (clarify, erule esred.cases, simp_all)
-    apply (rule_tac x = "ha" in exI, clarsimp)
+    apply (rule conjI, clarsimp)
+     apply (erule esaborts.cases, simp_all)
+     apply (drule_tac x = "re" in Set.bspec, simp) apply auto
+     apply (drule_tac a = "Suc 0" and b = "aa" and c = "ha" in all3_impD)
+    using get_int_pre_def apply blast 
+     apply (simp, erule esred.cases, simp_all)
+    apply (drule_tac x = "re" in Set.bspec) apply auto
+    apply (drule_tac a = "Suc n" and b = "ab" and c = "ha" in all3_impD)
+    using get_int_pre_def apply blast
+     apply (clarsimp, drule_tac a = "hJ" and b = "hF" and c = "ac" and d = "bc" 
+            and e = "ad" and f = "bd" in all6_impD, simp)
+     apply (drule imp2D, simp, simp, clarify)
+     apply (rule_tac x = "h'" in exI, simp)
     apply (rule_tac Q = "Post (aa, ba)" in essafe_EvtSeq)
-     apply (subgoal_tac "(ab, ha) \<Turnstile> Pre (aa, ba)", simp)
-     apply (simp add: get_int_pre_def)
-    apply (clarsimp, drule_tac a = "s'" and b = "h'" in mall2_impD)
+    apply blast apply (simp add: get_int_pre_def)
+      apply (clarsimp, drule_tac a = "s'" and b = "h'a" in mall2_impD)
     using get_int_pre_def implies_def apply auto[1]
-    using essafe_mon by blast
+    using essafe_mon apply auto[1]
+    done
 qed
 
 theorem rule_EvtSys :  "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re)} re {Post re};
@@ -385,7 +394,7 @@ lemma essafe_conseq : "\<lbrakk> essafe n es s h \<Gamma> Q; Q \<sqsubseteq> Q'\
    apply (drule_tac a = "hJ" and b = "hF" and c = "res" and d = "a" and e = "b" in all5_impD)
     apply (simp add: esred.red_EvtSeq2)
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-  apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq re (EvtSys revts)" and d = "a" 
+  apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq re' (EvtSys revts)" and d = "a" 
         and e = "b" in all5_impD)
    apply (simp add: esred.red_EvtSet)
   apply (clarsimp, rule_tac x = "h'" in exI, simp)
@@ -449,7 +458,7 @@ lemma ressafe_EvtSeq : "\<lbrakk>resafe n re s h \<Gamma> Q;
       \<Longrightarrow>  ressafe n (ers, (EvtSeq re esys)) s h \<Gamma> R"
   apply (induct n arbitrary: re s h, simp ,clarsimp)
   apply (rule conjI)
-   apply (simp add: esaborts.simps reaborts_def resaborts_def)
+   apply (simp add: esaborts.simps reaborts_equiv resaborts_equiv)
   apply (rule conjI)
    apply (simp add: reaccesses_def resaccesses_def)
   apply (clarsimp, erule resred.cases, simp_all)
@@ -489,21 +498,24 @@ proof(intro allI impI)
   then show "ressafe n (ers, EvtSys es) s h \<Gamma> Q"
     apply (induct n arbitrary: s h, simp_all)
     apply (rule conjI)
-     apply (simp add: esaborts.simps resaborts_def)
-    apply (rule conjI)
-     apply (simp add: reaccesses_def resaccesses_def)
+     apply (simp add: esaborts.simps resaborts_equiv, clarsimp)
+     apply (drule_tac x = "(a, b)" in Set.bspec, simp add: user_revent_def) apply auto[1] 
+      apply (drule_tac a = "Suc 0" and b = "sa" and c = "ha" in all3_impD)
+    using get_int_pre_def apply blast
+      apply (simp add: resources_re_aborts_equiv)
+    apply (rule conjI, simp add: reaccesses_def resaccesses_def)
     apply (clarify, erule resred.cases, simp_all)
     apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def)
-    apply (subgoal_tac "user_event e")
-    apply (rule_tac x = "ha" in exI, clarsimp)
-    apply (rule_tac Q = "Post (rs, e)" in ressafe_EvtSeq)
-      apply (subgoal_tac "(ab, ha) \<Turnstile> Pre (rs, e)")
-       apply auto[1]
-      apply (simp add: get_int_pre_def)
-     apply (clarsimp, drule_tac a = "s'" and b = "h'" in mall2_impD)
-      apply (metis a2 pre_conj prod.exhaust_sel)
-    using ressafe_mon apply blast
-    by auto
+    apply (frule_tac x = "(rs, e)" in Set.bspec, simp) apply auto
+    apply (frule_tac a = "Suc n" and b = "ac" and c = "ha" in all3_impD)
+    using get_int_pre_def apply blast 
+    apply (clarsimp, drule_tac a = "hJ" and b = "hF" and c = "ers @ rs" and d = "e'"
+              and e = "ad" and f = "bd" in all6_impD, simp)
+    apply (drule imp2D, simp add: rellocked_def, simp, simp add: rellocked_def, clarify)
+    apply (rule_tac x = "h'" in exI, simp)
+    apply (rule_tac Q = "Post (rs, e)" in ressafe_EvtSeq', simp)
+      apply (simp add: user_esys_def user_revent_def)
+    by (metis pre_conj prod.collapse ressafe_mon)
 qed
 
 theorem rule_rEvtSys :  "\<lbrakk>\<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re)} (resources_re ers re) {Post re};
@@ -526,9 +538,9 @@ lemma ressafe_conseq : "\<lbrakk> ressafe n res s h \<Gamma> Q; Q \<sqsubseteq> 
    apply (clarsimp, drule_tac a = "hJ" and b = "hF" and c = "ers" 
           and d = "res" and e = "ad" and f = "h ++ hJ ++ hF" in all6_impD)
     apply (simp add: resred.red_EvtSeq2)
-   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-  apply (clarsimp, drule_tac a = "hJ" and b = "hF" and c = "ers" and 
-        d = "EvtSeq (ers @ rs, e) (EvtSys revts)" and e = "ac" and f = "h ++ hJ ++ hF" in all6_impD)
+   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp, clarsimp)
+  apply ( drule_tac a = "hJ" and b = "hF" and c = "ers" and 
+        d = "EvtSeq (ers @ rs, e') (EvtSys revts)" and e = "ae" and f = "be" in all6_impD)
    apply (simp add: resred.red_EvtSet)
   apply (simp add: resllocked_def, clarify, rule_tac x = "h'" in exI, simp)
   done
@@ -1021,7 +1033,7 @@ lemma res_pes_update : "k < length pesa \<Longrightarrow>
 lemma rpes_equiv : 
   "pessafe n (resources_pes rs pes) s h \<Gamma> Q \<Longrightarrow> rpessafe n (rs, pes) s h \<Gamma> Q"
   apply (induct n arbitrary : pes s h, simp, clarsimp)
-  apply (rule conjI, simp add: rpesaborts_def)
+  apply (rule conjI, simp add: rpesaborts_equiv')
   apply (clarsimp, erule rpesred.cases, simp)
   apply (drule_tac a = "hJ" and b = "hF" and c = "resources_pes pres pesa[k := (pres @ ers, es')]" 
         and d = "aa" and e = "ba" in all5_impD, simp)

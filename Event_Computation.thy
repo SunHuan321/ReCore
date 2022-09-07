@@ -26,7 +26,8 @@ inductive
   red_EvtSeq1: "rered re \<sigma> re' \<sigma>' \<Longrightarrow> snd re' \<noteq> (AnonyEvent Cskip) 
                 \<Longrightarrow> esred (EvtSeq re res) \<sigma> (EvtSeq re' res) \<sigma>'"
 | red_EvtSeq2: "snd re = (AnonyEvent Cskip) \<Longrightarrow> esred (EvtSeq re res) \<sigma> res \<sigma>"
-| red_EvtSet: " re \<in> revts  \<Longrightarrow> esred (EvtSys revts) \<sigma> (EvtSeq re (EvtSys revts)) \<sigma>"
+| red_EvtSet: " re \<in> revts \<Longrightarrow> rered re \<sigma> re' \<sigma>'    
+              \<Longrightarrow> esred (EvtSys revts) \<sigma> (EvtSeq re' (EvtSys revts)) \<sigma>'"
 
 inductive
   resred :: "resys \<Rightarrow> state \<Rightarrow> resys \<Rightarrow> state \<Rightarrow> bool"
@@ -34,8 +35,9 @@ inductive
   red_EvtSeq1: "rered re \<sigma> re' \<sigma>' \<Longrightarrow> snd re' \<noteq> (AnonyEvent Cskip) 
            \<Longrightarrow> resred (ers, (EvtSeq re res)) \<sigma> (ers, (EvtSeq re' res)) \<sigma>'"
 | red_EvtSeq2: "snd re = (AnonyEvent Cskip) \<Longrightarrow> resred (ers, (EvtSeq re res)) \<sigma> (ers,  res) \<sigma>"
-| red_EvtSet: "(rs, e) \<in> revts \<Longrightarrow> resred (ers ,(EvtSys revts)) \<sigma> 
-                                   (ers, (EvtSeq ((ers @ rs), e) (EvtSys revts))) \<sigma>"
+| red_EvtSet: "re \<in> revts \<Longrightarrow>  re = (rs, e) \<Longrightarrow> rered (ers @ rs, e) \<sigma> (ers @ rs, e') \<sigma>' 
+               \<Longrightarrow> re' = (ers @ rs, e') \<Longrightarrow> resred (ers ,(EvtSys revts)) \<sigma> 
+                                   (ers, (EvtSeq re' (EvtSys revts))) \<sigma>'"
 
 subsubsection \<open>Operational Semantics for parallel event systems and resource parallel event systems\<close>
 
@@ -146,10 +148,8 @@ lemma eaborts_agrees[rule_format]:
 
 subsection \<open>functions for resource event  \<close>   
 
-definition resources_re :: "rname list \<Rightarrow> revent \<Rightarrow> revent"
-  where "resources_re ers re \<equiv> (ers @ (fst re), (snd re))"
-
 subsubsection \<open>locks that a resource event is currently holding \<close>
+
 definition
   relocked :: "revent \<Rightarrow> rname set"
   where
@@ -177,10 +177,13 @@ definition
 
 subsubsection \<open>A resource event aborts in a given state\<close>
 
-definition 
+inductive
   reaborts :: "revent \<Rightarrow> state \<Rightarrow> bool"
   where
-  "reaborts re \<sigma> = eaborts (snd re) \<sigma>"
+  aborts_Evt: "aborts C \<sigma> \<Longrightarrow> reaborts (r, (AnonyEvent C)) \<sigma>"
+
+lemma reaborts_equiv : "reaborts re \<sigma> = eaborts (snd re) \<sigma>"
+  by (metis eaborts.simps eq_snd_iff reaborts.simps)
 
 subsubsection \<open>free variable of resource event\<close>
 
@@ -230,12 +233,16 @@ lemma rered_agrees[rule_format]:
 
 lemma reaborts_agrees[rule_format]:
   "reaborts re \<sigma> \<Longrightarrow> \<forall>s'. agrees (fvREv re) (fst \<sigma>) s' \<longrightarrow> snd \<sigma> = h' \<longrightarrow> reaborts re (s', h')"
-  apply (induct re, simp add: fvREv_def reaborts_def)
+  apply (induct re, simp add: fvREv_def reaborts_equiv)
   by (simp add: eaborts_agrees)
+
+lemma resources_re_aborts_equiv : " reaborts (resources_re r re) \<sigma> = reaborts re \<sigma>"
+  by (simp add: reaborts_equiv resource_re_equiv)
 
 subsection \<open>functions for event system \<close>
 
 subsubsection \<open>locks that a  event system is currently holding \<close>
+
 primrec
   eslocked :: "esys \<Rightarrow> rname set"
   where
@@ -270,7 +277,8 @@ subsubsection \<open>A event system aborts in a given state\<close>
 inductive 
   esaborts :: "esys \<Rightarrow> state \<Rightarrow> bool"
   where
-  aborts_Esys: "reaborts re \<sigma> \<Longrightarrow> esaborts (EvtSeq re esys) \<sigma>"
+  aborts_EvtSeq: "reaborts re \<sigma> \<Longrightarrow> esaborts (EvtSeq re esys) \<sigma>"
+| aborts_EvtSys: "re \<in> es  \<Longrightarrow> reaborts re \<sigma> \<Longrightarrow>  esaborts (EvtSys es) \<sigma>"
 
 subsubsection \<open>free variable of event system\<close>
 
@@ -306,8 +314,11 @@ lemma esred_properties :
     apply (simp add: le_supI1 rered_properties agrees_def)
     apply (metis (mono_tags, lifting) IntD1 agrees_def rered_properties)
    apply (simp add: agrees_refl)
-  apply (simp add: le_supI1 rered_properties agrees_def)
-  by auto
+  apply (rule conjI, clarsimp)
+   apply (meson contra_subsetD rered_properties)
+  apply (rule conjI, clarsimp)
+   apply (meson contra_subsetD rered_properties, clarsimp)
+  using rered_properties by fastforce
 
 lemma esaccesses_agrees: 
 "agrees (fvEsv esys) s s' \<Longrightarrow> esaccesses esys s = esaccesses esys s'"
@@ -326,14 +337,19 @@ lemma esred_agrees[rule_format] :
   apply (drule_tac X = "X" and s = "s" in rered_agrees, simp_all)
     apply (clarsimp, rule_tac x = "s'" in exI, simp add: esred.red_EvtSeq1)
    apply (clarsimp, rule_tac x = "s" in exI, simp add: esred.red_EvtSeq2)
-  apply (clarsimp, rule_tac x = "s" in exI, simp add: esred.red_EvtSet)
-  done
+  apply (clarsimp, drule rered_agrees, simp_all)
+   apply blast
+  using esred.red_EvtSet by blast
 
 lemma esaborts_agrees[rule_format] :
 "esaborts esys \<sigma> \<Longrightarrow> \<forall>s'. agrees (fvEsv esys) (fst \<sigma>) s' \<longrightarrow> snd \<sigma> = h' \<longrightarrow> esaborts esys (s', h')"
   apply (erule esaborts.induct, simp_all)
-  apply (auto simp add: rewrites_agrees reaccesses_agrees exp_agrees, auto simp add: agrees_def)
-  by (simp add: aborts_Esys agrees_def reaborts_agrees)
+   apply (auto simp add: rewrites_agrees reaccesses_agrees exp_agrees, auto simp add: agrees_def)
+   apply (simp add: aborts_EvtSeq agrees_def reaborts_agrees)
+  apply (subgoal_tac "reaborts (a, b) (s', h')", simp add: aborts_EvtSys)
+  by (metis (mono_tags, hide_lams) agrees_def fst_conv fst_swap reaborts_agrees swap_simp)
+
+
 
 subsection \<open>functions for resource event system \<close>
 
@@ -366,10 +382,27 @@ definition
 
 subsubsection \<open>A resource event system aborts in a given state\<close>
 
-definition 
+inductive 
   resaborts :: "resys \<Rightarrow> state \<Rightarrow> bool"
   where
-  "resaborts res \<sigma> = esaborts (snd res) \<sigma>"
+  aborts_EvtSeq: "res = (r, EvtSeq re esys) \<Longrightarrow> reaborts (resources_re r re) \<sigma> \<Longrightarrow> resaborts res \<sigma>"
+| aborts_EvtSys: "res = (r, (EvtSys es)) \<Longrightarrow> re \<in> es  
+                \<Longrightarrow> reaborts (resources_re r re) \<sigma> \<Longrightarrow> resaborts res \<sigma>"
+
+lemma resaborts_equiv : "resaborts res \<sigma> = esaborts (snd res) \<sigma>"
+proof
+  assume "resaborts res \<sigma>"
+  then show " esaborts (snd res) \<sigma>"
+    apply (rule resaborts.cases, simp_all)
+    using esaborts.aborts_EvtSeq resources_re_aborts_equiv apply auto[1]
+    using esaborts.aborts_EvtSys resources_re_aborts_equiv by blast
+next
+  assume "esaborts (snd res) \<sigma>"
+  then show "resaborts res \<sigma>"
+    apply (rule esaborts.cases, simp_all)
+     apply (metis prod.exhaust_sel resaborts.aborts_EvtSeq resources_re_aborts_equiv)
+    by (metis prod.exhaust_sel resaborts.simps resources_re_aborts_equiv)
+qed
 
 subsubsection \<open>free variable of resource event system\<close>
 
@@ -397,7 +430,11 @@ lemma resred_properties :
     apply (metis agrees_search(1) agrees_simps(4) le_supI1 rered_properties sup_inf_absorb)
    apply (simp add: wrREv_def agrees_refl)
   apply (simp add: wrREv_def fvREv_def)
-  by (metis (mono_tags, lifting) Ball_Collect agrees_def snd_conv)
+  apply (rule conjI, clarsimp)
+  using fvREv_def rered_properties resources_re_def apply fastforce
+  apply (rule conjI, clarsimp)
+  using rered_properties resources_re_def wrREv_def apply fastforce
+  using mem_Collect_eq rered_properties snd_conv wrREv_def by fastforce
 
 lemma resaccesses_agrees: 
 "agrees (fvREsv resys) s s' \<Longrightarrow> resaccesses resys s = resaccesses resys s'"
@@ -416,14 +453,18 @@ lemma resred_agrees[rule_format] :
   apply (drule_tac X = "X" and s = "s" in rered_agrees, simp_all)
     apply (clarsimp, rule_tac x = "s'" in exI, simp add: resred.red_EvtSeq1)
    apply (clarsimp, rule_tac x = "s" in exI, simp add: resred.red_EvtSeq2)
-  apply (clarsimp, rule_tac x = "s" in exI, simp add: resred.red_EvtSet)
-  done
+  apply (clarsimp, drule rered_agrees, simp_all add: fvREv_def resource_re_equiv)
+  using mem_Collect_eq subset_iff apply fastforce
+  using resred.red_EvtSet by blast
 
 lemma resaborts_agrees[rule_format] :
 "resaborts resys \<sigma> \<Longrightarrow> \<forall>s'. agrees (fvREsv resys) (fst \<sigma>) s' 
                       \<longrightarrow> snd \<sigma> = h' \<longrightarrow> resaborts resys (s', h')"
-  apply (simp add: resaborts_def fvREsv_def)
+  apply (simp add: resaborts_equiv fvREsv_def)
   by (simp add: esaborts_agrees)
+
+lemma resources_res_aborts_equiv : "resaborts res \<sigma> =  resaborts (resources_res r res) \<sigma>"
+  by (simp add: resaborts_equiv resource_res_equiv)
 
 subsection \<open>functions for parallel event system \<close>
 
@@ -493,15 +534,30 @@ inductive
 | aborts_Race : "\<exists>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2  \<and> \<not> disjoint (resaccesses (pes ! k1) (fst \<sigma>)) 
                          (reswrite (pes ! k2) (fst \<sigma>)) \<Longrightarrow> pesaborts pes \<sigma>"
 
+lemma resources_pes_equiv: "pesaborts (resources_pes r pes) \<sigma> = pesaborts pes \<sigma>"
+proof
+  assume "pesaborts (resources_pes r pes) \<sigma>"
+  then show "pesaborts pes \<sigma>"
+    apply (rule pesaborts.cases, simp_all)
+     apply (rule pesaborts.aborts_Par, clarify)
+     apply (rule_tac x = "k" in exI, simp add: resources_pes_length)
+     apply (metis resources_pes_equiv resources_res_aborts_equiv)
+    apply (rule pesaborts.aborts_Race, clarify)
+    apply (rule_tac x = "k1" and y = "k2" in ex2I, simp add: resources_pes_length)
+    by (metis resaccesses_def resource_res_equiv resources_pes_equiv reswrite_def)
+next
+  assume " pesaborts pes \<sigma>"
+  then show "pesaborts (resources_pes r pes) \<sigma>"
+    apply (rule pesaborts.cases, simp_all)
+     apply (rule pesaborts.aborts_Par, clarify)
+     apply (rule_tac x = "k" in exI, simp add: resources_pes_length)
+     apply (metis resources_pes_equiv resources_res_aborts_equiv)
+    apply (rule pesaborts.aborts_Race, clarify)
+    apply (rule_tac x = "k1" and y = "k2" in ex2I, simp add: resources_pes_length)
+    by (metis resaccesses_def resource_res_equiv resources_pes_equiv reswrite_def)
+qed
+
 subsection \<open>functions for resource parallel event system \<close>
-
-definition resources_res :: "rname list \<Rightarrow> resys \<Rightarrow> resys"
-  where "resources_res pers res \<equiv> (pers @ (fst res), (snd res))"
-
-primrec resources_pes :: "rname list \<Rightarrow> paresys \<Rightarrow> paresys"
-  where
-  "resources_pes rs [] = []"
-| "resources_pes rs (x # xs) = (resources_res rs x) # (resources_pes rs xs)"
 
 lemma res_pes_property : "\<forall>k. k < length pes 
               \<longrightarrow> resources_pes rs pes ! k = resources_res rs (pes ! k)"
@@ -520,7 +576,7 @@ lemma res_wrREsv[simp] : "wrREsv (resources_res rs res) = wrREsv res"
 subsubsection \<open>locks that resource parallel system is currently holding \<close>
 
 definition
-  rpesllocked :: "rparesys \<Rightarrow> rname list"
+  rpesllocked :: "rparesys \<Rightarrow> rname list"                
   where
   "rpesllocked rpes = pesllocked (resources_pes (fst rpes) (snd rpes))"
 
@@ -547,10 +603,34 @@ inductive
 
 subsubsection \<open>A resource parallel system aborts in a given state\<close>
 
-definition 
+inductive
   rpesaborts :: "rparesys \<Rightarrow> state \<Rightarrow> bool"
   where
-  "rpesaborts rpes \<sigma> = pesaborts (resources_pes (fst rpes) (snd rpes)) \<sigma>"
+  aborts_Par : " \<exists>k. k < length pes \<and> resaborts (resources_res r (pes ! k)) \<sigma> 
+                 \<Longrightarrow> rpesaborts (r, pes) \<sigma>"
+| aborts_Race : "\<exists>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2  \<and> 
+                  \<not> disjoint (resaccesses (resources_res r (pes ! k1)) (fst \<sigma>)) 
+                         (reswrite (resources_res r (pes ! k2)) (fst \<sigma>)) \<Longrightarrow> rpesaborts (r, pes) \<sigma>"
+
+lemma rpesaborts_equiv : "rpesaborts (r, pes) \<sigma> = pesaborts pes \<sigma>"
+proof
+  assume "rpesaborts (r, pes) \<sigma>"
+  then show "pesaborts pes \<sigma>"
+    apply (rule rpesaborts.cases, simp_all)
+    using pesaborts.aborts_Par resources_res_aborts_equiv apply blast
+    apply (simp add: resaccesses_def reswrite_def resource_res_equiv)
+    by (simp add: pesaborts.aborts_Race resaccesses_def reswrite_def)
+next
+  assume "pesaborts pes \<sigma>"
+  then show "rpesaborts (r, pes) \<sigma>"
+    apply (rule pesaborts.cases, simp_all)
+    using resources_res_aborts_equiv rpesaborts.aborts_Par apply auto[1]
+    apply (rule rpesaborts.aborts_Race)                  
+    by (simp add: resaccesses_def reswrite_def resource_res_equiv)
+qed
+
+lemma rpesaborts_equiv' : "rpesaborts (r, pes) \<sigma> = pesaborts (resources_pes r pes) \<sigma>"
+  by (simp add: resources_pes_equiv rpesaborts_equiv)
 
 end
 

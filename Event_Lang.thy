@@ -48,6 +48,31 @@ definition is_anonyrevt :: "revent \<Rightarrow> bool"
 lemma basicrevt_isnot_anony: "is_basicrevt re \<Longrightarrow> \<not> is_anonyrevt re"
   using anonyevt_isnot_basic is_anonyrevt_def is_basicrevt_def by auto
 
+(* attach resource to corresponding system *)
+definition resources_re :: "rname list \<Rightarrow> revent \<Rightarrow> revent"
+  where "resources_re ers re \<equiv> (ers @ (fst re), (snd re))"
+
+definition resources_res :: "rname list \<Rightarrow> resys \<Rightarrow> resys"
+  where "resources_res pers res \<equiv> (pers @ (fst res), (snd res))"
+
+primrec resources_pes :: "rname list \<Rightarrow> paresys \<Rightarrow> paresys"
+  where
+  "resources_pes rs [] = []"
+| "resources_pes rs (x # xs) = (resources_res rs x) # (resources_pes rs xs)"
+
+lemma resource_re_equiv : "snd (resources_re r re) = snd re"
+  by (simp add: resources_re_def)
+
+lemma resource_res_equiv : "snd (resources_res r res) = snd res"
+  by (simp add: resources_res_def)
+
+lemma resources_pes_equiv : "k < length pes \<Longrightarrow> resources_res r (pes ! k) = (resources_pes r pes) ! k"
+  apply (induct pes arbitrary: k, simp)
+  by (case_tac k, simp_all)
+
+lemma resources_pes_length : "length (resources_pes r pes) = length pes"
+  by (induct pes, simp_all)
+
 end
 
 
