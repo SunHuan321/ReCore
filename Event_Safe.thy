@@ -1,71 +1,8 @@
 theory Event_Safe
-  imports CSLsound Event_Computation
+  imports CSLsound Event_Helper
 begin
 
-primrec user_event :: "event \<Rightarrow> bool"
-  where "user_event (AnonyEvent C) = user_cmd C"
-  |     "user_event (BasicEvent GC) = user_cmd (snd GC)"
-                                                                           
-primrec wf_event :: "event \<Rightarrow> bool"
-  where "wf_event (AnonyEvent C) = wf_cmd C"
-  |     "wf_event (BasicEvent GC) = wf_cmd (snd GC)"
-
-lemma user_eventD : "user_event e \<Longrightarrow> wf_event e \<and> elocked e= {}"
-  by (induct e, simp_all add: user_cmdD)
-
-corollary user_event_wf[intro]: "user_event e \<Longrightarrow> wf_event e"
-  by (drule user_eventD, simp)
-
-corollary user_event_llocked[simp] : "user_event e \<Longrightarrow> ellocked e = []"
-  by (drule user_eventD, simp add: elocked_eq)
-
-definition user_revent :: "revent \<Rightarrow> bool"
-  where "user_revent re = user_event (snd re)"
-
-definition wf_revent :: "revent \<Rightarrow> bool"
-  where "wf_revent re = wf_event (snd re)"
-         
-lemma user_reventD : "user_revent re \<Longrightarrow> wf_revent re \<and> relocked re= {}"
-  by (simp add: user_revent_def wf_revent_def relocked_def user_eventD)
-
-corollary user_revent_wf[intro]: "user_revent re \<Longrightarrow> wf_revent re"
-  by (drule user_reventD, simp)
-
-corollary user_revent_llocked[simp] : "user_revent re \<Longrightarrow> rellocked re = []"
-  by (drule user_reventD, simp add: relocked_eq)
-
-primrec user_esys :: "esys \<Rightarrow> bool"
-  where "user_esys (EvtSeq res esys) = ((user_revent res) \<and> (user_esys esys))"
-  |     "user_esys (EvtSys es) = (\<forall> res \<in> es. (user_revent res))"
-
-primrec wf_esys :: "esys \<Rightarrow> bool"
-  where "wf_esys (EvtSeq res esys) = ((wf_revent res) \<and> (wf_esys esys))"
-  |     "wf_esys (EvtSys es) = (\<forall> res \<in> es. (wf_revent res))"
-
-lemma user_esysD : "user_esys esys \<Longrightarrow> wf_esys esys \<and> eslocked esys = {}"
-  by (induct esys, simp_all add: user_reventD)
-
-corollary user_esys_wf[intro]: "user_esys esys \<Longrightarrow> wf_esys esys"
-  by (drule user_esysD, simp)
-
-corollary user_esys_llocked[simp] : "user_esys esys \<Longrightarrow> esllocked esys = []"
-  by (drule user_esysD, simp add: eslocked_eq)
-
-definition user_resys :: "resys \<Rightarrow> bool"
-  where "user_resys resys = user_esys (snd resys)"
-
-definition wf_resys :: "resys \<Rightarrow> bool"
-  where "wf_resys resys = wf_esys (snd resys)"
-
-lemma user_resysD : "user_resys resys \<Longrightarrow> wf_resys resys \<and> reslocked resys = {}"
-  by (simp add: user_resys_def wf_resys_def reslocked_def user_esysD)
-
-corollary user_resys_wf[intro]: "user_resys resys \<Longrightarrow> wf_resys resys"
-  by (drule user_resysD, simp)
-
-corollary user_resys_llocked[simp] : "user_resys resys \<Longrightarrow> resllocked resys = []"
-  by (drule user_resysD, simp add: reslocked_eq)
-
+subsection \<open>specification and proof rules for events\<close>
 primrec
   esafe :: "nat \<Rightarrow> event \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> bool"
 where
@@ -158,6 +95,8 @@ lemma esafe_conseq : "\<lbrakk> esafe n e s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rb
 theorem rule_Evtconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>e {P'} e {Q'} \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>e {P} e {Q}"
   by (meson eCSL_def esafe_conseq implies_def)
 
+subsection \<open>specification and proof rules for resource events\<close>
+
 primrec 
   resafe :: "nat \<Rightarrow> revent \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> bool"
 where
@@ -248,6 +187,8 @@ lemma resafe_conseq : "\<lbrakk> resafe n re s h \<Gamma> Q; Q \<sqsubseteq> Q'\
 
 theorem rule_rEvtconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>r\<^sub>e {P'} re {Q'} \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e {P} re {Q}"
   by (meson implies_def reCSL_def resafe_conseq)
+
+subsection \<open>specification and proof rules for event systems\<close>
 
 primrec 
   essafe :: "nat \<Rightarrow> esys \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> bool"
@@ -403,6 +344,8 @@ lemma essafe_conseq : "\<lbrakk> essafe n es s h \<Gamma> Q; Q \<sqsubseteq> Q'\
 theorem rule_esconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>e\<^sub>s {P'} es {Q'} \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>e\<^sub>s {P} es {Q}"
   by (meson esCSL_def essafe_conseq implies_def)
 
+subsection \<open>specification and proof rules for resource event systems\<close>
+
 primrec 
   ressafe :: "nat \<Rightarrow> resys \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> bool"
 where
@@ -548,6 +491,8 @@ lemma ressafe_conseq : "\<lbrakk> ressafe n res s h \<Gamma> Q; Q \<sqsubseteq> 
 theorem rule_resconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P'} res {Q'} \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P} res {Q}"
   by (meson implies_def resCSL_def ressafe_conseq)
 
+subsection \<open>specification and proof rules for parallel event systems\<close>
+
 primrec 
   pessafe :: "nat \<Rightarrow>paresys \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> bool"
   where
@@ -564,260 +509,11 @@ primrec
           \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (pesllocked pes) (pesllocked pes')
           \<and> pessafe n pes' (fst \<sigma>') h' \<Gamma> Q)))"
 
-
-primrec hplus_list :: "heap list \<Rightarrow> heap"
+definition 
+  pesCSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> paresys \<Rightarrow> assn \<Rightarrow> bool" 
+  ("_ \<turnstile>\<^sub>p\<^sub>e\<^sub>s { _ } _ { _ }")
   where
-    "hplus_list     [] = Map.empty"
-  | "hplus_list (x # l)  =  x ++ (hplus_list l)"
-                                                             
-
-lemma hplus_list_expand : "\<lbrakk> \<forall>x y. x \<in> set l \<and> y \<in> set l \<and> x \<noteq> y \<longrightarrow> disjoint (dom x) (dom y); r \<in> set l\<rbrakk> 
-      \<Longrightarrow> hplus_list l = r ++  hplus_list (removeAll r l)"
-  apply (induct l, simp, clarsimp) 
-  apply (rule conjI, clarsimp)
-  apply (metis map_add_assoc map_add_subsumed1 map_le_map_add removeAll_id)
-  apply (case_tac "r \<in> set l", clarsimp)
-   apply (simp add: map_add_assoc map_add_commute)
-  by simp
-
-lemma disjoint_hplus_list : " disjoint (dom (hplus_list l)) (dom h)
-                       \<longleftrightarrow> (\<forall>r \<in> set l.  disjoint (dom r) (dom h))"
-proof
-  assume a0 :"disjoint (dom (hplus_list l)) (dom h)"
-  then show  "(\<forall>r\<in>set l. disjoint (dom r) (dom h))"
-    by (induct l, simp_all)
-next
-  assume a0 :"\<forall>r \<in> set l.  disjoint (dom r) (dom h)"
-  then show "disjoint (dom (hplus_list l)) (dom h)"
-    by (induct l, simp_all)
-qed
-
-primrec disjoint_heap_with_list :: "heap \<Rightarrow> heap list \<Rightarrow> bool"
-  where
-    "disjoint_heap_with_list h [] = True"                              
-  | "disjoint_heap_with_list h (x # xs) = 
-    (disjoint (dom h) (dom x) \<and> disjoint_heap_with_list h xs)"
-
-lemma disjoint_heap_with_equiv1 : "disjoint_heap_with_list a l 
-                               \<longleftrightarrow> (\<forall>x \<in> set l. disjoint (dom a) (dom x))"
-  apply (induct l, simp)
-  by auto
-
-lemma disjoint_heap_with_equiv2 : "disjoint_heap_with_list a l 
-                              \<longleftrightarrow> (\<forall> k < length l.  disjoint (dom a) (dom (l ! k)))"
-  by (metis disjoint_heap_with_equiv1 in_set_conv_nth)
-
-lemma disjoint_with_hplus :
-      "disjoint_heap_with_list a l \<Longrightarrow> disjoint (dom a) (dom (hplus_list l))"
-  by (simp add: disjoint_hplus_list disjoint_heap_with_equiv1 disjoint_search(1))
-
-primrec disjoint_heap_list :: "heap list \<Rightarrow> bool"
-  where
-  "disjoint_heap_list [] = True"
-| "disjoint_heap_list (x # xs) = ((disjoint_heap_with_list x xs) \<and> (disjoint_heap_list xs))"
-
-lemma disjoint_hplus_list1 : "\<lbrakk>k < length l; disjoint (dom (hplus_list l)) (dom hF)\<rbrakk> 
-       \<Longrightarrow> disjoint (dom (l ! k)) (dom hF)"
-  by (simp add: disjoint_hplus_list)
-
-lemma disjoint_hplus_list2 : 
-      "\<lbrakk> k < length l; disjoint (dom (hplus_list l)) (dom hF); l' = l[k := Map.empty]\<rbrakk> 
-       \<Longrightarrow> disjoint (dom (hplus_list l')) (dom hF)"
-proof-
-  assume a0: "k < length l"
-  and    a1: " disjoint (dom (hplus_list l)) (dom hF)"
-  and    a2: "l' = l[k := Map.empty]"
-  then have "\<forall>k < length l. disjoint (dom (l ! k)) (dom hF)"
-    by (simp add: disjoint_hplus_list1)
-  then have "\<forall>k < length l'. disjoint (dom (l ! k)) (dom hF)"
-    by (simp add: a2)
-  then show ?thesis
-    by (metis (mono_tags, lifting) a1 a2 disjoint_hplus_list disjoint_search(1) disjoint_simps(2) 
-              dom_empty insert_iff set_update_subset_insert subset_eq)
-qed
-
-lemma disjoint_remove_property : "disjoint_heap_list l 
-              \<Longrightarrow>  \<forall>k. k < length l \<longrightarrow> disjoint_heap_with_list (l ! k) (l[k:= Map.empty])"
-  apply (intro allI, induct l, simp)
-  apply (case_tac k, simp, clarsimp)
-  using disjoint_heap_with_equiv2 disjoint_search(1) by blast
-
-lemma disjoint_list_equiv : "disjoint_heap_list l \<longleftrightarrow> 
-                            (\<forall>k1 k2. k1 < length l \<and> k2 < length l \<and> k1 \<noteq> k2
-                            \<longrightarrow> disjoint (dom (l ! k1)) (dom (l ! k2)))"
-proof(induct l)
-  case Nil
-  then show ?case by simp
-next
-  case (Cons x xs)
-  show ?case
-    apply (auto simp add: Cons nth_Cons split: nat.split_asm)
-      apply (metis (no_types, lifting) disjoint_hplus_list1 
-              Nitpick.case_nat_unfold One_nat_def Suc_pred 
-              disjoint_with_hplus disjoint_search(1) less_Suc0 not_less_eq)
-     apply (metis disjoint_heap_with_equiv2 not_less_eq not_less_zero)
-    by blast
-qed
-
-lemma disjoint_hplus_list3 : "\<lbrakk>disjoint_heap_list l; k < length l;
-                              l' = l[k := Map.empty]\<rbrakk> 
-                          \<Longrightarrow> disjoint (dom (l ! k)) (dom (hplus_list l'))"
-  by (simp add: disjoint_with_hplus disjoint_remove_property)
-
-lemma hplus_list_exchange : "disjoint_heap_list l \<Longrightarrow> 
-               \<forall>k. k < length l \<longrightarrow> (l ! k) ++ (hplus_list (l[k:= Map.empty])) = hplus_list l"
-  apply (induct l, simp)
-  apply (intro allI impI)
-  apply (case_tac k, simp, clarsimp)
-  apply (drule_tac a = "nat" in allD, simp)
-proof-
-  fix a l nat
-  assume a0: "nat < length l"
-  and    a1: "disjoint_heap_with_list a l"
-  and    a2: "disjoint_heap_list l"
-  and    a3: " l ! nat ++ hplus_list (l[nat := Map.empty]) = hplus_list l"
-  then have "disjoint (dom a) (dom (l ! nat))"
-    by (simp add: disjoint_heap_with_equiv2)
-  moreover have "disjoint (dom a) (dom (hplus_list (l[nat := Map.empty])))"
-    by (metis a0 a1 disjoint_with_hplus disjoint_search(1) disjoint_hplus_list2)
-  ultimately show "l ! nat ++ (a ++ hplus_list (l[nat := Map.empty])) = a ++ hplus_list l"
-    by (simp add: a3 map_add_left_commute)
-qed
-
-lemma disjoint_locked_heap_update : 
-        "\<lbrakk> \<forall>k'. k' < length l \<and> k' \<noteq> k \<longrightarrow> disjoint (dom x) (dom (l ! k'));
-        disjoint_heap_list l ; k < length l; l' = l[k := x] \<rbrakk>
-    \<Longrightarrow> disjoint_heap_list l'"
-  by (metis disjoint_list_equiv disjoint_search(1) length_list_update 
-      nth_list_update_eq nth_list_update_neq)
-
-lemma disjoint_locked_heap_update1 : "\<lbrakk> disjoint (dom x) (dom (hplus_list (l[k := Map.empty])));
-        disjoint_heap_list l ; k < length l; l' = l[k := x] \<rbrakk>
-    \<Longrightarrow> disjoint_heap_list l'"
-  apply (rule disjoint_locked_heap_update, simp_all)
-  by (metis disjoint_search(1) length_list_update nth_list_update_neq disjoint_hplus_list1)
-
-lemma pessafe_hsimps : "\<lbrakk>disjoint_heap_list l;  k < length l;
-                        disjoint (dom (hplus_list l)) (dom hF)\<rbrakk> 
-               \<Longrightarrow> (l ! k) ++ (hplus_list (l[k := Map.empty]) ++ hF) = hplus_list l ++ hF"
-  by (simp add: hplus_list_exchange map_add_assoc)
-
-lemma pessafe_noaborts : "\<lbrakk>\<forall>k<length l. (\<forall>hF. disjoint (dom (l ! k)) (dom hF) 
-                          \<longrightarrow> \<not> resaborts (pes ! k) (a, l ! k ++ hF)); 
-                          disjoint_heap_list l; k < length l;
-                        disjoint (dom (hplus_list l)) (dom hF)\<rbrakk>
-                  \<Longrightarrow> \<not> resaborts (pes ! k) (a, hplus_list l ++ hF)"
-  apply (drule_tac a = "k" in allD, clarsimp)
-  apply (drule_tac a = "hplus_list (l[k := Map.empty]) ++ hF" in all_impD)
-   apply (simp add: disjoint_hplus_list3 disjoint_hplus_list1)
-  by (simp add: pessafe_hsimps)
-
-lemma pessafe_hsimps2 : "\<lbrakk>disjoint_heap_list l; k < length l;
-                        disjoint (dom (hplus_list l)) (dom hF); 
-                        disjoint (dom (hplus_list l)) (dom hJ); 
-                        disjoint (dom hJ) (dom hF)\<rbrakk>
-                    \<Longrightarrow> l ! k ++ hJ ++ (hplus_list (l[k := Map.empty]) ++ hF)
-                      = hplus_list l ++ hJ ++ hF"
-proof-
-  assume a0: "disjoint_heap_list l"
-  and    a1: "disjoint (dom (hplus_list l)) (dom hF)"
-  and    a2: "disjoint (dom (hplus_list l)) (dom hJ)"
-  and    a3: "disjoint (dom hJ) (dom hF)"
-  and    a4: "k < length l"
-  then have "disjoint (dom (l ! k)) (dom hF)  \<and> disjoint (dom (l ! k)) (dom hJ) 
-          \<and> (l ! k) ++ (hplus_list (l[ k:= Map.empty])) = hplus_list l"
-    by (simp add: disjoint_hplus_list1 hplus_list_exchange)
-  then show ?thesis 
-    by (metis a2 map_add_assoc map_add_commute)
-qed
-
-primrec disjoint_locked_with_list :: "resys \<Rightarrow> resys list \<Rightarrow> bool"
-  where
-    "disjoint_locked_with_list r [] = True"
-  | "disjoint_locked_with_list r ( x # xs) = (disjoint (reslocked r) (reslocked x)
-                                              \<and> disjoint_locked_with_list r xs)"
-
-lemma disjoint_locked_with_equiv1 : "disjoint_locked_with_list r l 
-                                 \<longleftrightarrow> (\<forall>x \<in> set l. disjoint (reslocked r) (reslocked x))"
-  by (induct l, simp_all)
-
-lemma disjoint_locked_with_equiv2 : "disjoint_locked_with_list r l 
-                                \<longleftrightarrow> (\<forall> k < length l. disjoint (reslocked r) (reslocked (l ! k)))"
-  by (metis disjoint_locked_with_equiv1 in_set_conv_nth)
-
-lemma disjoint_locked_with_property : "disjoint_locked_with_list r l 
-                              \<Longrightarrow> disjoint (reslocked r) (peslocked l)"
-  apply (induct l, simp add: empty_peslock)
-  by (simp add: induct_peslock)
-
-primrec disjoint_locked_list :: "resys list \<Rightarrow> bool"
-  where
-    "disjoint_locked_list [] = True"
-  | "disjoint_locked_list (x # xs) = ((disjoint_locked_with_list x xs)
-                                  \<and> disjoint_locked_list xs)"
-
-primrec disjoint_locked_between_list :: "resys list \<Rightarrow> resys list \<Rightarrow> bool"
-  where
-    "disjoint_locked_between_list [] l = True"
-  | "disjoint_locked_between_list (x # xs) l = ((disjoint_locked_with_list x l)
-                                              \<and> (disjoint_locked_between_list xs l))"
-
-lemma disjoint_locked_between_equiv1 : "disjoint_locked_between_list l1 l2 
-                                 \<longleftrightarrow> (\<forall>x \<in> set l1. disjoint_locked_with_list x l2)"
-  by (induct l1, simp_all)
-
-lemma disjoint_locked_between_equiv2 : "disjoint_locked_between_list l1 l2 
-                                 \<longleftrightarrow> (\<forall> k < length l1. disjoint_locked_with_list (l1 ! k) l2)"
-  by (metis disjoint_locked_between_equiv1 in_set_conv_nth)
-
-lemma disjoint_locked_between_property : 
-    "disjoint_locked_between_list l1 l2 \<Longrightarrow> disjoint (peslocked l1) (peslocked l2)"
-  apply (induct l1, simp add : empty_peslock)
-  by (simp add: disjoint_locked_with_property induct_peslock)
-
-lemma disjoint_locked_list_equiv : "disjoint_locked_list l \<longleftrightarrow> 
-                            (\<forall>k1 k2. k1 < length l \<and> k2 < length l \<and> k1 \<noteq> k2
-                            \<longrightarrow> disjoint (reslocked (l ! k1)) (reslocked (l ! k2)))"
-proof(induct l)
-  case Nil
-  then show ?case by simp
-next
-  case (Cons x xs)
-  show ?case
-    apply (auto simp add: Cons nth_Cons split: nat.split_asm)
-      defer
-      apply (metis Suc_mono disjoint_locked_with_equiv2 less_numeral_extra(3) zero_less_Suc)
-     apply blast
-    apply (case_tac k1, clarsimp)
-     apply (case_tac k2, clarsimp)
-     apply (simp add: disjoint_locked_with_equiv2)
-    apply (case_tac k2, clarsimp)
-    using disjoint_locked_with_equiv2 disjoint_search(1) apply blast
-    by simp
-qed
-
-lemma disjoint_with_res : "disjoint_locked_with_list r l  
-                           \<Longrightarrow> disjoint (reslocked r) (peslocked l)"
-  apply (induct l, simp add: empty_peslock)
-  by (simp add: induct_peslock)
-
-lemma disjoint_with_pes : "disjoint_locked_between_list l1 l2 
-                           \<Longrightarrow> disjoint (peslocked l1) (peslocked l2)"
-  apply (induct l1, simp add: empty_peslock)
-  by (simp add: disjoint_with_res induct_peslock)
-
-lemma disjoint_with_take : "\<lbrakk> disjoint_locked_list l; k < length l\<rbrakk> \<Longrightarrow>
-                            disjoint_locked_with_list (l ! k) (take k l)"
-  by (simp add: disjoint_locked_list_equiv disjoint_locked_with_equiv2)
-
-lemma disjoint_with_drop : "\<lbrakk> disjoint_locked_list l; k < length l\<rbrakk> \<Longrightarrow>
-                            disjoint_locked_with_list (l ! k) (drop (Suc k) l)"
-  by (simp add: disjoint_locked_list_equiv disjoint_locked_with_equiv2)
-
-lemma disjoint_between_take_drop : "\<lbrakk> disjoint_locked_list l; k < length l\<rbrakk> \<Longrightarrow>
-                            disjoint_locked_between_list (take k l) (drop (Suc k) l)"
-  by (simp add: disjoint_locked_list_equiv 
-          disjoint_locked_between_equiv2 disjoint_locked_with_equiv2)
+    "\<Gamma> \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q} \<equiv> (user_pesys pes) \<and> (\<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> pessafe n pes s h \<Gamma> Q)"
 
 lemma envs_app' : "disjoint (set a) (set b) \<Longrightarrow> disjoint (set a) (set c) \<Longrightarrow> disjoint (set b) (set c)
     \<Longrightarrow> envs \<Gamma> (a @ b @ c) (a @ b' @ c) = envs \<Gamma> b b'"
@@ -893,51 +589,15 @@ lemma pessafe:
    apply (drule_tac a = "ka" and b = "k" in all2_impD, simp, simp)
    apply auto[1]
   apply (drule mimp4D)
-  using disjoint_locked_heap_update1 apply presburger
+  using disjoint_heap_update1 apply presburger
   using disjoint_locked_list_update apply force
     apply (clarsimp, drule_tac a = "k1" and b = "k2" in all2_impD, simp)
     apply (case_tac "k1 \<noteq> k") apply (case_tac "k2 \<noteq> k", simp)
      apply auto[1] apply auto[1]
    apply simp
   apply (subgoal_tac "h' ++ hplus_list (hs[k := Map.empty]) = hplus_list (hs[k := h'])", simp)
-  by (metis disjoint_locked_heap_update1 hplus_list_exchange 
+  by (metis disjoint_heap_update1 hplus_list_exchange 
         length_list_update list_update_overwrite nth_list_update_eq)
-
-primrec user_pesys :: "paresys \<Rightarrow> bool"
-  where "user_pesys [] = True"
-  |     "user_pesys (x # xs) = ((user_resys x) \<and> (user_pesys xs))"
-
-primrec wf_pesys :: "paresys \<Rightarrow> bool"
-  where "wf_pesys [] = True"
-  |     "wf_pesys (x # xs) = ((wf_resys x) \<and> (wf_pesys xs) \<and> 
-    (disjoint_locked_list (x # xs)))"
-
-lemma wf_peslocked : "wf_pesys pes \<Longrightarrow> disjoint_locked_list pes"
-  by (induct pes, simp, simp)
-
-lemma user_pesysD : "user_pesys pes \<Longrightarrow> wf_pesys pes \<and> peslocked pes = {}"
-  apply (induct pes, simp add: empty_peslock)
-  apply (rule conjI, simp add: wf_pesys.simps)
-   apply (rule conjI, simp add: user_resysD)
-   apply (metis disjoint_locked_list.simps(1) disjoint_locked_with_equiv1 disjoint_simps(1) 
-          list.exhaust user_resysD wf_pesys.simps(2))
-  by (simp add: induct_peslock user_resysD)
-
-lemma user_pesys_wf[intro] : "user_pesys pes \<Longrightarrow> wf_pesys pes"
-  by (drule user_pesysD, simp)
-
-lemma user_pesys_llocked[simp]: "user_pesys pes \<Longrightarrow> pesllocked pes = []"
-  by (drule user_pesysD, simp add: peslocked_def)
-
-lemma user_pesysI[simp] : "\<forall>k < length pes. user_resys (pes ! k) \<Longrightarrow> user_pesys pes"
-  apply (induct pes, simp)
-  by force
-
-definition 
-  pesCSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> paresys \<Rightarrow> assn \<Rightarrow> bool" 
-  ("_ \<turnstile>\<^sub>p\<^sub>e\<^sub>s { _ } _ { _ }")
-  where
-    "\<Gamma> \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q} \<equiv> (user_pesys pes) \<and> (\<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> pessafe n pes s h \<Gamma> Q)"
 
 lemma split_Aistar : "(s, h) \<Turnstile> Aistar Ps \<Longrightarrow> (\<exists>hs. length hs = length Ps  \<and> disjoint_heap_list hs 
                           \<and> (\<forall>k < length Ps. (s, hs ! k) \<Turnstile> Ps ! k ) \<and> hplus_list hs = h)" 
@@ -989,6 +649,8 @@ corollary rule_pes2 : "\<lbrakk>\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {
    apply (simp add: implies_def)
   using rule_pes2' by auto
 
+subsection \<open>specification and proof rules for parallel resource event systems\<close>
+
 primrec 
   rpessafe :: "nat \<Rightarrow> rparesys \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> bool"
   where
@@ -1005,30 +667,11 @@ primrec
           \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (rpesllocked rpes) (rpesllocked rpes')
           \<and> rpessafe n rpes' (fst \<sigma>') h' \<Gamma> Q)))"
 
-definition user_rpesys :: "rparesys \<Rightarrow> bool"
-  where "user_rpesys rpes = user_pesys (resources_pes (fst rpes) (snd rpes))"
-
-definition wf_rpesys :: "rparesys \<Rightarrow> bool"
-  where "wf_rpesys rpes = wf_pesys (resources_pes (fst rpes) (snd rpes))"
-
-lemma user_rpesys_equiv: "user_pesys (resources_pes rs pes) \<Longrightarrow>  user_rpesys (rs, pes)"
-  by (simp add: user_rpesys_def)
-
-lemma wf_rpesys_equiv: "wf_pesys (resources_pes rs pes) \<Longrightarrow>  wf_rpesys (rs, pes)"
-  by (simp add: wf_rpesys_def)
-
 definition 
   rpesCSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> rparesys \<Rightarrow> assn \<Rightarrow> bool" 
   ("_ \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s { _ } _ { _ }")
   where
     "\<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P} rpes {Q} \<equiv> (user_rpesys rpes) \<and> (\<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> rpessafe n rpes s h \<Gamma> Q)"
-
-lemma res_pes_update : "k < length pesa \<Longrightarrow>
-      resources_pes pres pesa[k := (pres @ ers, es)] = resources_pes pres (pesa[k := (ers, es)])"
-  apply (induct pesa arbitrary: k, simp)
-  apply (case_tac "k", simp add: resources_res_def)
-  apply (simp add: list_update_code)
-  done
 
 lemma rpes_equiv : 
   "pessafe n (resources_pes rs pes) s h \<Gamma> Q \<Longrightarrow> rpessafe n (rs, pes) s h \<Gamma> Q"
@@ -1100,4 +743,5 @@ corollary rule_rpes2 : "\<lbrakk>\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s 
   done
 
 end
+
 

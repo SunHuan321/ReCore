@@ -1,5 +1,5 @@
 theory Event_RGsafe
-  imports RGSepSound Event_Safe
+  imports RGSepSound Event_Helper
 begin
 
 primrec
@@ -220,7 +220,8 @@ proof-
     apply (clarify, erule rered.cases, simp, clarsimp)
     apply (rule_tac x = "ha" in exI, clarsimp)
     apply (rule_tac x = "\<Gamma>'" in exI, clarsimp)
-    by (simp add: RGresafe_rAnonyEvt elocked_eq rellocked_def relocked_def)
+    by (metis RGresafe_rAnonyEvt ellocked.simps(1) ellocked.simps(2) elocked_eq 
+        rellocked_def relocked_def snd_conv user_cmd.simps(14) user_cmd_llocked)
 qed
 
 lemma RGresafe_conseq: " \<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G';
@@ -852,8 +853,6 @@ lemma RGpessafe_pesllocked_cancel':  "\<lbrakk> disjoint_locked_list pes; pes' =
             list_minus (pesllocked pes') (pesllocked pes)"
   by (simp add: RGpessafe_pesllocked_cancel)
 
-lemma disjoint_map_list : "\<forall>r. r \<in> set l \<longrightarrow> disjoint (dom (\<Gamma> r)) (dom h)\<Longrightarrow> disjoint(dom h) (dom (hplus_list (map \<Gamma> l)))"
-  using Event_Safe.disjoint_hplus_list by force
 
 lemma list_minus_set : "r \<in> set (list_minus l1 l2) \<longleftrightarrow> r \<in> set l1 \<and> r \<notin> set l2"
 proof
@@ -900,7 +899,7 @@ lemma rgsep_pessafe:
     apply (drule_tac a = "r" in all_impD, simp, clarsimp)
     apply (rule conjI, simp add: peslock_notin)
     apply (rule conjI, simp add: RGsubset_def)  apply blast
-    apply (simp add: Event_Safe.disjoint_hplus_list, simp)
+    apply (simp add: disjoint_hplus_list, simp)
 (* step *)
   apply (clarsimp, erule pesred.cases, simp)
   apply (frule_tac a = "k" in allD, clarsimp)
@@ -922,7 +921,7 @@ lemma rgsep_pessafe:
   using peslocked_def apply presburger
    apply (rule conjI)
   apply (metis disjoint_hplus_list2 disjoint_search(1) peslocked_def)
-    apply (metis Event_Safe.disjoint_hplus_list disjoint_search(1) nth_mem peslocked_def)
+    apply (metis disjoint_hplus_list disjoint_search(1) nth_mem peslocked_def)
   apply (metis list_minus_set reslocked_eq)
   apply (clarsimp, rule_tac x = "h' ++ (hplus_list (hs[k := Map.empty]))" 
         and y = "\<Gamma>'" in ex2I, simp add: RGpesllocked_cancel)
@@ -969,13 +968,13 @@ lemma rgsep_pessafe:
    apply (drule_tac a = "ka" and b = "k" in all2_impD, simp, clarsimp)
   apply auto[1]
     apply (drule mimp5D, simp_all)
-  using disjoint_locked_heap_update1 apply presburger
+  using disjoint_heap_update1 apply presburger
       apply (metis disjoint_locked_list_update)
      apply (clarsimp, drule_tac a = "k1" and b = "k2" in all2_impD, simp)
     apply (case_tac "k1 \<noteq> k") apply (case_tac "k2 \<noteq> k", simp)
       apply auto[1] apply auto[1]
   apply (subgoal_tac "h' ++ hplus_list (hs[k := Map.empty]) = hplus_list (hs[k := h'])", simp)
-  apply (metis disjoint_locked_heap_update1 hplus_list_exchange 
+  apply (metis disjoint_heap_update1 hplus_list_exchange 
         length_list_update list_update_overwrite nth_list_update_eq)
   done           
 

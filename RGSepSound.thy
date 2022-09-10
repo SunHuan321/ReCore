@@ -1,5 +1,5 @@
 theory RGSepSound
-  imports CSLsound Event_Safe
+  imports CSLsound Event_Helper
 begin
 subsection {* state definition *}
 type_synonym localVariable = "heap"
@@ -73,14 +73,6 @@ the resulting configuration remains safe for another n steps, and
 (v) after any step it does, re-establish the resource invariant and be safe for 
 another n steps.
 *}
-
-lemma disjoint_hplus_list : "\<forall>r. r\<in> set l \<longrightarrow> disjoint (dom h) (dom r) \<Longrightarrow> disjoint (dom h) (dom (hplus_list l))"
-                            "\<forall>r. r\<in> set l \<longrightarrow> disjoint (dom h) (dom r) \<Longrightarrow> disjoint (dom (hplus_list l)) (dom h)"
-                            "\<forall>r. r \<in> set l \<longrightarrow> disjoint (dom h) (dom (\<Gamma> r)) \<Longrightarrow> disjoint(dom h) (dom (hplus_list (map \<Gamma> l)))"
-                            "\<forall>r. r \<in> set l \<longrightarrow> disjoint (dom h) (dom (\<Gamma> r)) \<Longrightarrow> disjoint (dom (hplus_list (map \<Gamma> l))) (dom h)"
-     apply (induct l,simp_all)
-  using disjoint_search(1) apply auto[1]
-  using disjoint_search(1) by blast
 
 
 definition RGdef :: "rname list \<Rightarrow> (rname \<Rightarrow> heap) \<Rightarrow> bool" 
@@ -318,11 +310,11 @@ lemma RGsafe_par:
   apply (subgoal_tac "h1 ++ h2 ++ hplus_list (map \<Gamma> (list_minus (llocked C1') (llocked C1))) ++ hF = 
         h1 ++ hplus_list (map \<Gamma> (list_minus (llocked C1') (llocked C1))) ++ (h2 ++ hF)", simp)
      apply (rule map_4_add1)
-       apply (rule disjoint_hplus_list, clarsimp)
+       apply (simp add: disjoint_hplus_list, clarsimp)
        apply (metis disjoint_search(1) locked_diff)
-       apply (rule disjoint_hplus_list, clarsimp)
+       apply (simp add: disjoint_hplus_list, clarsimp)
       apply (metis disjoint_search(1) locked_diff)
-       apply (rule disjoint_hplus_list, clarsimp)
+       apply (simp add: disjoint_hplus_list, clarsimp)
      apply (metis disjoint_search(1) locked_diff)
     apply (drule imp3D, simp)
       apply (simp add: list_minus_appr locked_eq)
@@ -331,9 +323,9 @@ lemma RGsafe_par:
     apply (rule_tac x = "h' ++ h2" and y = "\<Gamma>'" in ex2I, clarsimp)
     apply (rule conjI, simp add: locked_eq list_minus_appr) 
      apply (rule sym) apply (rule map_4_add1)
-       apply (rule disjoint_hplus_list, clarsimp)
-      apply (rule disjoint_hplus_list, clarsimp)
-  apply (rule disjoint_hplus_list, clarsimp)
+       apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
+      apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
+  apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
   apply (rule conjI)
      apply (simp add: list_minus_appr locked_eq)
     apply (rule conjI, clarsimp)
@@ -356,10 +348,8 @@ lemma RGsafe_par:
     apply (subgoal_tac "h1 ++ (h2 ++ (hplus_list (map \<Gamma> (list_minus (llocked C2') (llocked C2))) ++ hF))
         = h2 ++ (hplus_list (map \<Gamma> (list_minus (llocked C2') (llocked C2))) ++ (h1 ++ hF))", simp)
     apply (rule map_4_add2, simp_all)
-  apply (rule disjoint_hplus_list, clarsimp)
-  using locked_diff apply presburger
-  apply (rule disjoint_hplus_list, clarsimp)
-  using locked_diff apply presburger
+     apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) locked_diff set_list_minus)
+    apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) locked_diff set_list_minus)
    apply (drule imp3D)
       apply auto[1]
      apply (metis list_minus_appl locked_eq)
@@ -367,9 +357,9 @@ lemma RGsafe_par:
    apply (clarsimp, rule_tac x = "h' ++ h1" and y = "\<Gamma>'" in ex2I)
    apply (rule conjI, simp add: locked_eq list_minus_appl)
     apply (rule sym) apply (rule map_4_add3)
-      apply (rule disjoint_hplus_list, clarsimp)
-     apply (rule disjoint_hplus_list, clarsimp)
-    apply (rule disjoint_hplus_list, clarsimp)
+      apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
+  apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
+  apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
   apply (intro conjI)
   apply auto[1]
     apply (metis list_minus_appl locked_eq)
@@ -416,15 +406,6 @@ lemma RGdef_upd_irr : "r \<notin> set l \<Longrightarrow> RGdef l (\<Gamma>(r :=
    apply presburger
   by blast
 
-lemma hplus_list_expand : "\<lbrakk> distinct l; r \<in> set l; \<forall>r1 r2. r1 \<in> set l \<and> r2 \<in> set l \<and> r1 \<noteq> r2 
-                            \<longrightarrow> disjoint (dom (\<Gamma> r1)) (dom (\<Gamma> r2))\<rbrakk>
-      \<Longrightarrow> hplus_list (map \<Gamma> l) =  \<Gamma> r ++ hplus_list (map \<Gamma> (removeAll r l))"
-  apply (induct l, simp, clarsimp)
-  apply (rule hsimps)
-   apply (rule disjoint_hplus_list)
-   apply auto[1]
-  by simp
-
 lemma resource_Skip : "\<lbrakk>rgsep_safe n Cskip s h \<Gamma> (R(r := Rr)) (G(r := Gr)) (RGstar Q (RGshared r q));
         disjoint (dom h) (dom (\<Gamma> r)); \<not> frgnA Q r \<rbrakk>
     \<Longrightarrow> rgsep_safe n Cskip s (h ++ \<Gamma> r) (\<Gamma>(r := hK)) R G (RGstar Q (RGlocal q)) "
@@ -468,7 +449,7 @@ lemma RGsafe_resource:
         apply (subgoal_tac "\<Gamma> r ++ hplus_list (map \<Gamma> (removeAll r (list_minus (llocked C'a) (llocked Ca))))
                        = hplus_list (map \<Gamma> (list_minus (llocked C'a) (llocked Ca)))", simp)
         apply (rule sym) 
-        apply (rule hplus_list_expand)
+        apply (rule hplus_list_map_expand)
           apply (rule distinct_list_minus)
           apply (simp add: red_wf_cmd wf_cmd_distinct_locked)
          apply (simp add: set_list_minus)
@@ -495,10 +476,8 @@ lemma RGsafe_resource:
                   = hplus_list (map \<Gamma> (list_minus (llocked C'a) (llocked Ca))) ++ (hF ++ \<Gamma> r)", simp)
        apply (subgoal_tac "hF ++ \<Gamma> r = \<Gamma> r ++ hF", simp)
         apply (rule hsimps(3))
-         apply (rule disjoint_hplus_list, clarsimp)
-         apply metis
-         apply (rule disjoint_hplus_list, clarsimp)
-        apply (metis disjoint_search(1))
+         apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
+  apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
        apply (simp add: map_add_commute)
       apply (metis DiffE RGdef_upd_irr set_list_minus)
      apply (metis disjoint_commute)
@@ -507,8 +486,7 @@ lemma RGsafe_resource:
      apply (rule map_add_subst) apply (subgoal_tac "hF ++ \<Gamma> r = \<Gamma> r ++ hF", simp)
       apply (rule hsimps(3))
        apply auto[1]
-      apply (rule disjoint_hplus_list, clarsimp)
-      apply (meson disjoint_search(1))
+  apply (metis DiffD1 DiffD2 disjoint_map_list set_list_minus)
      apply (simp add: map_add_commute)
     apply (rule conjI) using RGdef_def fun_upd_def set_list_minus apply force
     apply (rule conjI) apply presburger
@@ -547,7 +525,7 @@ lemma RGsafe_resource:
     apply (subgoal_tac " hplus_list (map \<Gamma>' (list_minus (llocked Ca) (llocked C'a)))
     = \<Gamma>' r ++ hplus_list (map \<Gamma>' (list_minus (removeAll r (llocked Ca)) (llocked C'a)))", simp)
   apply (simp add: list_minus_removeAll)
-    apply (rule hplus_list_expand) 
+    apply (rule hplus_list_map_expand) 
       apply (rule distinct_list_minus)
      apply (simp add: red_wf_cmd wf_cmd_distinct_locked, simp, simp add: RGdef_def)
    apply (rule conjI, simp add: RGdef_def list_minus_removeAll2)
@@ -600,12 +578,10 @@ lemma RGsafe_frame:
    apply (subgoal_tac "hR ++ (hplus_list (map \<Gamma> (list_minus (llocked C') (llocked C))) ++ hF)
             = hplus_list (map \<Gamma> (list_minus (llocked C') (llocked C))) ++ (hR ++ hF)", simp)
    apply (rule hsimps(3))
-    apply (rule disjoint_hplus_list)
-    apply (rule map_set_property)
-    apply (simp add: locked_eq)
-    apply (rule disjoint_hplus_list)
-    apply (rule map_set_property)
-   apply (simp add: locked_eq)
+    apply (simp add: disjoint_hplus_list)
+    apply (metis  DiffD1 DiffD2 disjoint_search(1) locked_eq)
+    apply (simp add: disjoint_hplus_list)
+  apply (metis  DiffD1 DiffD2 disjoint_search(1) locked_eq)
   apply (drule imp2D, simp_all, clarsimp)
   apply (rule_tac x = "h' ++ hR" and y = "\<Gamma>'" in ex2I)
   apply (rule conjI) 
@@ -613,9 +589,7 @@ lemma RGsafe_frame:
    apply (rule map_add_subst)
    apply (simp add: locked_eq)
    apply (rule hsimps(3), simp)
-   apply (rule disjoint_hplus_list)
-    apply (rule map_set_property)
-   apply (simp add: locked_eq)
+  apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
   apply (rule conjI)
    apply auto[1]
   apply (drule mall5_imp4D, simp_all)

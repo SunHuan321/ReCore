@@ -1,7 +1,7 @@
 section \<open>Computation of event systems\<close>
 theory Event_Computation
   imports Event_Lang
-begin
+begin                                                                      
 
 subsection \<open>Operational Semantics for event\<close>
 
