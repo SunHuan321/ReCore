@@ -245,5 +245,13 @@ proof-
     by (metis a2 map_add_assoc map_add_commute)
 qed
 
+subsection \<open>relation between parallel event system and resource paralllel event system\<close>
+lemma res_pes_update : "k < length pesa \<Longrightarrow>
+      resources_pes pres pesa[k := (pres @ ers, es)] = resources_pes pres (pesa[k := (ers, es)])"
+  apply (induct pesa arbitrary: k, simp)
+  apply (case_tac "k", simp add: resources_res_def)
+  apply (simp add: list_update_code)
+  done
+
 end
 

@@ -1,5 +1,5 @@
 theory RGSepSound
-  imports CSLsound Event_Helper
+  imports CSLsound AuxillaryLemma
 begin
 subsection {* state definition *}
 type_synonym localVariable = "heap"
