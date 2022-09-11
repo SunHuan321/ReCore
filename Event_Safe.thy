@@ -21,6 +21,15 @@ where
           \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (ellocked e) (ellocked e')
           \<and>  esafe n e' (fst \<sigma>') h' \<Gamma> Q)))"
 
+lemma esafe_mon:
+  "\<lbrakk> esafe n e s h \<Gamma> Q; m \<le> n \<rbrakk> \<Longrightarrow> esafe m e s h \<Gamma> Q"
+apply (induct m arbitrary: e s n h, simp) 
+apply (case_tac n, clarify)
+apply (simp only: safe.simps, clarsimp)
+apply (drule all5D, drule (2) imp3D, simp, clarsimp)
+apply (rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
+done
+
 lemma esafe_agrees: 
     "\<lbrakk> esafe n e s h \<Gamma> Q ; 
      agrees (fvEv e \<union> fvA Q \<union> fvAs \<Gamma>) s s' \<rbrakk>
@@ -114,6 +123,15 @@ where
           \<and> disjoint (dom h') (dom hJ') \<and> disjoint (dom h') (dom hF) \<and> disjoint (dom hJ') (dom hF)
           \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (rellocked re) (rellocked re')
           \<and> resafe n re' (fst \<sigma>') h' \<Gamma> Q)))"
+
+lemma resafe_mon:
+  "\<lbrakk> resafe n re s h \<Gamma> Q; m \<le> n \<rbrakk> \<Longrightarrow> resafe m re s h \<Gamma> Q"
+apply (induct m arbitrary: re s n h, simp) 
+apply (case_tac n, clarify)
+apply (simp only: safe.simps, clarsimp)
+apply (drule all6D, drule (2) imp3D, simp, clarsimp)
+apply (rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
+  done
 
 lemma resafe_agrees: 
     "\<lbrakk> resafe n re s h \<Gamma> Q ; 
@@ -279,6 +297,35 @@ lemma pre_conj : "\<lbrakk> \<forall>re \<in> es. P \<sqsubseteq> (Pre re) ; \<s
 lemma post_dconj : "\<lbrakk>\<forall>re\<in>es. (Post re) \<sqsubseteq> Q; get_union_post \<sigma> es Post\<rbrakk> \<Longrightarrow> \<sigma> \<Turnstile> Q"
   using get_union_post_def implies_def by blast
 
+lemma essafe_EvtSys : "\<lbrakk> \<forall> re \<in> es. user_revent re \<and> (\<forall>s h. (s, h) \<Turnstile> (Pre re) 
+                        \<longrightarrow> resafe n re s h \<Gamma> (Post re));
+                         \<forall> re \<in> es. (Post re) \<sqsubseteq> Q; get_int_pre (s, h) es Pre;
+                         \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<sqsubseteq> Pre re2\<rbrakk>
+                        \<Longrightarrow>  essafe n (EvtSys es) s h \<Gamma> Q"
+  apply (induct n arbitrary: s h, simp, simp)
+  apply (rule conjI, clarsimp)
+   apply (erule esaborts.cases, simp_all)
+   apply (drule_tac x = "re" in Set.bspec, simp) apply auto
+  apply (drule_tac a = "aa" and b = "h" in all2_impD)
+  using get_int_pre_def apply blast apply blast
+  apply (erule esred.cases, simp_all)
+  apply (frule_tac x = "re" in Set.bspec, simp) apply auto
+  apply (drule_tac a = "ab" and b = "h" in all2_impD)
+   apply (simp add: get_int_pre_def)
+     apply ( drule_tac a = "hJ" and b = "hF" and c = "ac" and d = "bc" 
+            and e = "ad" and f = "bd" in all6_impD, simp)
+  apply (drule imp2D, simp, simp, clarify)
+     apply (rule_tac x = "h'" in exI, simp)
+  apply (rule_tac Q = "Post (aa, ba)" in essafe_EvtSeq', simp, simp)
+  apply (clarsimp, drule_tac a = "s'" and b = "h'a" in mall2_impD, clarsimp)
+   apply (drule_tac x = "(a, b)" in Set.bspec, simp) apply auto[1]
+   apply (drule_tac a = "s" and b = "ha" in all2_impD, simp)
+   apply (rule_tac n = "Suc n" in resafe_mon, simp, simp)
+  apply (drule mimpD)
+  apply (metis pre_conj prod.collapse)
+  using essafe_mon by auto
+
+(*
 lemma essafe_EvtSys : "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re)} re {Post re};
                          \<forall> re \<in> es. (Post re) \<sqsubseteq> Q; 
                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<sqsubseteq> Pre re2\<rbrakk>
@@ -312,17 +359,16 @@ proof(intro allI impI)
     using essafe_mon apply auto[1]
     done
 qed
+*)
 
 theorem rule_EvtSys :  "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re)} re {Post re};
                          \<forall> re \<in> es. P \<sqsubseteq> Pre re;
                          \<forall> re \<in> es. (Post re) \<sqsubseteq> Q;
                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<sqsubseteq> Pre re2\<rbrakk>
                         \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>e\<^sub>s {P} (EvtSys es) {Q}"
-  apply (simp add: esCSL_def)
-  apply (rule conjI, simp add: reCSL_def)
-  apply (clarsimp, drule essafe_EvtSys, simp_all)
+  apply (simp add: esCSL_def reCSL_def, clarsimp)
+  apply (rule essafe_EvtSys, simp_all)
   by (simp add: pre_conj)
-
 
 lemma essafe_conseq : "\<lbrakk> essafe n es s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> essafe n es s h \<Gamma> Q'"
   apply (induct n arbitrary: es s h, simp)
@@ -425,6 +471,41 @@ theorem rule_rEvtSeq :"\<lbrakk>\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} re {Q}
   apply (auto simp add: reCSL_def resCSL_def user_resys_def intro!: ressafe_EvtSeq)
   done
 
+lemma ressafe_EvtSys : "\<lbrakk>\<forall>re\<in>es. user_revent (resources_re ers re) \<and> (\<forall> s h. (s, h) \<Turnstile> Pre re 
+                        \<longrightarrow> resafe n (resources_re ers re) s h \<Gamma> (Post re));
+                         \<forall> re \<in> es. (Post re) \<sqsubseteq> Q; get_int_pre (s, h) es Pre;
+                         \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<sqsubseteq> Pre re2\<rbrakk>
+                        \<Longrightarrow> ressafe n (ers, (EvtSys es)) s h \<Gamma> Q"
+  apply (induct n arbitrary: s h, simp, simp)
+  apply (rule conjI, simp add: esaborts.simps resaborts_equiv, clarsimp)
+  apply (drule_tac x = "(a, b)" in Set.bspec, simp add: user_revent_def) apply auto[1]
+   apply (drule_tac a = "s" and b = "h" in all2_impD)
+  using get_int_pre_def apply blast
+   apply (simp add: resources_re_aborts_equiv)
+  apply (rule conjI, simp add: reaccesses_def resaccesses_def)
+  apply (clarsimp, erule resred.cases, simp_all)
+  apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def)
+  apply (frule_tac x = "(rs, e)" in Set.bspec, simp) apply auto
+  apply (drule_tac a = "ac" and b = "h" in all2_impD)
+   apply (simp add: get_int_pre_def)
+    apply (clarsimp, drule_tac a = "hJ" and b = "hF" and c = "ers @ rs" and d = "e'"
+              and e = "ad" and f = "bd" in all6_impD, simp)
+  apply (drule imp2D, simp add: rellocked_def, simp, clarify)
+  apply (rule_tac x = "h'" in exI, simp)
+  apply (rule_tac Q = "Post (rs, e)" in ressafe_EvtSeq', simp)
+   apply (simp add: user_revent_def, clarsimp)
+  apply (drule_tac a = "s'" and b = "h'a" in mall2_impD, clarsimp)
+   apply (drule_tac x = "(a, b)" in Set.bspec, simp, clarsimp) 
+   apply (drule_tac a = "s" and b = "ha" in all2_impD, simp)
+   apply (rule_tac n = "Suc n" in resafe_mon)
+    apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def, simp)
+   apply (drule mimpD)
+    apply (metis pre_conj prod.collapse)
+  apply (simp add: ressafe_mon)
+  done
+
+
+(*
 lemma ressafe_EvtSys : "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re)} (resources_re ers re) {Post re};
                          \<forall> re \<in> es. (Post re) \<sqsubseteq> Q;
                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<sqsubseteq> Pre re2\<rbrakk>
@@ -460,14 +541,14 @@ proof(intro allI impI)
       apply (simp add: user_esys_def user_revent_def)
     by (metis pre_conj prod.collapse ressafe_mon)
 qed
+*)
 
 theorem rule_rEvtSys :  "\<lbrakk>\<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re)} (resources_re ers re) {Post re};
                          \<forall> re \<in> es. (Post re) \<sqsubseteq> Q; \<forall> re \<in> es. P \<sqsubseteq> (Pre re); 
                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<sqsubseteq> Pre re2\<rbrakk>
                         \<Longrightarrow>  \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P} (ers, (EvtSys es)) {Q}"
-  apply (simp add: resCSL_def)
-  apply (rule conjI, simp add: reCSL_def resources_re_def user_resys_def user_revent_def)
-  apply (clarsimp, drule ressafe_EvtSys, simp_all)
+  apply (simp add: resCSL_def reCSL_def resources_re_def user_resys_def user_revent_def)
+  apply (clarsimp, rule ressafe_EvtSys, simp_all add: resources_re_def user_revent_def)
   by (simp add: pre_conj)
 
 lemma ressafe_conseq : "\<lbrakk> ressafe n res s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> ressafe n res s h \<Gamma> Q'"

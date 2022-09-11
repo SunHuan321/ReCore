@@ -400,6 +400,41 @@ lemma Stable_trans_int: "\<lbrakk>RG_stable_getintpre (sa, ha, \<Gamma>') es Pre
   apply (drule_tac a = "a" and b = "b" in all2_impD, simp)
   by (metis Rely_Trans_def transD)
 
+lemma rgessafe_EvtSys :  "\<lbrakk>\<forall>re\<in>es. user_revent re \<and> (\<forall>s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re 
+                          \<longrightarrow> rgsep_resafe n re s h \<Gamma> (Rely re) (Guar re) (Post re));
+                          \<forall>re \<in> es.  Post re  \<^sup>\<sqsubseteq>rgsep Q;
+                          \<forall>re \<in> es.  R  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re;
+                          \<forall>re \<in> es.  Guar re  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G;
+                          Rely_Trans R;  RG_stable_getintpre (s, h, \<Gamma>) es Pre R;
+                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
+                        \<Longrightarrow> rgsep_essafe n (EvtSys es) s h \<Gamma> R G Q"
+  apply (induct n arbitrary: s h \<Gamma>, simp, simp)
+  apply (rule conjI, simp add: esaborts.simps, clarify)
+   apply (drule_tac x = "(a, b)" in Set.bspec, simp) apply auto[1]
+  apply (drule_tac a = "s" and b = "h" and c = "\<Gamma>" in all3_impD)
+  using RG_stable_getintpre_def apply blast apply simp
+  apply (rule conjI, clarsimp)
+     apply (drule_tac a = "s" and b = "h" and c = "\<Gamma>'" in mall3_impD)
+  using Stable_trans_int apply auto[1] apply simp
+  apply (clarsimp, erule esred.cases, simp_all, clarify)
+  apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def)
+  apply (frule_tac x = "(aa, ba)" in Set.bspec, simp) apply auto
+  apply (drule_tac a = "ab" and b = "h" and c = "\<Gamma>" in all3_impD)
+  apply (simp add: RG_stable_getintpre_def, clarsimp)
+    apply (drule_tac a = "hF" and b = "ac" and c = "bc" and d = "ad" 
+                                    and e = "bd" in all5_impD, simp)
+  apply (drule imp3D, simp, simp, simp, clarsimp)
+  apply (rule_tac x = "h'" in exI, clarsimp)
+  apply (rule_tac x = "\<Gamma>'" in exI, simp)
+  apply (rule conjI, simp add: relocked_def user_eventD)
+  apply (rule_tac Q = "Post (aa, ba)" in RGessafe_EvtSeq')
+    apply (meson RGresafe_conseq rgsep_implies_def)
+   apply (simp add: user_revent_def)
+  apply (clarsimp, drule_tac a = "s'" and b = "h'a" and c = "\<Gamma>''" in mall3_impD)
+   apply (metis Stable_Property1 prod.collapse)
+  by (simp add: RGessafe_mon)
+
+(*
 lemma rgessafe_EvtSys :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re)  \<^sup>\<turnstile>rergsep {Pre re} re {Post re};
                           \<forall>re \<in> es.  Post re  \<^sup>\<sqsubseteq>rgsep Q;
                           \<forall>re \<in> es.  R  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re;
@@ -411,8 +446,8 @@ lemma rgessafe_EvtSys :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re)  
   apply (simp add: reRGSep_def, clarify)
 proof-
   fix n s h \<Gamma>
-  assume a0: " \<forall>re\<in>es.
-          user_revent re \<and> (\<forall>n s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re \<longrightarrow> rgsep_resafe n re s h \<Gamma> (Rely re) (Guar re) (Post re))"
+  assume a0: " \<forall>re\<in>es. user_revent re \<and> (\<forall>n s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re 
+              \<longrightarrow> rgsep_resafe n re s h \<Gamma> (Rely re) (Guar re) (Post re))"
   and    a1: " \<forall>re\<in>es. Post re \<^sup>\<sqsubseteq>rgsep Q"
   and    a2: "\<forall>re\<in>es. R \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re"
   and    a3: "\<forall>re\<in>es. Guar re \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G"
@@ -449,6 +484,7 @@ proof-
      apply auto[1]
     by (simp add: RGessafe_mon)
 qed
+*)
 
 theorem RGrule_EvtSys :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re)  \<^sup>\<turnstile>rergsep {Pre re} re {Post re};
                           \<forall>re \<in> es.  P  \<^sup>\<sqsubseteq>rgsep Pre re;
@@ -458,10 +494,45 @@ theorem RGrule_EvtSys :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re)  
                           Rely_Trans R; stable P [] R;
                           \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
                         \<Longrightarrow> R, G \<^sup>\<turnstile>esrgsep {P} (EvtSys es) {Q}" 
-  apply (frule rgessafe_EvtSys, simp_all)
   apply (simp add: reRGSep_def esRGSep_def, clarify)
-  apply (drule all4_impD, simp_all)
+  apply (rule rgessafe_EvtSys, simp_all)
   by (metis Stable_Property1 Stable_Property2)
+
+lemma rgessafe_EvtSys' : "\<lbrakk>\<forall>re\<in>es. user_revent re \<and> (\<forall> s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re 
+                          \<longrightarrow> rgsep_resafe n re s h \<Gamma> (Rely re) (Guar re) (Post re));
+                          \<forall>re \<in> es.  P \<^sup>\<sqsubseteq>rgsep Pre re;
+                          \<forall>re \<in> es.  Post re  \<^sup>\<sqsubseteq>rgsep Q;
+                          \<forall>re \<in> es.  R  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re;
+                          \<forall>re \<in> es.  Guar re  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G;
+                          \<forall>re \<in> es. stable (Post re) [] (Rely re);
+                          stable P [] R; (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P;
+                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
+                        \<Longrightarrow> rgsep_essafe n (EvtSys es) s h \<Gamma> R G Q"
+  apply (induct n arbitrary: s h \<Gamma> P, simp, simp)
+  apply (rule conjI, simp add: esaborts.simps, clarify)
+   apply (drule_tac x = "(a, b)" in Set.bspec, simp) apply auto[1]
+   apply (drule_tac a = "s" and b = "h" and c = "\<Gamma>" in all3_impD)
+  using rgsep_implies_def apply blast apply simp
+  apply (rule conjI, clarsimp)
+   apply (drule_tac a = "s" and b = "h" and c = "\<Gamma>'" and d = "P" in mall4_impD, simp)
+  apply (drule mimp2D, simp)
+    apply (simp add: stable_def) apply metis apply simp
+  apply (clarsimp, erule esred.cases, simp_all, clarsimp)
+  apply (frule_tac x = "(aa, ba)" in Set.bspec, simp, clarsimp)
+  apply (drule_tac a = "ab" and b = "h" and c = "\<Gamma>" in all3_impD)
+   apply (simp add: rgsep_implies_def, clarsimp)
+    apply (drule_tac a = "hF" and b = "ac" and c = "bc" and d = "ad" 
+                                    and e = "bd" in all5_impD, simp)
+  apply (drule imp3D, simp, simp, simp, clarsimp)
+  apply (rule_tac x = "h'" in exI, clarsimp)
+  apply (rule_tac x = "\<Gamma>'" in exI, simp)
+  apply (rule conjI, simp add: relocked_eq)
+  apply (rule_tac Q = "Post (aa, ba)" in RGessafe_EvtSeq)
+    apply (meson RGresafe_conseq rgsep_implies_def, simp, clarsimp)
+    apply (drule_tac a = "s'" and b = "h'a" and c = "\<Gamma>''" 
+                    and d = " Post (aa, ba)" in mall4_impD, clarify)
+  apply auto[1]
+  by (meson RGessafe_mon Rely_Stable)
 
 theorem RGrule_EvtSys' :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re)  \<^sup>\<turnstile>rergsep {Pre re} re {Post re};
                           \<forall>re \<in> es.  P \<^sup>\<sqsubseteq>rgsep Pre re;
@@ -469,53 +540,11 @@ theorem RGrule_EvtSys' :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re) 
                           \<forall>re \<in> es.  R  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re;
                           \<forall>re \<in> es.  Guar re  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G;
                           \<forall>re \<in> es. stable (Post re) [] (Rely re);
-                          stable P [] R;
+                          stable P [] R;   
                           \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
                         \<Longrightarrow> R, G \<^sup>\<turnstile>esrgsep {P} (EvtSys es) {Q}"
   apply (simp add: esRGSep_def reRGSep_def, clarsimp)
-proof-
-  fix n s h \<Gamma>
-  assume a0: " \<forall>re\<in>es.
-          user_revent re \<and> (\<forall>n s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re \<longrightarrow> rgsep_resafe n re s h \<Gamma> (Rely re) (Guar re) (Post re))"
-  and    a1: "\<forall>re\<in>es. P \<^sup>\<sqsubseteq>rgsep Pre re"
-  and    a2: " \<forall>re\<in>es. Post re \<^sup>\<sqsubseteq>rgsep Q"
-  and    a3: "\<forall>re\<in>es. R \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re"
-  and    a4: "\<forall>re\<in>es. Guar re \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G"
-  and    a5: "\<forall>re\<in>es. stable (Post re) [] (Rely re)"
-  and    a6: "stable P [] R"
-  and    a7: " \<forall>a b aa ba. (a, b) \<in> es \<and> (aa, ba) \<in> es \<longrightarrow> Post (a, b) \<^sup>\<sqsubseteq>rgsep Pre (aa, ba)"
-  and    a8: "(s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P"
-  then show "rgsep_essafe n (EvtSys es) s h \<Gamma> R G Q"
-    apply (induct n arbitrary: s h \<Gamma> P, simp, simp)
-    apply (rule conjI, simp add: esaborts.simps, clarify)
-     apply (drule_tac x = "(a, b)" in Set.bspec, simp)
-     apply (drule_tac x = "(a, b)" in Set.bspec, simp) apply auto[1]
-     apply (drule_tac a = "Suc 0" and b = "sa" and c = "ha" and d = "\<Gamma>'" in all4_impD)
-    using rgsep_implies_def apply blast apply simp
-    apply (rule conjI, clarsimp)
-     apply (drule_tac a = "sa" and b = "ha" and c = "\<Gamma>''" and d = "Pa" in mall4_impD, simp_all)
-      apply (simp add: stable_def) apply metis 
-    apply (clarsimp, erule esred.cases, simp_all, clarify)
-    apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def)
-    apply (drule_tac x = "(aa, ba)" in Set.bspec, simp)
-    apply (drule_tac x = "(aa, ba)" in Set.bspec, simp) apply auto
-    apply (drule_tac a = "Suc n" and b = "ab" and c = "ha" and d = "\<Gamma>'" in all4_impD)
-    using rgsep_implies_def apply blast 
-    apply (simp add: rellocked_def, clarify)
-    apply (drule_tac a = "hF" and b = "ac" and c = "bc" and d = "ad" 
-                                    and e = "bd" in all5_impD, simp)
-    apply (drule imp3D, simp, simp, simp, clarsimp)
-    apply (rule_tac x = "h'" in exI, clarsimp)
-    apply (rule_tac x = "\<Gamma>''" in exI, simp)
-    apply (rule conjI, simp add: a0 user_reventD)
-    apply (rule_tac Q = "Post (aa, ba)" in RGessafe_EvtSeq)
-      apply (meson RGresafe_conseq rgsep_implies_def)
-     apply (simp add: a0, clarify)
-    apply (drule_tac a = "s'" and b = "h'a" and c = "\<Gamma>'''" 
-                    and d = " Post (aa, ba)" in mall4_impD, clarify)
-     apply blast
-    by (meson RGessafe_mon Rely_Stable)
-qed
+  by (rule rgessafe_EvtSys', simp_all)
 
 lemma RGessafe_conseq : "\<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G';
    Q \<^sup>\<sqsubseteq>rgsep Q';rgsep_essafe n es s h \<Gamma> R G Q\<rbrakk> 
@@ -647,6 +676,45 @@ theorem RGrule_rEvtSeq :"\<lbrakk>Rely ,Guar  \<^sup>\<turnstile>rergsep {P} re 
   apply (simp add: reRGSep_def resRGSep_def user_resys_def)
   by (meson RGressafe_EvtSeq)
 
+lemma rgressafe_EvtSys :  
+    "\<lbrakk>\<forall>re\<in>es. user_revent (resources_re ers re) \<and> (\<forall>s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re 
+         \<longrightarrow> rgsep_resafe n (resources_re ers re) s h \<Gamma> (Rely re) (Guar re) (Post re));
+      \<forall>re \<in> es.  Post re  \<^sup>\<sqsubseteq>rgsep Q;
+      \<forall>re \<in> es.  R  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re;
+      \<forall>re \<in> es.  Guar re  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G;
+      Rely_Trans R; RG_stable_getintpre (s, h, \<Gamma>) es Pre R;
+      \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
+    \<Longrightarrow> rgsep_ressafe n (ers, (EvtSys es)) s h \<Gamma> R G Q"
+    apply (induct n arbitrary: s h \<Gamma>, simp, simp)
+    apply (rule conjI, simp add: resaborts_equiv esaborts.simps, clarify)
+     apply (drule_tac x = "(a, b)" in Set.bspec, simp) apply auto[1]
+    apply (drule_tac a = "s" and b = "h" and  c = "\<Gamma>" in all3_impD)
+    using RG_stable_getintpre_def apply blast 
+    apply (simp add: resources_re_aborts_equiv)
+    apply (rule conjI, simp add: resaccesses_def)
+    apply (rule conjI, clarsimp)
+     apply (drule_tac a = "s" and b = "h" and c = "\<Gamma>'" in mall3_impD, simp_all)
+    using Stable_trans_int apply auto[1]
+    apply (clarsimp, erule resred.cases, simp_all, clarify)
+    apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def)
+    apply (frule_tac x = "(rs, e)" in Set.bspec, simp) apply auto
+    apply (drule_tac a = "ac" and b = "h" and c = "\<Gamma>"  in all3_impD)
+    apply (simp add: RG_stable_getintpre_def, clarsimp)
+    apply (drule_tac a = "hF" and b = "ers @ rs" and c = "e'" 
+                    and d = "ad" and e = "bd" in all5_impD, simp)
+    apply (drule imp3D, simp, simp, simp add: relocked_def reslocked_def, clarsimp)
+    apply (rule_tac x = "h'" in exI, clarsimp)
+    apply (rule_tac x = "\<Gamma>'" in exI, simp add: reslocked_def relocked_def)
+    apply (rule conjI, simp add: elocked_eq) 
+    apply (rule_tac Q = "Post (rs, e)" in RGressafe_EvtSeq')
+      apply (meson RGresafe_conseq rgsep_implies_def)
+    apply (simp add: user_revent_def)
+    apply (clarsimp, drule_tac a = "s'" and b = "h'a" and c = "\<Gamma>''" in mall3_impD)  
+      apply (rule Stable_Property1, simp_all)
+     apply auto[1]
+    by (simp add: RGressafe_mon)
+
+(*
 lemma rgressafe_EvtSys :  "\<lbrakk>  \<forall>re \<in> es. (Rely re), (Guar re)  \<^sup>\<turnstile>rergsep 
                            {Pre re} (resources_re ers re) {Post re};
                           \<forall>re \<in> es.  Post re  \<^sup>\<sqsubseteq>rgsep Q;
@@ -659,10 +727,8 @@ lemma rgressafe_EvtSys :  "\<lbrakk>  \<forall>re \<in> es. (Rely re), (Guar re)
   apply (simp add: reRGSep_def, clarify)
 proof-
   fix n s h \<Gamma>
-  assume a0: "\<forall>re\<in>es.
-          user_revent (resources_re ers re) \<and>
-          (\<forall>n s h \<Gamma>.
-              (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re \<longrightarrow> rgsep_resafe n (resources_re ers re) s h \<Gamma> (Rely re) (Guar re) (Post re))"
+  assume a0: "\<forall>re\<in>es. user_revent (resources_re ers re) \<and> (\<forall>n s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re 
+              \<longrightarrow> rgsep_resafe n (resources_re ers re) s h \<Gamma> (Rely re) (Guar re) (Post re))"
   and    a1: " \<forall>re\<in>es. Post re \<^sup>\<sqsubseteq>rgsep Q"
   and    a2: "\<forall>re\<in>es. R \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re"
   and    a3: "\<forall>re\<in>es. Guar re \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G"
@@ -700,6 +766,7 @@ proof-
      apply auto[1]
     by (simp add: RGressafe_mon)
 qed
+*)
 
 theorem RGrule_rEvtSys :  "\<lbrakk>  \<forall>re \<in> es. (Rely re), (Guar re)  \<^sup>\<turnstile>rergsep 
                            {Pre re} (resources_re ers re) {Post re};
@@ -710,9 +777,49 @@ theorem RGrule_rEvtSys :  "\<lbrakk>  \<forall>re \<in> es. (Rely re), (Guar re)
                           Rely_Trans R; stable P [] R;
                           \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
                         \<Longrightarrow> R, G \<^sup>\<turnstile>resrgsep {P} (ers, (EvtSys es)) {Q}" 
-  apply (frule rgressafe_EvtSys, simp_all)
   apply (simp add: reRGSep_def resRGSep_def user_resys_def user_revent_def resources_re_def) 
-  by (metis Stable_Property1 Stable_Property2)
+  apply (clarsimp, rule rgressafe_EvtSys, simp_all)
+   apply (simp add: resources_re_def user_revent_def)
+  by (simp add: Stable_Property1 Stable_Property2)
+
+lemma rgressafe_rEvtSys' : 
+             "\<lbrakk>\<forall>re\<in>es. user_revent (resources_re ers re) \<and> (\<forall>s h \<Gamma>.(s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re 
+              \<longrightarrow> rgsep_resafe n (resources_re ers re) s h \<Gamma> (Rely re) (Guar re) (Post re));
+              \<forall>re \<in> es.  P \<^sup>\<sqsubseteq>rgsep Pre re;
+              \<forall>re \<in> es.  Post re  \<^sup>\<sqsubseteq>rgsep Q;
+              \<forall>re \<in> es.  R  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re;
+              \<forall>re \<in> es.  Guar re  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G;
+              \<forall>re \<in> es. stable (Post re) [] (Rely re);
+              stable P [] R; (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P;
+              \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
+            \<Longrightarrow> rgsep_ressafe n (ers, EvtSys es) s h \<Gamma> R G Q"
+  apply (induct n arbitrary: s h \<Gamma> P, simp, simp)
+  apply (rule conjI, simp add: resaborts_equiv esaborts.simps, clarify)
+   apply (drule_tac x = "(a, b)" in Set.bspec, simp) apply auto[1]
+   apply (drule_tac a = "s" and b = "h" and c = "\<Gamma>" in all3_impD)
+  using rgsep_implies_def apply blast
+   apply (simp add: resources_re_aborts_equiv)
+  apply (rule conjI, simp add: resaccesses_def)
+  apply (rule conjI, simp add: reslocked_def, clarsimp)
+   apply (drule_tac a = "s" and b = "h" and c = "\<Gamma>'" and d = "P" in mall4_impD, simp_all)
+   apply (simp add: stable_def) apply metis
+  apply (clarsimp, erule resred.cases, simp_all, clarify)
+  apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def)
+  apply (frule_tac x = "(rs, e)" in Set.bspec, simp) apply auto
+  apply (drule_tac a = "ac" and b = "h" and c = "\<Gamma>" in all3_impD)
+   apply (simp add: rgsep_implies_def, clarsimp)
+    apply (drule_tac a = "hF" and b = "ers @ rs" and c = "e'" 
+                    and d = "ad" and e = "bd" in all5_impD, simp)
+  apply (drule imp3D, simp, simp, simp add: relocked_def reslocked_def, clarsimp)
+  apply (rule_tac x = "h'" in exI, clarsimp)
+  apply (rule_tac x = "\<Gamma>'" in exI, simp add: reslocked_def relocked_def)
+  apply (rule conjI, simp add: elocked_eq) 
+  apply (rule_tac Q = "Post (rs, e)" in RGressafe_EvtSeq)
+    apply (meson RGresafe_conseq rgsep_implies_def)
+   apply (simp add: user_revent_def)
+    apply (clarsimp, drule_tac a = "s'" and b = "h'a" 
+              and c = "\<Gamma>''" and d = "Post (rs, e)" in mall4_impD, clarsimp)
+    by (meson RGressafe_mon Rely_Stable)
 
 theorem RGrule_rEvtSys' :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re)  \<^sup>\<turnstile>rergsep 
                            {Pre re} (resources_re ers re) {Post re};
@@ -724,54 +831,10 @@ theorem RGrule_rEvtSys' :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re)
                           stable P [] R;
                           \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
                         \<Longrightarrow> R, G \<^sup>\<turnstile>resrgsep {P} (ers, (EvtSys es)) {Q}"
-  apply (simp add: resRGSep_def reRGSep_def user_resys_def)
-  apply (rule conjI, simp add: user_revent_def resources_re_def, clarify)
-proof-
-  fix n s h \<Gamma>
-  assume a0: "  \<forall>re\<in>es.
-          user_revent (resources_re ers re) \<and>
-          (\<forall>n s h \<Gamma>.
-              (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re \<longrightarrow> rgsep_resafe n (resources_re ers re) s h \<Gamma> (Rely re) (Guar re) (Post re))"
-  and    a1: "\<forall>re\<in>es. P \<^sup>\<sqsubseteq>rgsep Pre re"
-  and    a2: " \<forall>re\<in>es. Post re \<^sup>\<sqsubseteq>rgsep Q"
-  and    a3: "\<forall>re\<in>es. R \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re"
-  and    a4: "\<forall>re\<in>es. Guar re \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G"
-  and    a5: "\<forall>re\<in>es. stable (Post re) [] (Rely re)"
-  and    a6: "stable P [] R"
-  and    a7: " \<forall>a b aa ba. (a, b) \<in> es \<and> (aa, ba) \<in> es \<longrightarrow> Post (a, b) \<^sup>\<sqsubseteq>rgsep Pre (aa, ba)"
-  and    a8: "(s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P"
-  then show "rgsep_ressafe n (ers, EvtSys es) s h \<Gamma> R G Q"
-    apply (induct n arbitrary: s h \<Gamma> P, simp, simp)
-    apply (rule conjI, simp add: resaborts_equiv esaborts.simps, clarify)
-     apply (drule_tac x = "(a, b)" in Set.bspec, simp)
-     apply (drule_tac x = "(a, b)" in Set.bspec, simp) apply auto[1]
-     apply (drule_tac a = "Suc 0" and b = "sa" and c = "ha" and d = "\<Gamma>'" in all4_impD)
-    using rgsep_implies_def apply blast
-    apply (simp add: resources_re_aborts_equiv)
-    apply (rule conjI, simp add: resaccesses_def)
-    apply (rule conjI, simp add: reslocked_def, clarsimp)
-     apply (drule_tac a = "sa" and b = "ha" and c = "\<Gamma>''" and d = "Pa" in mall4_impD, simp_all)
-      apply (simp add: stable_def) apply metis 
-    apply (clarsimp, erule resred.cases, simp_all, clarify)
-    apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def)
-    apply (drule_tac x = "(rs, e)" in Set.bspec, simp)
-    apply (drule_tac x = "(rs, e)" in Set.bspec, simp) apply auto
-    apply (drule_tac a = "Suc n" and b = "ac" and c = "ha" and d = "\<Gamma>'" in all4_impD)
-    using rgsep_implies_def apply blast
-    apply (simp add: rellocked_def , clarify)
-    apply (drule_tac a = "hF" and b = "ers @ rs" and c = "e'" 
-                    and d = "ad" and e = "bd" in all5_impD, simp)
-    apply (drule imp3D, simp, simp, simp add: relocked_def reslocked_def, clarsimp)
-    apply (rule_tac x = "h'" in exI, clarsimp)
-    apply (rule_tac x = "\<Gamma>''" in exI, simp add: reslocked_def relocked_def)
-    apply (rule conjI, simp add: elocked_eq) 
-    apply (rule_tac Q = "Post (rs, e)" in RGressafe_EvtSeq)
-      apply (meson RGresafe_conseq rgsep_implies_def)
-    using a0 resource_re_equiv user_revent_def apply auto[1]
-    apply (clarsimp, drule_tac a = "s'" and b = "h'a" 
-              and c = "\<Gamma>'''" and d = "Post (rs, e)" in mall4_impD, clarsimp)
-    by (meson RGressafe_mon Rely_Stable)
-qed
+  apply (simp add: resRGSep_def reRGSep_def)
+  apply (rule conjI, simp add: resource_re_equiv user_resys_def user_revent_def)
+  apply (clarsimp, rule rgressafe_rEvtSys', simp_all)
+  done
 
 lemma RGressafe_conseq : "\<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G';
    Q \<^sup>\<sqsubseteq>rgsep Q';rgsep_ressafe n res s h \<Gamma> R G Q\<rbrakk> 
