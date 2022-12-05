@@ -2,6 +2,17 @@ theory Event_RGsafe
   imports RGSepSound Event_Helper
 begin
 
+primrec RGstar_shared :: "(rname \<Rightarrow> assn) \<Rightarrow> rnames \<Rightarrow> rgsep_assn"
+  where "RGstar_shared \<G> [] = RGlocal Aemp"
+  | "RGstar_shared \<G> (r # rs) = RGstar (RGshared r (\<G> r)) (RGstar_shared \<G> rs)"
+
+primrec RGstar_local :: "(rname \<Rightarrow> assn) \<Rightarrow> rnames \<Rightarrow> rgsep_assn"
+  where "RGstar_local \<G> [] = RGlocal Aemp"
+  | "RGstar_local \<G> (r # rs) = RGstar (RGlocal (\<G> r)) (RGstar_local \<G> rs)"
+
+lemma RGstar_local_frgnA : " \<not> frgnA (RGstar_local \<G> rs) a"
+  by (induct rs, simp, simp)
+
 primrec
   rgsep_esafe :: "nat \<Rightarrow> event \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> heap) \<Rightarrow> rely \<Rightarrow> guar \<Rightarrow> rgsep_assn \<Rightarrow> bool"
 where
@@ -58,6 +69,84 @@ where
   "R,G  \<^sup>\<turnstile>ergsep {P} e {Q} \<equiv> (user_event e \<and> (\<forall>n s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P
                          \<longrightarrow> rgsep_esafe n e s h \<Gamma> R G Q))" 
 
+lemma RGesafe_conseq: " \<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G';
+   Q \<^sup>\<sqsubseteq>rgsep Q';rgsep_esafe n e s h \<Gamma> R G Q\<rbrakk> 
+    \<Longrightarrow> rgsep_esafe n e s h \<Gamma> R' G' Q'"
+  apply (induct n arbitrary: e s h \<Gamma>, simp, clarsimp)
+(* skip *)
+  apply (rule conjI) 
+  apply (simp add: rgsep_implies_def)
+(*rely *)
+  apply (rule conjI)
+   apply (intro allI impI)
+   apply (subgoal_tac "rgsep_esafe n e s h \<Gamma>' R G Q", simp_all)
+  apply (metis RGsubset_def contra_subsetD)
+(* step *)
+  apply (clarsimp, drule (2) all4_imp2D, simp_all, clarsimp)
+  apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp)
+  by (meson RGsubset_def contra_subsetD)
+
+lemma RGesafe_post_Aemp : "rgsep_esafe n e s h \<Gamma> R G Q \<longleftrightarrow> 
+                            rgsep_esafe n e s h \<Gamma> R G (RGstar Q (RGlocal Aemp))"
+  by (induct n arbitrary: e s h \<Gamma>, simp_all)
+
+lemma RGesafe_post_commute : "rgsep_esafe n e s h \<Gamma> R G (RGstar Q1 Q2) \<longleftrightarrow> 
+                               rgsep_esafe n e s h \<Gamma> R G (RGstar Q2 Q1)"
+  by (induct n arbitrary: e s h \<Gamma>, simp, simp only: rgsep_esafe.simps RGstar_commute)
+
+lemma RGesafe_post_assoc : "rgsep_esafe n e s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
+                     \<longleftrightarrow> rgsep_esafe n e s h \<Gamma> R G (RGstar Q1 (RGstar Q2 Q3))"
+  by (induct n arbitrary: e s h \<Gamma>, simp, simp only: rgsep_esafe.simps RGstar_assoc)
+
+lemma RGesafe_post_comassoc : "rgsep_esafe n e s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
+                        \<longleftrightarrow> rgsep_esafe n e s h \<Gamma> R G (RGstar Q1 (RGstar Q3 Q2))"
+  by (induct n arbitrary: e s h \<Gamma>, simp, simp only: rgsep_esafe.simps RGstar_comassoc)
+
+
+theorem RGrule_e_pre_commute: 
+  " R, G \<^sup>\<turnstile>ergsep {RGstar P1 P2} e{Q} \<longleftrightarrow> 
+    R, G \<^sup>\<turnstile>ergsep {RGstar P2 P1} e{Q}"
+  using RGstar_commute eRGSep_def by auto
+
+theorem RGrule_e_post_commute:
+  " R, G \<^sup>\<turnstile>ergsep {P} e{RGstar Q1 Q2}  \<longleftrightarrow> 
+    R, G \<^sup>\<turnstile>ergsep {P} e{RGstar Q2 Q1} "
+  by (simp add: eRGSep_def RGesafe_post_commute)
+
+theorem RGrule_e_pre_post_commute:
+  "R, G \<^sup>\<turnstile>ergsep {RGstar P1 P2} e{RGstar Q1 Q2}  \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>ergsep {RGstar P2 P1} e{RGstar Q2 Q1} "
+  by (simp add: RGrule_e_post_commute RGrule_e_pre_commute)
+
+theorem RGrule_e_pre_associate :
+  "R, G \<^sup>\<turnstile>ergsep {RGstar (RGstar P1 P2) P3} e{Q}  \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>ergsep {RGstar P1 (RGstar P2 P3)} e{Q} "
+  using RGstar_assoc eRGSep_def by auto
+
+theorem RGrule_e_post_associate :
+  "R, G \<^sup>\<turnstile>ergsep {P} e{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+  R, G \<^sup>\<turnstile>ergsep {P} e{RGstar Q1 (RGstar Q2 Q3)}"
+  by (simp add: eRGSep_def RGesafe_post_assoc)
+
+theorem RGrule_e_pre_post_associate :
+  "R, G \<^sup>\<turnstile>ergsep {RGstar (RGstar P1 P2) P3} e{(RGstar (RGstar Q1 Q2) Q3)} \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>ergsep {RGstar P1 (RGstar P2 P3)} e{RGstar Q1 (RGstar Q2 Q3)}"
+  using RGrule_e_post_associate RGrule_e_pre_associate RGrule_e_pre_commute by auto
+
+theorem RGrule_e_pre_comassoc :   "R, G \<^sup>\<turnstile>ergsep {RGstar (RGstar P1 P2) P3} e{Q}  \<longleftrightarrow> 
+                                  R, G \<^sup>\<turnstile>ergsep {RGstar P1 (RGstar P3 P2)} e{Q} "
+  using RGstar_comassoc eRGSep_def by auto
+
+theorem RGrule_e_post_comassoc :
+  "R, G \<^sup>\<turnstile>ergsep {P} e{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+   R, G \<^sup>\<turnstile>ergsep {P} e{RGstar Q1 (RGstar Q3 Q2)}"
+  by (simp add: eRGSep_def RGesafe_post_comassoc)
+
+theorem RGrule_e_pre_post_comassoc :
+   "R, G \<^sup>\<turnstile>ergsep {RGstar (RGstar P1 P2) P3} e{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+    R, G \<^sup>\<turnstile>ergsep {RGstar P1 (RGstar P3 P2)} e{RGstar Q1 (RGstar Q3 Q2)}"
+  by (simp add: RGrule_e_post_comassoc RGrule_e_pre_comassoc)
+ 
 lemma RGesafe_AnonyEvt: "rgsep_safe n C s h \<Gamma> R G Q \<Longrightarrow> rgsep_esafe n (AnonyEvent C) s h \<Gamma> R G Q"
   apply (induct n arbitrary: C s h \<Gamma>, simp_all, clarify)
   apply (rule conjI)
@@ -96,29 +185,58 @@ proof-
     by (simp add: RGesafe_AnonyEvt)
 qed
 
-lemma RGesafe_conseq: " \<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G';
-   Q \<^sup>\<sqsubseteq>rgsep Q';rgsep_esafe n e s h \<Gamma> R G Q\<rbrakk> 
-    \<Longrightarrow> rgsep_esafe n e s h \<Gamma> R' G' Q'"
-  apply (induct n arbitrary: e s h \<Gamma>, simp, clarsimp)
-(* skip *)
-  apply (rule conjI) 
-  apply (simp add: rgsep_implies_def)
-(*rely *)
-  apply (rule conjI)
-   apply (intro allI impI)
-   apply (subgoal_tac "rgsep_esafe n e s h \<Gamma>' R G Q", simp_all)
-  apply (metis RGsubset_def contra_subsetD)
-(* step *)
-  apply (clarsimp, drule (2) all4_imp2D, simp_all, clarsimp)
-  apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp)
-  by (meson RGsubset_def contra_subsetD)
-
 theorem RGrule_EvtConseq : "
   \<lbrakk> R,G \<^sup>\<turnstile>ergsep {P} e {Q};
    P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
    R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
     \<Longrightarrow> R',G' \<^sup>\<turnstile>ergsep {P'} e {Q'}"
   by (simp add: eRGSep_def rgsep_implies_def RGesafe_conseq)
+
+lemma RGesafe_frame:
+ "\<lbrakk> rgsep_esafe n e s h \<Gamma> Rely Guar Q; 
+    disjoint (dom h) (dom hR);
+    disjoint (fvAA R) (wrEv e);
+    stable R [] (RGUnion Rely Guar);
+    (s, hR, \<Gamma>) \<^sup>\<Turnstile>rgsep R\<rbrakk>
+  \<Longrightarrow> rgsep_esafe n e s (h ++ hR) \<Gamma> Rely Guar (RGstar Q R)"
+  apply (induct n arbitrary: e s h hR \<Gamma>, simp, clarsimp)
+(* skip *)
+  apply (rule conjI, clarify, fast)
+(* no aborts *)
+  apply (rule conjI, clarify)
+  apply (drule_tac a = "hR ++ hF" in all_impD, simp, simp add: hsimps)
+(* access *)
+  apply (rule conjI, erule order_trans, simp)
+(* rely *)
+  apply (rule conjI, clarsimp)
+    apply (drule mall5_imp4D, simp_all)
+   apply (simp add:stable_def)
+  apply (metis (no_types, lifting) RGUnion_def UnCI)
+(* step *)
+  apply (clarify, frule ered_properties, clarsimp)
+  apply (drule_tac a = "hR ++ hF" and b = "e'" and c = a and d = b in all4_impD, simp add: hsimps)
+apply (subgoal_tac "hR ++ (hplus_list (map \<Gamma> (list_minus (ellocked e') (ellocked e))) ++ hF)
+            = hplus_list (map \<Gamma> (list_minus (ellocked e') (ellocked e))) ++ (hR ++ hF)", simp)
+   apply (rule map_add_left_commute, simp_all add: disjoint_hplus_list elocked_eq)
+  apply (metis  DiffD1 DiffD2 disjoint_search(1))
+  apply (metis  DiffD1 DiffD2 disjoint_search(1), clarsimp)
+  apply (rule_tac x = "h' ++ hR" and y = "\<Gamma>'" in ex2I)
+  apply (rule conjI, simp_all add: hsimps(4) locked_eq, rule map_add_subst)
+   apply (rule map_add_left_commute, simp)
+   apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
+  apply (drule mall5_imp4D, simp_all)
+   apply auto[1] 
+  apply (simp add: stable_def, drule_tac a = s and b = hR and c = \<Gamma> in all3D, simp)
+  apply (drule_tac a = "\<Gamma>'" in all_imp2D, simp_all add: RGUnion_def)
+    apply blast apply blast
+  by (meson RGassn_agrees agrees_minusD disjoint_search(1))
+
+theorem RGrule_EvtFrame:
+ "\<lbrakk> Rely ,Guar \<^sup>\<turnstile>ergsep {P} e {Q};  
+    disjoint (fvAA R) (wrEv e);
+    stable R [] (RGUnion Rely Guar)\<rbrakk>
+  \<Longrightarrow> Rely ,Guar \<^sup>\<turnstile>ergsep {RGstar P R} e {RGstar Q R}"
+  using eRGSep_def RGesafe_frame by auto
 
 primrec
   rgsep_resafe :: "nat \<Rightarrow> revent \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> heap) \<Rightarrow> rely \<Rightarrow> guar \<Rightarrow> rgsep_assn \<Rightarrow> bool"
@@ -177,53 +295,6 @@ where
   "R,G  \<^sup>\<turnstile>rergsep {P} re {Q} \<equiv> (user_revent re \<and> (\<forall>n s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P
                          \<longrightarrow> rgsep_resafe n re s h \<Gamma> R G Q))" 
 
-lemma RGresafe_rAnonyEvt: "rgsep_safe n C s h \<Gamma> R G Q \<Longrightarrow> rgsep_resafe n (rs, AnonyEvent C) s h \<Gamma> R G Q"
-  apply (induct n arbitrary: C s h \<Gamma>, simp_all)
-  apply (rule conjI,simp add: reaborts_equiv, clarify)
-   apply (erule eaborts.cases, simp_all)
-  apply auto[1]
-  apply (rule conjI, simp add: reaccesses_def)
-  apply (rule conjI, simp add: relocked_def)
-  apply (clarify, erule rered.cases, simp_all, clarify)
-  apply (drule_tac a = "hF" and b = "C'" and c = "ac" and d = "bc"in all4_impD, simp add: rellocked_def)
-  apply (drule imp3D, simp, simp add: rellocked_def, simp add: relocked_def, clarsimp)
-  apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp add: rellocked_def, simp add: relocked_def)
-  done
-
-theorem RGrule_rInner: "R,G  \<^sup>\<turnstile>rgsep {P} C {Q} \<Longrightarrow> R,G  \<^sup>\<turnstile>rergsep {P} (rs, AnonyEvent C) {Q}"
-  apply (simp add: reRGSep_def RGSep_def RGesafe_AnonyEvt)
-  by (simp add: RGresafe_rAnonyEvt user_revent_def)
-
-theorem RGrule_rBasicEvt: "\<lbrakk> R,G  \<^sup>\<turnstile>rgsep {RGconj P (RGlocal (Apure guard))} (Cresources rs C) {Q};
-                            stable P [] R\<rbrakk>
-                    \<Longrightarrow> R,G  \<^sup>\<turnstile>rergsep {P} (rs, BasicEvent (guard, C)) {Q}"
-  apply (simp add: reRGSep_def RGSep_def, simp add: user_revent_def, clarify)
-proof-
-  fix n s h \<Gamma>
-  assume a0: " stable P [] R"
-  and    a1: "user_cmd C"
-  and    a2: "\<forall>n s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P \<and> bdenot guard s 
-                  \<longrightarrow> rgsep_safe n (Cresources rs C) s h \<Gamma> R G Q"
-  and    a3: "(s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P"
-  then show "rgsep_resafe n (rs, BasicEvent (guard, C)) s h \<Gamma> R G Q"
-    apply (induct n arbitrary: C s h \<Gamma>, simp, simp)
-(* no aborts *)    
-    apply (rule conjI, simp add: reaborts_equiv, clarify)
-     apply(erule eaborts.cases, simp_all)
-(* access *)
-    apply (rule conjI, simp add: stable_def, clarify)
-    using reaccesses_def apply auto[1]
-(* rely *)
-     apply (rule conjI, simp add: stable_def, clarify)
-     apply metis
-(* step *)
-    apply (clarify, erule rered.cases, simp, clarsimp)
-    apply (rule_tac x = "ha" in exI, clarsimp)
-    apply (rule_tac x = "\<Gamma>'" in exI, clarsimp)
-    by (metis RGresafe_rAnonyEvt ellocked.simps(1) ellocked.simps(2) elocked_eq 
-        rellocked_def relocked_def snd_conv user_cmd.simps(14) user_cmd_llocked)
-qed
-
 lemma RGresafe_conseq: " \<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G';
    Q \<^sup>\<sqsubseteq>rgsep Q';rgsep_resafe n re s h \<Gamma> R G Q\<rbrakk> 
     \<Longrightarrow> rgsep_resafe n re s h \<Gamma> R' G' Q'"
@@ -241,6 +312,239 @@ lemma RGresafe_conseq: " \<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\
   apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp add: relocked_def)
   by (meson RGsubset_def contra_subsetD)
 
+lemma RGresafe_post_Aemp : "rgsep_resafe n re s h \<Gamma> R G Q \<longleftrightarrow> 
+                            rgsep_resafe n re s h \<Gamma> R G (RGstar Q (RGlocal Aemp))"
+  by (induct n arbitrary: re s h \<Gamma>, simp_all)
+
+lemma RGresafe_post_commute : "rgsep_resafe n re s h \<Gamma> R G (RGstar Q1 Q2) \<longleftrightarrow> 
+                               rgsep_resafe n re s h \<Gamma> R G (RGstar Q2 Q1)"
+  by (induct n arbitrary: re s h \<Gamma>, simp, simp only: rgsep_resafe.simps RGstar_commute)
+
+lemma RGresafe_post_assoc : "rgsep_resafe n re s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
+                     \<longleftrightarrow> rgsep_resafe n re s h \<Gamma> R G (RGstar Q1 (RGstar Q2 Q3))"
+  by (induct n arbitrary: re s h \<Gamma>, simp, simp only: rgsep_resafe.simps RGstar_assoc)
+
+lemma RGresafe_post_comassoc : "rgsep_resafe n re s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
+                        \<longleftrightarrow> rgsep_resafe n re s h \<Gamma> R G (RGstar Q1 (RGstar Q3 Q2))"
+  by (induct n arbitrary: re s h \<Gamma>, simp, simp only: rgsep_resafe.simps RGstar_comassoc)               
+
+theorem RGrule_re_pre_commute: 
+  " R, G \<^sup>\<turnstile>rergsep {RGstar P1 P2} re {Q} \<longleftrightarrow> 
+    R, G \<^sup>\<turnstile>rergsep {RGstar P2 P1} re {Q}"
+  using RGstar_commute reRGSep_def by auto
+
+theorem RGrule_re_post_commute:
+  " R, G \<^sup>\<turnstile>rergsep {P} re {RGstar Q1 Q2}  \<longleftrightarrow> 
+    R, G \<^sup>\<turnstile>rergsep {P} re {RGstar Q2 Q1} "
+  by (simp add: reRGSep_def RGresafe_post_commute)
+
+theorem RGrule_re_pre_post_commute:
+  "R, G \<^sup>\<turnstile>rergsep {RGstar P1 P2} re {RGstar Q1 Q2}  \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>rergsep {RGstar P2 P1} re {RGstar Q2 Q1} "
+  by (simp add: RGrule_re_post_commute RGrule_re_pre_commute)
+
+theorem RGrule_re_pre_associate :
+  "R, G \<^sup>\<turnstile>rergsep {RGstar (RGstar P1 P2) P3} re {Q}  \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>rergsep {RGstar P1 (RGstar P2 P3)} re {Q} "
+  using RGstar_assoc reRGSep_def by auto
+
+theorem RGrule_re_post_associate :
+  "R, G \<^sup>\<turnstile>rergsep {P} re {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+  R, G \<^sup>\<turnstile>rergsep {P} re {RGstar Q1 (RGstar Q2 Q3)}"
+  by (simp add: reRGSep_def RGresafe_post_assoc)
+
+theorem RGrule_re_pre_post_associate :
+  "R, G \<^sup>\<turnstile>rergsep {RGstar (RGstar P1 P2) P3} re {(RGstar (RGstar Q1 Q2) Q3)} \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>rergsep {RGstar P1 (RGstar P2 P3)} re {RGstar Q1 (RGstar Q2 Q3)}"
+  using RGrule_re_post_associate RGrule_re_pre_associate RGrule_re_pre_commute by auto
+
+theorem RGrule_re_pre_comassoc :   "R, G \<^sup>\<turnstile>rergsep {RGstar (RGstar P1 P2) P3} re {Q}  \<longleftrightarrow> 
+                                  R, G \<^sup>\<turnstile>rergsep {RGstar P1 (RGstar P3 P2)} re {Q} "
+  using RGstar_comassoc reRGSep_def by auto
+
+theorem RGrule_re_post_comassoc :
+  "R, G \<^sup>\<turnstile>rergsep {P} re {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+   R, G \<^sup>\<turnstile>rergsep {P} re {RGstar Q1 (RGstar Q3 Q2)}"
+  by (simp add: reRGSep_def RGresafe_post_comassoc)
+
+theorem RGrule_re_pre_post_comassoc :
+   "R, G \<^sup>\<turnstile>rergsep {RGstar (RGstar P1 P2) P3} re {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+    R, G \<^sup>\<turnstile>rergsep {RGstar P1 (RGstar P3 P2)} re {RGstar Q1 (RGstar Q3 Q2)}"
+  by (simp add: RGrule_re_post_comassoc RGrule_re_pre_comassoc)
+
+theorem RGrule_re_pre_post_comassoc1 :
+   " R, G \<^sup>\<turnstile>rergsep {RGstar P1 (RGstar P2 P3)} re {RGstar Q1 (RGstar Q2 Q3)} \<longleftrightarrow> 
+     R, G \<^sup>\<turnstile>rergsep {RGstar (RGstar P1 P3) P2} re {RGstar (RGstar Q1 Q3) Q2}"
+  by (simp add: RGrule_re_pre_post_comassoc)
+
+lemma RGresafe_res:
+ "\<lbrakk> rgsep_resafe n (rs, e) s h \<Gamma> (R(r := Rr)) (G(r := Gr)) (RGstar Q (RGshared r q)); 
+    r \<notin> set rs; wf_revent (rs, e); frgnA Q r = False\<rbrakk> \<Longrightarrow> 
+   (\<forall>hK. r \<notin> relocked (rs, e) \<longrightarrow> disjoint (dom h) (dom (\<Gamma> r)) \<longrightarrow> 
+    rgsep_resafe n (r # rs, e) s (h ++ (\<Gamma> r)) (\<Gamma>(r := hK)) R G (RGstar Q (RGlocal q)))
+   \<and> (\<forall>hK. r \<in> relocked (rs, e) \<longrightarrow> 
+      rgsep_resafe n (r # rs, e) s h (\<Gamma>(r := hK)) R G (RGstar Q (RGlocal q)))"
+  apply (induct n arbitrary: e s h \<Gamma>, simp, clarsimp)
+  apply (rule conjI, clarify)
+  apply (rule conjI) 
+    apply (metis (mono_tags, lifting) RGassn_agrees_rgn fun_upd_other)
+  apply (rule conjI)
+    apply (metis disjoint_simps(3) dom_map_add reaborts.simps safety_monotonicity snd_conv)
+   apply (rule conjI, simp add: le_supI2 reaccesses_def)
+   apply (rule conjI, clarsimp)
+    apply (drule_tac a = "e" and b = "s" and c = "h" and d = "\<Gamma>'(r := \<Gamma> r)"  in mall4_impD)
+     apply (erule all_impD,  simp add: relocked_def, clarsimp)
+    apply (subgoal_tac "rgsep_resafe n (r # rs, e) s (h ++ \<Gamma> r) 
+                                  (\<Gamma>'(r := \<Gamma> r)) R G (RGstar Q (RGlocal q))")
+     apply (metis fun_upd_triv, simp)
+   apply (clarify, frule rered_properties, clarsimp)
+   apply (subgoal_tac "a = r # rs", simp)
+    apply (case_tac "r \<in> set (rellocked (rs, b))", simp add: rellocked_def)
+  apply (drule_tac a = "hF" and b = rs and c = b and d = aa
+          and e = "ba" in all5_impD, simp add: hsimps relocked_def elocked_eq)
+      apply (subst hplus_list_map_expand [where r=r], simp_all)
+         apply (metis distinct_list_minus red_wf_revent snd_conv
+                      wf_event_distinct_locked wf_revent_def)
+       apply (clarsimp)
+       apply (case_tac "r1 = r", simp add: disjoint_commute)
+       apply (case_tac "r2 = r") apply blast apply (simp add: RGdef_def)
+      apply (metis list_minus_removeAll map_add_assoc re_equiv3)
+  apply (drule imp2D, simp add: relocked_def list_minus_removeAll_irr)
+       apply (simp add: list_minus_removeAll)
+       apply (rule_tac r = r in RGdef_removeAll, simp_all)
+        apply (metis RGdef_upd_irr member_remove remove_code(1))
+       apply (metis disjoint_search(1) elocked_eq)
+      apply (metis DiffD1 DiffD2 DiffI disjoint_commute disjoint_search(1) 
+            fst_conv relocked_def set_ConsD snd_conv)
+     apply (clarsimp, rule_tac x = "h'" and y = "\<Gamma>'( r:= hK)" in ex2I)
+     apply (simp add: elocked_eq list_minus_removeAll_irr relocked_def)
+     apply (rule conjI)
+      apply (rule_tac r = "r" and \<Gamma> = "\<Gamma>'(r := hK)" and hK = "\<Gamma>' r" in RGdef_upd_irr, simp, simp)
+     apply (rule conjI) apply meson
+     apply (rule conjI) apply meson
+     apply (meson re_equiv3 red_wf_revent)
+  apply (simp add: rellocked_def relocked_eq elocked_eq)
+  apply (drule_tac a = "hF ++ \<Gamma> r" and b = rs and c = b and d = aa
+          and e = "ba" in all5_impD, simp add: hsimps)
+     apply (subgoal_tac "h ++ (\<Gamma> r ++ (hplus_list (map \<Gamma> (list_minus (list_minus (ellocked b) rs) 
+                              (list_minus (ellocked e) rs))) ++ hF)) = 
+                         h ++ (hplus_list (map \<Gamma> (list_minus (list_minus (ellocked b) rs) 
+                              (list_minus (ellocked e) rs))) ++ (hF ++ \<Gamma> r))", simp)
+  using re_equiv3 apply auto[1]
+     apply (rule map_add_subst, subst map_add_left_commute)
+       apply (metis DiffD1 DiffD2 Diff_iff disjoint_map_list disjoint_search(1) set_list_minus)
+      apply (metis DiffE Diff_iff disjoint_map_list disjoint_search(1) set_list_minus)
+     apply (rule map_add_subst, rule map_add_commute) apply blast
+    apply (drule imp3D, simp)
+       apply (metis Diff_iff RGdef_upd_irr set_list_minus)
+      apply (metis disjoint_simps(4) dom_map_add)
+     apply (clarsimp, rule_tac x = "h' ++ \<Gamma>' r" and y = "\<Gamma>'(r := hK)" in ex2I, simp)
+     apply (rule conjI, simp add: hsimps)
+      apply (rule map_add_subst, rule sym, subst map_add_left_commute)
+        apply (metis DiffD1 DiffD2 Diff_iff disjoint_map_list disjoint_search(1) set_list_minus)
+       apply (metis DiffE Diff_iff disjoint_map_list disjoint_search(1) set_list_minus)
+      apply (rule map_add_subst, rule map_add_commute) apply blast
+     apply (rule conjI, rule_tac r = r and \<Gamma> = "\<Gamma>'(r := hK)" 
+                      and hK = "\<Gamma>' r" in RGdef_upd_irr, simp_all)
+     apply (rule conjI) apply meson
+     apply (meson re_equiv3 red_wf_revent)
+   apply (metis (no_types, lifting) fst_conv re_invres)
+  apply (simp add: rellocked_def relocked_eq, clarify)
+  apply (rule conjI) apply auto[1]
+  apply (simp add: reaborts_equiv)
+  apply (rule conjI, simp add: reaccesses_def)
+  apply (rule conjI, clarsimp)
+   apply (drule_tac a = "e" and b = "s" and c = "h" and d = "\<Gamma>'(r := \<Gamma> r)"  in mall4_impD, simp)
+  apply (metis fun_upd_triv fun_upd_upd)
+  apply (clarify, frule rered_properties, clarsimp)
+  apply (subgoal_tac "a = r # rs", simp)
+  apply (drule_tac a = "hF" and b = rs and c = b and d = aa
+          and e = "ba" in all5_impD, simp add: hsimps relocked_def elocked_eq list_minus_removeAll2)
+  using re_equiv3 apply auto[1]
+   apply (drule imp3D, simp)
+     apply (metis Diff_iff RGdef_upd_irr list_minus_removeAll2 removeAll_id set_list_minus)
+    apply metis
+  apply (case_tac "r \<in> set (rellocked (rs, b))", simp add: rellocked_def, clarify)
+    apply (rule_tac x = "h'" and y = "\<Gamma>'(r := hK)" in ex2I, simp)
+    apply (rule conjI, simp add: hsimps list_minus_removeAll2)
+    apply (rule conjI, simp add: list_minus_removeAll2)
+     apply (metis Diff_iff RGdef_upd_irr fun_upd_triv fun_upd_upd set_list_minus)
+    apply (rule conjI) apply meson
+    apply (rule conjI) apply meson
+    apply (meson re_equiv3 red_wf_revent, clarsimp)
+   apply (rule_tac x = "h' ++ \<Gamma>' r" and y = "\<Gamma>'(r := hK)" in ex2I, simp)
+   apply (rule conjI, simp add: hsimps list_minus_removeAll2)
+    apply (rule map_add_subst, simp add: map_add_assoc)
+    apply (subst hplus_list_map_expand [where r=r], simp_all add: rellocked_def)
+      apply (simp add: distinct_list_minus wf_event_distinct_locked wf_revent_def)
+    apply (metis DiffD1 DiffI RGdef_def set_list_minus)
+  apply (rule conjI) apply (meson disjoint_search(1))
+   apply (rule conjI, simp add: list_minus_removeAll)
+    apply (rule_tac r = r and hK = "\<Gamma>' r" in RGdef_upd_irr, simp_all)
+    apply (metis RGdef_def member_remove remove_code(1))
+  apply (rule conjI) 
+    apply (metis (full_types) DiffD1 DiffI RGdef_def set_list_minus)
+   apply (rule conjI) apply meson
+   apply (meson re_equiv3 red_wf_revent)
+  by (metis (no_types, lifting) fst_conv re_invres)
+
+lemma RGresafe_res_empty : "rgsep_esafe n e s h \<Gamma> R G Q 
+                               \<Longrightarrow> rgsep_resafe n ([], e) s h \<Gamma> R G Q"
+  apply (induct n arbitrary: e s h \<Gamma>, simp, clarsimp)
+  apply (rule conjI, simp add: reaborts_equiv)
+  apply (rule conjI, simp add: reaccesses_def)
+  apply (rule conjI, simp add: elocked_eq rellocked_def relocked_eq, clarsimp)
+  apply (subgoal_tac "a = []", simp)
+   apply (drule_tac a = "hF" and b = "b" and c = "aa" and d = "ba" in all4_impD)
+    apply (simp add: re_equiv2 rellocked_def, drule imp3D, simp_all add: rellocked_def 
+      elocked_eq  relocked_eq) apply blast
+  by (metis (no_types, lifting) fst_conv re_invres)
+
+lemma RGrule_re1 : 
+    "\<lbrakk> R(r := Rr), G(r:=Gr) \<^sup>\<turnstile>rergsep {RGstar P (RGshared r p)} (rs, e) {RGstar Q (RGshared r q)};
+     \<not> frgnA P r; \<not> frgnA Q r; r \<notin> set rs \<rbrakk> \<Longrightarrow> 
+      R, G \<^sup>\<turnstile>rergsep {RGstar P (RGlocal p)} (r # rs, e) {RGstar Q (RGlocal q)}"
+  apply (simp add: reRGSep_def)
+  apply (rule conjI, simp add: user_revent_def, clarsimp)
+  apply (drule_tac a = "n" and b = "s" and c = "h1" and d = "\<Gamma>(r := h2)" in all4_impD, simp)
+   apply (metis RGassn_agrees_rgn fun_upd_other)
+  apply (drule RGresafe_res, simp_all add: wf_revent_def user_revent_def user_event_wf)
+  by (metis all_not_in_conv fun_upd_triv snd_conv user_reventD user_revent_def)
+
+theorem RGrule_re_empty : 
+    " R, G \<^sup>\<turnstile>ergsep {P} e {Q}  \<Longrightarrow> R, G \<^sup>\<turnstile>rergsep {P} ([], e) {Q}"
+  by (simp add: eRGSep_def reRGSep_def user_revent_def RGresafe_res_empty)
+
+theorem RGrule_re :
+  "\<lbrakk> (update_list R \<R> rs), (update_list G \<RR> rs) 
+       \<^sup>\<turnstile>ergsep {RGstar P (RGstar_shared \<G> rs)} e {RGstar Q (RGstar_shared \<GG> rs)};
+     \<forall>r \<in> set rs. \<not> frgnA P r; \<forall>r \<in> set rs. \<not> frgnA Q r; distinct rs \<rbrakk> \<Longrightarrow> 
+      R, G \<^sup>\<turnstile>rergsep {RGstar P (RGstar_local \<G> rs)} (rs, e) {RGstar Q (RGstar_local \<GG> rs)}"
+  apply (induct rs arbitrary: R G P Q, simp add: RGrule_re_empty, clarsimp)
+  apply (drule_tac a = "R(a := \<R> a)" and b = "G(a := \<RR> a)" and c = "RGstar P (RGshared a (\<G> a))"
+        and d = "RGstar Q (RGshared a (\<GG> a))" in mall4_impD, simp add: RGrule_e_pre_post_associate)
+  apply (drule mimp2D, simp) apply auto[1]
+  apply auto[1]
+  apply (simp add: RGrule_re_pre_post_associate)
+  apply (simp add: RGrule_re_pre_post_comassoc1)
+  by (rule RGrule_re1, simp_all add: RGstar_local_frgnA)
+
+theorem RGrule_rInner: "\<lbrakk>(update_list R \<R> rs), (update_list G \<RR> rs)  
+                         \<^sup>\<turnstile>rgsep {RGstar P (RGstar_shared \<G> rs)} C {RGstar Q (RGstar_shared \<GG> rs)};
+                          \<forall>r \<in> set rs. \<not> frgnA P r; \<forall>r \<in> set rs. \<not> frgnA Q r; distinct rs\<rbrakk>
+                      \<Longrightarrow> R,G  \<^sup>\<turnstile>rergsep {RGstar P (RGstar_local \<G> rs)} 
+                          (rs, (AnonyEvent C)) {RGstar Q (RGstar_local \<GG> rs)}"
+  by (rule_tac \<R> = \<R> and \<RR> = \<RR> in RGrule_re, simp_all add: RGrule_Inner)
+
+theorem RGrule_rBasicEvt: "\<lbrakk>(update_list R \<R> rs), (update_list G \<RR> rs)  
+                         \<^sup>\<turnstile>rgsep {RGconj (RGstar P (RGstar_shared \<G> rs))
+                          (RGlocal (Apure guard))} C {RGstar Q (RGstar_shared \<GG> rs)};
+                          \<forall>r \<in> set rs. \<not> frgnA P r; \<forall>r \<in> set rs. \<not> frgnA Q r; distinct rs;
+                          stable (RGstar P (RGstar_shared \<G> rs)) [] (update_list R \<R> rs)\<rbrakk>
+                      \<Longrightarrow> R,G  \<^sup>\<turnstile>rergsep {RGstar P (RGstar_local \<G> rs)} 
+                          (rs, (BasicEvent (guard, C))) {RGstar Q (RGstar_local \<GG> rs)}"
+  by (rule_tac \<R> = \<R> and \<RR> = \<RR> in RGrule_re, simp_all add: RGrule_BasicEvt)
+
 theorem RGrule_rEvtConseq : "
   \<lbrakk> R,G \<^sup>\<turnstile>rergsep {P} re {Q};
    P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
@@ -248,6 +552,55 @@ theorem RGrule_rEvtConseq : "
     \<Longrightarrow> R',G' \<^sup>\<turnstile>rergsep {P'} re {Q'}"
   by (simp add: reRGSep_def rgsep_implies_def RGresafe_conseq)
 
+lemma RGresafe_frame:
+ "\<lbrakk> rgsep_resafe n re s h \<Gamma> Rely Guar Q; 
+    disjoint (dom h) (dom hR);
+    disjoint (fvAA R) (wrREv re);
+    stable R [] (RGUnion Rely Guar);
+    (s, hR, \<Gamma>) \<^sup>\<Turnstile>rgsep R\<rbrakk>
+  \<Longrightarrow> rgsep_resafe n re s (h ++ hR) \<Gamma> Rely Guar (RGstar Q R)"
+  apply (induct n arbitrary: re s h hR \<Gamma>, simp, clarsimp)
+(* skip *)
+  apply (rule conjI, clarify, fast)
+(* no aborts *)
+  apply (rule conjI, clarify)
+  apply (drule_tac a = "hR ++ hF" in all_impD, simp, simp add: hsimps)
+(* access *)
+  apply (rule conjI, erule order_trans, simp)
+(* rely *)
+  apply (rule conjI, clarsimp)
+   apply (drule_tac a = a and b = b and c = s and d = h and e= hR and f = \<Gamma>' in mall6D)
+   apply (drule mimp4D, simp_all add:stable_def)
+  apply (metis RGUnion_def UnCI)
+(* step *)
+  apply (clarify, frule rered_properties, clarsimp)
+  apply (drule_tac a = "hR ++ hF" and b = "aa" and c = ba and d = ab 
+                            and e = bb in all5_impD, simp add: hsimps)
+   apply (subgoal_tac "hR ++ (hplus_list (map \<Gamma> (list_minus (rellocked (aa, ba)) 
+                      (rellocked (a, b)))) ++ hF) =
+                       hplus_list (map \<Gamma> (list_minus (rellocked (aa, ba)) 
+                      (rellocked (a, b)))) ++ (hR ++ hF)", simp)
+   apply (rule map_add_left_commute, simp_all add: disjoint_hplus_list relocked_eq)
+  apply (metis  DiffD1 DiffD2 disjoint_search(1))
+  apply (metis  DiffD1 DiffD2 disjoint_search(1), clarsimp)
+  apply (rule_tac x = "h' ++ hR" and y = "\<Gamma>'" in ex2I)
+  apply (rule conjI, simp_all add: hsimps(4) locked_eq, rule map_add_subst)
+   apply (rule map_add_left_commute, simp)
+   apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
+  apply (drule_tac a = aa and b = ba and c = ab and d = h' and e = hR and f = \<Gamma>' in mall6D)
+  apply (drule mimp4D, simp_all)
+   apply auto[1] 
+  apply (drule_tac a = s and b = hR and c = \<Gamma> in all3D, simp)
+  apply (drule_tac a = "\<Gamma>'" in all_imp2D, simp_all add: RGUnion_def)
+    apply blast apply blast
+  by (meson RGassn_agrees agrees_minusD disjoint_search(1))
+
+theorem RGrule_reFrame:
+ "\<lbrakk> Rely ,Guar \<^sup>\<turnstile>rergsep {P} re {Q};  
+    disjoint (fvAA R) (wrREv re);
+    stable R [] (RGUnion Rely Guar)\<rbrakk>
+  \<Longrightarrow> Rely ,Guar \<^sup>\<turnstile>rergsep {RGstar P R} re {RGstar Q R}"
+  by (metis RGresafe_frame RGsat.simps(5) fst_conv reRGSep_def snd_conv)
 
 primrec
   rgsep_essafe :: "nat \<Rightarrow> esys \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> heap) \<Rightarrow> rely \<Rightarrow> guar \<Rightarrow> rgsep_assn \<Rightarrow> bool"
@@ -313,6 +666,77 @@ where
                          \<longrightarrow> rgsep_essafe n es s h \<Gamma> R G Q))" 
 
 
+lemma RGessafe_conseq : "\<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G';
+   Q \<^sup>\<sqsubseteq>rgsep Q';rgsep_essafe n es s h \<Gamma> R G Q\<rbrakk> 
+    \<Longrightarrow> rgsep_essafe n es s h \<Gamma> R' G' Q'"
+  apply (induct n arbitrary: es s h \<Gamma>, simp, clarsimp)
+  apply (rule conjI)
+  apply (metis RGsubset_def contra_subsetD)
+(* step *)
+  apply (clarsimp, drule (2) all4_imp2D, simp_all, clarsimp)
+  apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp)
+  by (meson RGsubset_def contra_subsetD)
+
+lemma RGessafe_post_Aemp : "rgsep_essafe n es s h \<Gamma> R G Q \<longleftrightarrow> 
+                            rgsep_essafe n es s h \<Gamma> R G (RGstar Q (RGlocal Aemp))"
+  by (induct n arbitrary: es s h \<Gamma>, simp_all)
+
+lemma RGessafe_post_commute : "rgsep_essafe n es s h \<Gamma> R G (RGstar Q1 Q2) \<longleftrightarrow> 
+                               rgsep_essafe n es s h \<Gamma> R G (RGstar Q2 Q1)"
+  by (induct n arbitrary: es s h \<Gamma>, simp, simp only: rgsep_essafe.simps RGstar_commute)
+
+lemma RGessafe_post_assoc : "rgsep_essafe n es s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
+                     \<longleftrightarrow> rgsep_essafe n es s h \<Gamma> R G (RGstar Q1 (RGstar Q2 Q3))"
+  by (induct n arbitrary: es s h \<Gamma>, simp, simp only: rgsep_essafe.simps RGstar_assoc)
+
+lemma RGessafe_post_comassoc : "rgsep_essafe n es s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
+                        \<longleftrightarrow> rgsep_essafe n es s h \<Gamma> R G (RGstar Q1 (RGstar Q3 Q2))"
+  by (induct n arbitrary: es s h \<Gamma>, simp, simp only: rgsep_essafe.simps RGstar_comassoc)
+
+theorem RGrule_es_pre_commute: 
+  " R, G \<^sup>\<turnstile>esrgsep {RGstar P1 P2} es{Q} \<longleftrightarrow> 
+    R, G \<^sup>\<turnstile>esrgsep {RGstar P2 P1} es{Q}"
+  using RGstar_commute  esRGSep_def by auto
+
+theorem RGrule_es_post_commute:
+  " R, G \<^sup>\<turnstile>esrgsep {P} es{RGstar Q1 Q2}  \<longleftrightarrow> 
+    R, G \<^sup>\<turnstile>esrgsep {P} es{RGstar Q2 Q1} "
+  by (simp add:  esRGSep_def RGessafe_post_commute)
+
+theorem RGrule_es_pre_post_commute:
+  "R, G \<^sup>\<turnstile>esrgsep {RGstar P1 P2} es{RGstar Q1 Q2}  \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>esrgsep {RGstar P2 P1} es{RGstar Q2 Q1} "
+  by (simp add: RGrule_es_post_commute RGrule_es_pre_commute)
+
+theorem RGrule_es_pre_associate :
+  "R, G \<^sup>\<turnstile>esrgsep {RGstar (RGstar P1 P2) P3} es{Q}  \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>esrgsep {RGstar P1 (RGstar P2 P3)} es{Q} "
+  using RGstar_assoc  esRGSep_def by auto
+
+theorem RGrule_es_post_associate :
+  "R, G \<^sup>\<turnstile>esrgsep {P} es{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+  R, G \<^sup>\<turnstile>esrgsep {P} es{RGstar Q1 (RGstar Q2 Q3)}"
+  by (simp add:  esRGSep_def RGessafe_post_assoc)
+
+theorem RGrule_es_pre_post_associate :
+  "R, G \<^sup>\<turnstile>esrgsep {RGstar (RGstar P1 P2) P3} es{(RGstar (RGstar Q1 Q2) Q3)} \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>esrgsep {RGstar P1 (RGstar P2 P3)} es{RGstar Q1 (RGstar Q2 Q3)}"
+  using RGrule_es_post_associate RGrule_es_pre_associate RGrule_es_pre_commute by auto
+
+theorem RGrule_es_pre_comassoc :   "R, G \<^sup>\<turnstile>esrgsep {RGstar (RGstar P1 P2) P3} es{Q}  \<longleftrightarrow> 
+                                  R, G \<^sup>\<turnstile>esrgsep {RGstar P1 (RGstar P3 P2)} es{Q} "
+  using RGstar_comassoc  esRGSep_def by auto
+
+theorem RGrule_es_post_comassoc :
+  "R, G \<^sup>\<turnstile>esrgsep {P} es{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+   R, G \<^sup>\<turnstile>esrgsep {P} es{RGstar Q1 (RGstar Q3 Q2)}"
+  by (simp add:  esRGSep_def RGessafe_post_comassoc)
+
+theorem RGrule_es_pre_post_comassoc :
+   "R, G \<^sup>\<turnstile>esrgsep {RGstar (RGstar P1 P2) P3} es{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+    R, G \<^sup>\<turnstile>esrgsep {RGstar P1 (RGstar P3 P2)} es{RGstar Q1 (RGstar Q3 Q2)}"
+  by (simp add: RGrule_es_post_comassoc RGrule_es_pre_comassoc)
+
 lemma RGessafe_EvtSeq :"\<lbrakk>rgsep_resafe n re s h \<Gamma> Rely Guar Q; user_esys esys;
       \<forall>m s' h' \<Gamma>'. m \<le> n \<and> (s', h', \<Gamma>') \<^sup>\<Turnstile>rgsep Q \<longrightarrow> rgsep_essafe m esys s' h' \<Gamma>' Rely Guar R\<rbrakk> 
       \<Longrightarrow>  rgsep_essafe n (EvtSeq re esys) s h \<Gamma> Rely Guar R"
@@ -325,8 +749,9 @@ lemma RGessafe_EvtSeq :"\<lbrakk>rgsep_resafe n re s h \<Gamma> Rely Guar Q; use
    apply (drule imp3D, simp_all, clarify)
    apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp, clarify)
   apply (rule_tac x = "h" and y = "\<Gamma>" in ex2I, simp add:rellocked_def)
-  apply (rule conjI,simp add: user_reventD user_revent_def)
-  by (simp add: relocked_def)
+  apply (rule conjI,simp add: user_reventD user_revent_def list_minus_empty)
+  by (metis all_not_in_conv elocked.simps(1) empty_set fst_conv list_minus_empty 
+        relocked_def set_list_minus snd_conv user_cmd.simps(1) user_cmdD)
 
 lemma RGessafe_EvtSeq' :"\<lbrakk>rgsep_resafe n re s h \<Gamma> Rely Guar Q; user_esys esys;
        \<forall>m s' h' \<Gamma>'. m \<le> n \<and> (s', h', \<Gamma>')  \<^sup>\<Turnstile>rgsep  Q \<and> (Stable_State Q (s', h', \<Gamma>') Rely) 
@@ -342,11 +767,12 @@ lemma RGessafe_EvtSeq' :"\<lbrakk>rgsep_resafe n re s h \<Gamma> Rely Guar Q; us
    apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, clarsimp)
   apply (rule_tac x = "h" and y = "\<Gamma>" in ex2I, simp add:rellocked_def, clarsimp)
   apply (rule conjI,simp add: user_reventD user_revent_def)
-  apply (simp add: relocked_def)
+   apply (simp_all add: relocked_def list_minus_empty)
   apply (case_tac n, simp, simp)
-  apply (drule_tac a = "n" and b = "ac" and c = "h" and d = "\<Gamma>" in all4_impD)
-   apply (simp add: Stable_State_def, simp)
+  apply (drule_tac a = "n" and b = "ac" and c = "h" and d = "\<Gamma>" in all4_impD) 
+  apply (simp add: Stable_State_def, simp)
   done
+
 
 theorem RGrule_EvtSeq :"\<lbrakk>Rely ,Guar  \<^sup>\<turnstile>rergsep {P} re {Q};
                  Rely , Guar \<^sup>\<turnstile>esrgsep { Q } esys { R }\<rbrakk> 
@@ -417,15 +843,16 @@ lemma rgessafe_EvtSys :  "\<lbrakk>\<forall>re\<in>es. user_revent re \<and> (\<
      apply (drule_tac a = "s" and b = "h" and c = "\<Gamma>'" in mall3_impD)
   using Stable_trans_int apply auto[1] apply simp
   apply (clarsimp, erule esred.cases, simp_all, clarify)
-  apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def)
+  apply (simp add: resllocked_def  user_revent_def rellocked_def)
   apply (frule_tac x = "(aa, ba)" in Set.bspec, simp) apply auto
   apply (drule_tac a = "ab" and b = "h" and c = "\<Gamma>" in all3_impD)
   apply (simp add: RG_stable_getintpre_def, clarsimp)
     apply (drule_tac a = "hF" and b = "ac" and c = "bc" and d = "ad" 
-                                    and e = "bd" in all5_impD, simp)
-  apply (drule imp3D, simp, simp, simp, clarsimp)
-  apply (rule_tac x = "h'" in exI, clarsimp)
-  apply (rule_tac x = "\<Gamma>'" in exI, simp)
+                                    and e = "bd" in all5_impD, simp add: list_minus_empty)
+  apply (drule imp3D, simp_all)
+  using RGdef_def apply auto[1]
+  apply (clarsimp, rule_tac x = "h'" in exI, clarsimp)
+  apply (rule_tac x = "\<Gamma>'" in exI, simp add: list_minus_empty)
   apply (rule conjI, simp add: relocked_def user_eventD)
   apply (rule_tac Q = "Post (aa, ba)" in RGessafe_EvtSeq')
     apply (meson RGresafe_conseq rgsep_implies_def)
@@ -546,16 +973,6 @@ theorem RGrule_EvtSys' :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re) 
   apply (simp add: esRGSep_def reRGSep_def, clarsimp)
   by (rule rgessafe_EvtSys', simp_all)
 
-lemma RGessafe_conseq : "\<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G';
-   Q \<^sup>\<sqsubseteq>rgsep Q';rgsep_essafe n es s h \<Gamma> R G Q\<rbrakk> 
-    \<Longrightarrow> rgsep_essafe n es s h \<Gamma> R' G' Q'"
-  apply (induct n arbitrary: es s h \<Gamma>, simp, clarsimp)
-  apply (rule conjI)
-  apply (metis RGsubset_def contra_subsetD)
-(* step *)
-  apply (clarsimp, drule (2) all4_imp2D, simp_all, clarsimp)
-  apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp)
-  by (meson RGsubset_def contra_subsetD)
 
 theorem RGrule_esconseq : "
   \<lbrakk> R,G \<^sup>\<turnstile>esrgsep {P} es {Q};
@@ -563,6 +980,50 @@ theorem RGrule_esconseq : "
    R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
     \<Longrightarrow> R',G' \<^sup>\<turnstile>esrgsep {P'} es {Q'}"
   by (simp add: esRGSep_def rgsep_implies_def RGessafe_conseq)
+
+lemma RGessafe_frame:
+ "\<lbrakk> rgsep_essafe n es s h \<Gamma> Rely Guar Q; 
+    disjoint (dom h) (dom hR);
+    disjoint (fvAA R) (wrEsv es);
+    stable R [] (RGUnion Rely Guar);
+    (s, hR, \<Gamma>) \<^sup>\<Turnstile>rgsep R\<rbrakk>
+  \<Longrightarrow> rgsep_essafe n es s (h ++ hR) \<Gamma> Rely Guar (RGstar Q R)"
+  apply (induct n arbitrary: es s h hR \<Gamma>, simp, clarsimp)
+(* no aborts *)
+  apply (rule conjI, clarify)
+  apply (drule_tac a = "hR ++ hF" in all_impD, simp, simp add: hsimps)
+(* access *)
+  apply (rule conjI, erule order_trans, simp)
+(* rely *)
+  apply (rule conjI, clarsimp)
+    apply (drule mall5_imp4D, simp_all)
+   apply (simp add:stable_def)
+  apply (metis (no_types, lifting) RGUnion_def UnCI)
+(* step *)
+  apply (clarify, frule esred_properties, clarsimp)
+  apply (drule_tac a = "hR ++ hF" and b = "es'" and c = a and d = b in all4_impD, simp add: hsimps)
+apply (subgoal_tac "hR ++ (hplus_list (map \<Gamma> (list_minus (esllocked es') (esllocked es))) ++ hF)
+            = hplus_list (map \<Gamma> (list_minus (esllocked es') (esllocked es))) ++ (hR ++ hF)", simp)
+   apply (rule map_add_left_commute, simp_all add: disjoint_hplus_list eslocked_eq)
+  apply (metis  DiffD1 DiffD2 disjoint_search(1))
+  apply (metis  DiffD1 DiffD2 disjoint_search(1), clarsimp)
+  apply (rule_tac x = "h' ++ hR" and y = "\<Gamma>'" in ex2I)
+  apply (rule conjI, simp_all add: hsimps(4) locked_eq, rule map_add_subst)
+   apply (rule map_add_left_commute, simp)
+   apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
+  apply (drule mall5_imp4D, simp_all)
+   apply auto[1] 
+  apply (simp add: stable_def, drule_tac a = s and b = hR and c = \<Gamma> in all3D, simp)
+  apply (drule_tac a = "\<Gamma>'" in all_imp2D, simp_all add: RGUnion_def)
+    apply blast apply blast
+  by (meson RGassn_agrees agrees_minusD disjoint_search(1))
+
+theorem RGrule_esFrame:
+ "\<lbrakk> Rely ,Guar \<^sup>\<turnstile>esrgsep {P} es {Q};  
+    disjoint (fvAA R) (wrEsv es);
+    stable R [] (RGUnion Rely Guar)\<rbrakk>
+  \<Longrightarrow> Rely ,Guar \<^sup>\<turnstile>esrgsep {RGstar P R} es {RGstar Q R}"
+  using esRGSep_def RGessafe_frame by auto
 
 primrec
   rgsep_ressafe :: "nat \<Rightarrow> resys \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> heap) \<Rightarrow> rely \<Rightarrow> guar \<Rightarrow> rgsep_assn \<Rightarrow> bool"        
@@ -628,214 +1089,6 @@ where
   "R,G  \<^sup>\<turnstile>resrgsep {P} res {Q} \<equiv> (user_resys res \<and> (\<forall>n s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P
                          \<longrightarrow> rgsep_ressafe n res s h \<Gamma> R G Q))"
 
-lemma RGressafe_EvtSeq :"\<lbrakk>rgsep_resafe n re s h \<Gamma> Rely Guar Q; user_esys esys;
-      \<forall>m s' h' \<Gamma>'. m \<le> n \<and> (s', h', \<Gamma>') \<^sup>\<Turnstile>rgsep Q 
-      \<longrightarrow> rgsep_ressafe m (ers, esys) s' h' \<Gamma>' Rely Guar R\<rbrakk> 
-      \<Longrightarrow>  rgsep_ressafe n (ers, (EvtSeq re esys)) s h \<Gamma> Rely Guar R"
-  apply (induct n arbitrary: re s h \<Gamma>, simp, clarsimp)
-  apply (rule conjI)                                            
-   apply (simp add: esaborts.simps reaborts_equiv resaborts_equiv)
-    apply (rule conjI)
-   apply (simp add: reaccesses_def resaccesses_def)
-  apply (rule conjI, simp add: reslocked_def)
-  apply (clarsimp, erule resred.cases, simp_all)
-  apply (drule_tac a = "hF" and b = "fst re'" and c = "snd re'" 
-          and d = "ab" and e = "bb" in all5_impD, simp add: resllocked_def)
-   apply (drule imp3D, simp_all add: reslocked_def resllocked_def, clarify)
-    apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp, clarify)
-  apply (rule_tac x = "h" and y = "\<Gamma>" in ex2I, simp add:rellocked_def)
-  apply (rule conjI,simp add: user_reventD user_revent_def)
-  by (simp add: relocked_def)
-
-lemma RGressafe_EvtSeq' :"\<lbrakk>rgsep_resafe n re s h \<Gamma> Rely Guar Q; user_esys esys;
-      \<forall>m s' h' \<Gamma>'. m \<le> n \<and> (s', h', \<Gamma>') \<^sup>\<Turnstile>rgsep Q \<and> (Stable_State Q (s', h', \<Gamma>') Rely)
-      \<longrightarrow> rgsep_ressafe m (ers, esys) s' h' \<Gamma>' Rely Guar R\<rbrakk> 
-      \<Longrightarrow>  rgsep_ressafe n (ers, (EvtSeq re esys)) s h \<Gamma> Rely Guar R"
-  apply (induct n arbitrary: re s h \<Gamma>, simp, clarsimp)
-  apply (rule conjI)
-   apply (simp add: esaborts.simps reaborts_equiv resaborts_equiv)
-    apply (rule conjI)
-   apply (simp add: reaccesses_def resaccesses_def)
-  apply (rule conjI, simp add: reslocked_def)
-  apply (clarsimp, erule resred.cases, simp_all)
-  apply (drule_tac a = "hF" and b = "fst re'" and c = "snd re'" 
-          and d = "ab" and e = "bb" in all5_impD, simp add: resllocked_def)
-   apply (drule imp3D, simp_all add: reslocked_def resllocked_def, clarify)
-    apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp, clarify)
-  apply (rule_tac x = "h" and y = "\<Gamma>" in ex2I, simp add:rellocked_def)
-  apply (rule conjI, simp add: user_reventD user_revent_def)
-  apply (rule conjI, simp add: relocked_def)
-  apply (case_tac n, simp)
-  apply (drule_tac a = "n" and b = "ad" and c = "h" and d = "\<Gamma>" in all4_impD)
-   apply (simp add: Stable_State_def relocked_def, clarify)
-  done
-
-theorem RGrule_rEvtSeq :"\<lbrakk>Rely ,Guar  \<^sup>\<turnstile>rergsep {P} re {Q};
-                 Rely , Guar \<^sup>\<turnstile>resrgsep { Q } (ers, esys) { R }\<rbrakk> 
-                \<Longrightarrow> Rely , Guar \<^sup>\<turnstile>resrgsep {P} (ers, (EvtSeq re esys)) {R}"
-  apply (simp add: reRGSep_def resRGSep_def user_resys_def)
-  by (meson RGressafe_EvtSeq)
-
-lemma rgressafe_EvtSys :  
-    "\<lbrakk>\<forall>re\<in>es. user_revent (resources_re ers re) \<and> (\<forall>s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re 
-         \<longrightarrow> rgsep_resafe n (resources_re ers re) s h \<Gamma> (Rely re) (Guar re) (Post re));
-      \<forall>re \<in> es.  Post re  \<^sup>\<sqsubseteq>rgsep Q;
-      \<forall>re \<in> es.  R  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re;
-      \<forall>re \<in> es.  Guar re  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G;
-      Rely_Trans R; RG_stable_getintpre (s, h, \<Gamma>) es Pre R;
-      \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
-    \<Longrightarrow> rgsep_ressafe n (ers, (EvtSys es)) s h \<Gamma> R G Q"
-    apply (induct n arbitrary: s h \<Gamma>, simp, simp)
-    apply (rule conjI, simp add: resaborts_equiv esaborts.simps, clarify)
-     apply (drule_tac x = "(a, b)" in Set.bspec, simp) apply auto[1]
-    apply (drule_tac a = "s" and b = "h" and  c = "\<Gamma>" in all3_impD)
-    using RG_stable_getintpre_def apply blast 
-    apply (simp add: resources_re_aborts_equiv)
-    apply (rule conjI, simp add: resaccesses_def)
-    apply (rule conjI, clarsimp)
-     apply (drule_tac a = "s" and b = "h" and c = "\<Gamma>'" in mall3_impD, simp_all)
-    using Stable_trans_int apply auto[1]
-    apply (clarsimp, erule resred.cases, simp_all, clarify)
-    apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def)
-    apply (frule_tac x = "(rs, e)" in Set.bspec, simp) apply auto
-    apply (drule_tac a = "ac" and b = "h" and c = "\<Gamma>"  in all3_impD)
-    apply (simp add: RG_stable_getintpre_def, clarsimp)
-    apply (drule_tac a = "hF" and b = "ers @ rs" and c = "e'" 
-                    and d = "ad" and e = "bd" in all5_impD, simp)
-    apply (drule imp3D, simp, simp, simp add: relocked_def reslocked_def, clarsimp)
-    apply (rule_tac x = "h'" in exI, clarsimp)
-    apply (rule_tac x = "\<Gamma>'" in exI, simp add: reslocked_def relocked_def)
-    apply (rule conjI, simp add: elocked_eq) 
-    apply (rule_tac Q = "Post (rs, e)" in RGressafe_EvtSeq')
-      apply (meson RGresafe_conseq rgsep_implies_def)
-    apply (simp add: user_revent_def)
-    apply (clarsimp, drule_tac a = "s'" and b = "h'a" and c = "\<Gamma>''" in mall3_impD)  
-      apply (rule Stable_Property1, simp_all)
-     apply auto[1]
-    by (simp add: RGressafe_mon)
-
-(*
-lemma rgressafe_EvtSys :  "\<lbrakk>  \<forall>re \<in> es. (Rely re), (Guar re)  \<^sup>\<turnstile>rergsep 
-                           {Pre re} (resources_re ers re) {Post re};
-                          \<forall>re \<in> es.  Post re  \<^sup>\<sqsubseteq>rgsep Q;
-                          \<forall>re \<in> es.  R  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re;
-                          \<forall>re \<in> es.  Guar re  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G;
-                          Rely_Trans R;
-                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
-                        \<Longrightarrow> \<forall>n s h \<Gamma>. RG_stable_getintpre (s, h, \<Gamma>) es Pre R \<longrightarrow>
-                            rgsep_ressafe n (ers, (EvtSys es)) s h \<Gamma> R G Q"
-  apply (simp add: reRGSep_def, clarify)
-proof-
-  fix n s h \<Gamma>
-  assume a0: "\<forall>re\<in>es. user_revent (resources_re ers re) \<and> (\<forall>n s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re 
-              \<longrightarrow> rgsep_resafe n (resources_re ers re) s h \<Gamma> (Rely re) (Guar re) (Post re))"
-  and    a1: " \<forall>re\<in>es. Post re \<^sup>\<sqsubseteq>rgsep Q"
-  and    a2: "\<forall>re\<in>es. R \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re"
-  and    a3: "\<forall>re\<in>es. Guar re \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G"
-  and    a4: " Rely_Trans R"
-  and    a5: " \<forall>a b aa ba. (a, b) \<in> es \<and> (aa, ba) \<in> es \<longrightarrow> Post (a, b) \<^sup>\<sqsubseteq>rgsep Pre (aa, ba)"
-  and    a6: "RG_stable_getintpre (s, h, \<Gamma>) es Pre R"
-  then show "rgsep_ressafe n (ers, EvtSys es) s h \<Gamma> R G Q"
-    apply (induct n arbitrary: s h \<Gamma>, simp, simp)
-    apply (rule conjI, simp add: resaborts_equiv esaborts.simps, clarify)
-     apply (drule_tac x = "(a, b)" in Set.bspec, simp) apply auto[1]
-    apply (drule_tac a = "Suc 0" and b = "sa" and c= "ha" and d = "\<Gamma>'" in all4_impD)
-    using RG_stable_getintpre_def apply blast 
-    apply (simp add: resources_re_aborts_equiv)
-    apply (rule conjI, simp add: resaccesses_def)
-    apply (rule conjI, clarsimp)
-     apply (drule_tac a = "sa" and b = "ha" and c = "\<Gamma>''" in mall3_impD, simp_all)
-    using Stable_trans_int apply auto[1]
-    apply (clarsimp, erule resred.cases, simp_all, clarify)
-    apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def)
-    apply (drule_tac x = "(rs, e)" in Set.bspec, simp) apply auto
-    apply (drule_tac a = "Suc n" and b = "ac" and c = "ha" and d = "\<Gamma>'" in all4_impD)
-    using RG_stable_getintpre_def apply blast
-    apply (simp add: rellocked_def , clarify)
-    apply (drule_tac a = "hF" and b = "ers @ rs" and c = "e'" 
-                    and d = "ad" and e = "bd" in all5_impD, simp)
-    apply (drule imp3D, simp, simp, simp add: relocked_def reslocked_def, clarsimp)
-    apply (rule_tac x = "h'" in exI, clarsimp)
-    apply (rule_tac x = "\<Gamma>''" in exI, simp add: reslocked_def relocked_def)
-    apply (rule conjI, simp add: elocked_eq) 
-    apply (rule_tac Q = "Post (rs, e)" in RGressafe_EvtSeq')
-      apply (meson RGresafe_conseq rgsep_implies_def)
-    using a0 resource_re_equiv user_revent_def apply auto[1]
-    apply (clarsimp, drule_tac a = "s'" and b = "h'a" and c = "\<Gamma>'''" in mall3_impD)  
-      apply (rule Stable_Property1, simp_all)
-     apply auto[1]
-    by (simp add: RGressafe_mon)
-qed
-*)
-
-theorem RGrule_rEvtSys :  "\<lbrakk>  \<forall>re \<in> es. (Rely re), (Guar re)  \<^sup>\<turnstile>rergsep 
-                           {Pre re} (resources_re ers re) {Post re};
-                          \<forall>re \<in> es.  P  \<^sup>\<sqsubseteq>rgsep Pre re;
-                          \<forall>re \<in> es.  Post re  \<^sup>\<sqsubseteq>rgsep Q;
-                          \<forall>re \<in> es.  R  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re;
-                          \<forall>re \<in> es.  Guar re  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G;
-                          Rely_Trans R; stable P [] R;
-                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
-                        \<Longrightarrow> R, G \<^sup>\<turnstile>resrgsep {P} (ers, (EvtSys es)) {Q}" 
-  apply (simp add: reRGSep_def resRGSep_def user_resys_def user_revent_def resources_re_def) 
-  apply (clarsimp, rule rgressafe_EvtSys, simp_all)
-   apply (simp add: resources_re_def user_revent_def)
-  by (simp add: Stable_Property1 Stable_Property2)
-
-lemma rgressafe_rEvtSys' : 
-             "\<lbrakk>\<forall>re\<in>es. user_revent (resources_re ers re) \<and> (\<forall>s h \<Gamma>.(s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Pre re 
-              \<longrightarrow> rgsep_resafe n (resources_re ers re) s h \<Gamma> (Rely re) (Guar re) (Post re));
-              \<forall>re \<in> es.  P \<^sup>\<sqsubseteq>rgsep Pre re;
-              \<forall>re \<in> es.  Post re  \<^sup>\<sqsubseteq>rgsep Q;
-              \<forall>re \<in> es.  R  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re;
-              \<forall>re \<in> es.  Guar re  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G;
-              \<forall>re \<in> es. stable (Post re) [] (Rely re);
-              stable P [] R; (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P;
-              \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
-            \<Longrightarrow> rgsep_ressafe n (ers, EvtSys es) s h \<Gamma> R G Q"
-  apply (induct n arbitrary: s h \<Gamma> P, simp, simp)
-  apply (rule conjI, simp add: resaborts_equiv esaborts.simps, clarify)
-   apply (drule_tac x = "(a, b)" in Set.bspec, simp) apply auto[1]
-   apply (drule_tac a = "s" and b = "h" and c = "\<Gamma>" in all3_impD)
-  using rgsep_implies_def apply blast
-   apply (simp add: resources_re_aborts_equiv)
-  apply (rule conjI, simp add: resaccesses_def)
-  apply (rule conjI, simp add: reslocked_def, clarsimp)
-   apply (drule_tac a = "s" and b = "h" and c = "\<Gamma>'" and d = "P" in mall4_impD, simp_all)
-   apply (simp add: stable_def) apply metis
-  apply (clarsimp, erule resred.cases, simp_all, clarify)
-  apply (simp add: resllocked_def resources_re_def user_revent_def rellocked_def)
-  apply (frule_tac x = "(rs, e)" in Set.bspec, simp) apply auto
-  apply (drule_tac a = "ac" and b = "h" and c = "\<Gamma>" in all3_impD)
-   apply (simp add: rgsep_implies_def, clarsimp)
-    apply (drule_tac a = "hF" and b = "ers @ rs" and c = "e'" 
-                    and d = "ad" and e = "bd" in all5_impD, simp)
-  apply (drule imp3D, simp, simp, simp add: relocked_def reslocked_def, clarsimp)
-  apply (rule_tac x = "h'" in exI, clarsimp)
-  apply (rule_tac x = "\<Gamma>'" in exI, simp add: reslocked_def relocked_def)
-  apply (rule conjI, simp add: elocked_eq) 
-  apply (rule_tac Q = "Post (rs, e)" in RGressafe_EvtSeq)
-    apply (meson RGresafe_conseq rgsep_implies_def)
-   apply (simp add: user_revent_def)
-    apply (clarsimp, drule_tac a = "s'" and b = "h'a" 
-              and c = "\<Gamma>''" and d = "Post (rs, e)" in mall4_impD, clarsimp)
-    by (meson RGressafe_mon Rely_Stable)
-
-theorem RGrule_rEvtSys' :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re)  \<^sup>\<turnstile>rergsep 
-                           {Pre re} (resources_re ers re) {Post re};
-                          \<forall>re \<in> es.  P \<^sup>\<sqsubseteq>rgsep Pre re;
-                          \<forall>re \<in> es.  Post re  \<^sup>\<sqsubseteq>rgsep Q;
-                          \<forall>re \<in> es.  R  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re;
-                          \<forall>re \<in> es.  Guar re  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G;
-                          \<forall>re \<in> es. stable (Post re) [] (Rely re);
-                          stable P [] R;
-                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2 \<rbrakk>
-                        \<Longrightarrow> R, G \<^sup>\<turnstile>resrgsep {P} (ers, (EvtSys es)) {Q}"
-  apply (simp add: resRGSep_def reRGSep_def)
-  apply (rule conjI, simp add: resource_re_equiv user_resys_def user_revent_def)
-  apply (clarsimp, rule rgressafe_rEvtSys', simp_all)
-  done
-
 lemma RGressafe_conseq : "\<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G';
    Q \<^sup>\<sqsubseteq>rgsep Q';rgsep_ressafe n res s h \<Gamma> R G Q\<rbrakk> 
     \<Longrightarrow> rgsep_ressafe n res s h \<Gamma> R' G' Q'"
@@ -847,12 +1100,301 @@ lemma RGressafe_conseq : "\<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e
   apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp)
   by (meson RGsubset_def contra_subsetD)
 
+lemma RGressafe_post_Aemp : "rgsep_ressafe n res s h \<Gamma> R G Q \<longleftrightarrow> 
+                            rgsep_ressafe n res s h \<Gamma> R G (RGstar Q (RGlocal Aemp))"
+  by (induct n arbitrary: res s h \<Gamma>, simp_all)
+
+lemma RGressafe_post_commute : "rgsep_ressafe n res s h \<Gamma> R G (RGstar Q1 Q2) \<longleftrightarrow> 
+                               rgsep_ressafe n res s h \<Gamma> R G (RGstar Q2 Q1)"
+  by (induct n arbitrary: res s h \<Gamma>, simp, simp only: rgsep_ressafe.simps RGstar_commute)
+
+lemma RGressafe_post_assoc : "rgsep_ressafe n res s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
+                     \<longleftrightarrow> rgsep_ressafe n res s h \<Gamma> R G (RGstar Q1 (RGstar Q2 Q3))"
+  by (induct n arbitrary: res s h \<Gamma>, simp, simp only: rgsep_ressafe.simps RGstar_assoc)
+
+lemma RGressafe_post_comassoc : "rgsep_ressafe n res s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
+                        \<longleftrightarrow> rgsep_ressafe n res s h \<Gamma> R G (RGstar Q1 (RGstar Q3 Q2))"
+  by (induct n arbitrary: res s h \<Gamma>, simp, simp only: rgsep_ressafe.simps RGstar_comassoc)     
+
+theorem RGrule_res_pre_commute: 
+  " R, G \<^sup>\<turnstile>resrgsep {RGstar P1 P2} res {Q} \<longleftrightarrow> 
+    R, G \<^sup>\<turnstile>resrgsep {RGstar P2 P1} res {Q}"
+  using RGstar_commute resRGSep_def by auto
+
+theorem RGrule_res_post_commute:
+  " R, G \<^sup>\<turnstile>resrgsep {P} res {RGstar Q1 Q2}  \<longleftrightarrow> 
+    R, G \<^sup>\<turnstile>resrgsep {P} res {RGstar Q2 Q1} "
+  by (simp add: resRGSep_def RGressafe_post_commute)
+
+theorem RGrule_res_pre_post_commute:
+  "R, G \<^sup>\<turnstile>resrgsep {RGstar P1 P2} res {RGstar Q1 Q2}  \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>resrgsep {RGstar P2 P1} res {RGstar Q2 Q1} "
+  by (simp add: RGrule_res_post_commute RGrule_res_pre_commute)
+
+theorem RGrule_res_pre_associate :
+  "R, G \<^sup>\<turnstile>resrgsep {RGstar (RGstar P1 P2) P3} res {Q}  \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>resrgsep {RGstar P1 (RGstar P2 P3)} res {Q} "
+  using RGstar_assoc resRGSep_def by auto
+
+theorem RGrule_res_post_associate :
+  "R, G \<^sup>\<turnstile>resrgsep {P} res {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+  R, G \<^sup>\<turnstile>resrgsep {P} res {RGstar Q1 (RGstar Q2 Q3)}"
+  by (simp add: resRGSep_def RGressafe_post_assoc)
+
+theorem RGrule_res_pre_post_associate :
+  "R, G \<^sup>\<turnstile>resrgsep {RGstar (RGstar P1 P2) P3} res {(RGstar (RGstar Q1 Q2) Q3)} \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>resrgsep {RGstar P1 (RGstar P2 P3)} res {RGstar Q1 (RGstar Q2 Q3)}"
+  using RGrule_res_post_associate RGrule_res_pre_associate RGrule_res_pre_commute by auto
+
+theorem RGrule_res_pre_comassoc :   "R, G \<^sup>\<turnstile>resrgsep {RGstar (RGstar P1 P2) P3} res {Q}  \<longleftrightarrow> 
+                                  R, G \<^sup>\<turnstile>resrgsep {RGstar P1 (RGstar P3 P2)} res {Q} "
+  using RGstar_comassoc resRGSep_def by auto
+
+theorem RGrule_res_post_comassoc :
+  "R, G \<^sup>\<turnstile>resrgsep {P} res {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+   R, G \<^sup>\<turnstile>resrgsep {P} res {RGstar Q1 (RGstar Q3 Q2)}"
+  by (simp add: resRGSep_def RGressafe_post_comassoc)
+
+theorem RGrule_res_pre_post_comassoc :
+   "R, G \<^sup>\<turnstile>resrgsep {RGstar (RGstar P1 P2) P3} res {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+    R, G \<^sup>\<turnstile>resrgsep {RGstar P1 (RGstar P3 P2)} res {RGstar Q1 (RGstar Q3 Q2)}"
+  by (simp add: RGrule_res_post_comassoc RGrule_res_pre_comassoc)
+
+theorem RGrule_res_pre_post_comassoc1 :
+   " R, G \<^sup>\<turnstile>resrgsep {RGstar P1 (RGstar P2 P3)} res {RGstar Q1 (RGstar Q2 Q3)} \<longleftrightarrow> 
+     R, G \<^sup>\<turnstile>resrgsep {RGstar (RGstar P1 P3) P2} res {RGstar (RGstar Q1 Q3) Q2}"
+  by (simp add: RGrule_res_pre_post_comassoc)          
+
+lemma RGressafe_res:
+ "\<lbrakk> rgsep_ressafe n (rs, es) s h \<Gamma> (R(r := Rr)) (G(r := Gr)) (RGstar Q (RGshared r q)); 
+    r \<notin> set rs; wf_resys (rs, es); frgnA Q r = False\<rbrakk> \<Longrightarrow> 
+   (\<forall>hK. r \<notin> reslocked (rs, es) \<longrightarrow> disjoint (dom h) (dom (\<Gamma> r)) \<longrightarrow> 
+    rgsep_ressafe n (r # rs, es) s (h ++ (\<Gamma> r)) (\<Gamma>(r := hK)) R G (RGstar Q (RGlocal q)))
+   \<and> (\<forall>hK. r \<in> reslocked (rs, es) \<longrightarrow> 
+      rgsep_ressafe n (r # rs, es) s h (\<Gamma>(r := hK)) R G (RGstar Q (RGlocal q)))"
+  apply (induct n arbitrary: es s h \<Gamma>, simp, clarsimp)
+  apply (rule conjI, clarify)
+   apply (rule conjI, simp add: resaborts_equiv)
+  apply (metis disjoint_simps(4) dom_map_add map_add_assoc)
+   apply (rule conjI, simp add: resaccesses_def, erule order_trans, simp, clarsimp)
+   apply (rule conjI, clarsimp)
+    apply (drule_tac a = "es" and b = "s" and c = "h" and d = "\<Gamma>'(r := \<Gamma> r)"  in mall4_impD)
+     apply (erule all_impD,  simp add: reslocked_def, clarsimp)
+    apply (subgoal_tac "rgsep_ressafe n (r # rs, es) s (h ++ \<Gamma> r) 
+                                  (\<Gamma>'(r := \<Gamma> r)) R G (RGstar Q (RGlocal q))")
+     apply (metis fun_upd_triv, simp)
+   apply (clarify, frule resred_properties, clarsimp)
+   apply (subgoal_tac "a = r # rs", simp)
+    apply (case_tac "r \<in> set (resllocked (rs, b))", simp add: resllocked_def)
+  apply (drule_tac a = "hF" and b = rs and c = b and d = aa
+          and e = "ba" in all5_impD, simp add: hsimps reslocked_def eslocked_eq)
+      apply (subst hplus_list_map_expand [where r=r], simp_all)
+        apply (metis Pair_inject distinct_list_minus prod.collapse red_wf_esys 
+                  res_equiv2 wf_esys_distinct_locked wf_resys_def)
+       apply (clarsimp)
+       apply (case_tac "r1 = r", simp add: disjoint_commute)
+       apply (case_tac "r2 = r") apply blast apply (simp add: RGdef_def)
+      apply (metis list_minus_removeAll map_add_assoc res_equiv3)
+     apply (drule imp2D, simp add: reslocked_def list_minus_removeAll_irr)
+       apply (simp add: list_minus_removeAll)
+       apply (rule_tac r = r in RGdef_removeAll, simp_all)
+        apply (metis RGdef_upd_irr member_remove remove_code(1))
+       apply (metis disjoint_search(1) eslocked_eq)
+  apply (simp add: reslocked_def)
+      apply (metis disjoint_search(1))
+     apply (clarsimp, rule_tac x = "h'" and y = "\<Gamma>'( r:= hK)" in ex2I)
+     apply (simp add: eslocked_eq list_minus_removeAll_irr reslocked_def)
+     apply (rule conjI)
+      apply (rule_tac r = "r" and \<Gamma> = "\<Gamma>'(r := hK)" and hK = "\<Gamma>' r" in RGdef_upd_irr, simp, simp)
+     apply (rule conjI) apply meson
+     apply (rule conjI) apply meson
+     apply (meson red_wf_resys res_equiv3)
+    apply (simp add: resllocked_def reslocked_eq eslocked_eq)
+  apply (drule_tac a = "hF ++ \<Gamma> r" and b = rs and c = b and d = aa
+          and e = "ba" in all5_impD, simp add: hsimps)
+     apply (subgoal_tac "h ++ (\<Gamma> r ++ (hplus_list (map \<Gamma> (list_minus (list_minus (esllocked b) rs) 
+                (list_minus (esllocked es) rs))) ++hF)) = 
+                         h ++ (hplus_list (map \<Gamma> (list_minus (list_minus (esllocked b) rs) 
+                (list_minus (esllocked es) rs))) ++ (hF ++ \<Gamma> r))")
+  using res_equiv3 apply auto[1]
+     apply (rule map_add_subst, subst map_add_left_commute)
+       apply (metis DiffD1 DiffD2 Diff_iff disjoint_map_list disjoint_search(1) set_list_minus)
+      apply (metis DiffE Diff_iff disjoint_map_list disjoint_search(1) set_list_minus)
+     apply (rule map_add_subst, rule map_add_commute) apply blast
+    apply (drule imp3D, simp)
+       apply (metis Diff_iff RGdef_upd_irr set_list_minus)
+      apply (metis disjoint_simps(4) dom_map_add)
+     apply (clarsimp, rule_tac x = "h' ++ \<Gamma>' r" and y = "\<Gamma>'(r := hK)" in ex2I, simp)
+    apply (rule conjI, simp add: hsimps)
+     apply (rule map_add_subst, rule sym, subst map_add_left_commute)
+       apply (metis DiffD1 DiffD2 Diff_iff disjoint_map_list disjoint_search(1) set_list_minus)
+      apply (metis DiffE Diff_iff disjoint_map_list disjoint_search(1) set_list_minus)
+     apply (rule map_add_subst, rule map_add_commute) apply blast
+     apply (rule conjI, rule_tac r = r and \<Gamma> = "\<Gamma>'(r := hK)" 
+                      and hK = "\<Gamma>' r" in RGdef_upd_irr, simp_all)
+    apply (rule conjI) apply meson
+    apply (meson red_wf_resys res_equiv3)
+  using resred.simps apply auto[1]
+  apply (simp add: resllocked_def reslocked_eq, clarify)
+  apply (rule conjI) apply auto[1]
+  apply (simp add: resaborts_equiv)
+  apply (rule conjI, simp add: resaccesses_def, clarsimp)
+  apply (rule conjI, clarsimp)
+   apply (drule_tac a = "es" and b = "s" and c = "h" and d = "\<Gamma>'(r := \<Gamma> r)"  in mall4_impD, simp)
+   apply (metis fun_upd_triv fun_upd_upd)
+  apply (clarify, frule resred_properties, clarsimp)
+  apply (subgoal_tac "a = r # rs", simp)
+   apply (drule_tac a = "hF" and b = rs and c = b and d = aa and e = "ba" in all5_impD
+          , simp add: hsimps reslocked_def eslocked_eq list_minus_removeAll2)
+  using res_equiv3 apply auto[1]
+   apply (drule imp3D, simp)
+     apply (metis Diff_iff RGdef_upd_irr list_minus_removeAll2 removeAll_id set_list_minus)
+    apply metis
+apply (case_tac "r \<in> set (resllocked (rs, b))", simp add: resllocked_def, clarify)
+    apply (rule_tac x = "h'" and y = "\<Gamma>'(r := hK)" in ex2I, simp)
+    apply (rule conjI, simp add: hsimps list_minus_removeAll2)
+    apply (rule conjI, simp add: list_minus_removeAll2)
+     apply (metis Diff_iff RGdef_upd_irr fun_upd_triv fun_upd_upd set_list_minus)
+    apply (rule conjI) apply meson
+    apply (rule conjI) apply meson
+    apply (meson red_wf_resys res_equiv3, clarsimp)
+   apply (rule_tac x = "h' ++ \<Gamma>' r" and y = "\<Gamma>'(r := hK)" in ex2I, simp)
+   apply (rule conjI, simp add: hsimps list_minus_removeAll2)
+    apply (rule map_add_subst, simp add: map_add_assoc)
+  apply (subst hplus_list_map_expand [where r=r], simp_all add: resllocked_def)
+     apply (metis Pair_inject distinct_list_minus prod.collapse 
+                      wf_esys_distinct_locked wf_resys_def)
+    apply (metis DiffD1 DiffI RGdef_def set_list_minus)
+  apply (rule conjI) apply (meson disjoint_search(1))
+   apply (rule conjI, simp add: list_minus_removeAll)
+    apply (rule_tac r = r and hK = "\<Gamma>' r" in RGdef_upd_irr, simp_all)
+    apply (metis RGdef_def member_remove remove_code(1))
+  apply (rule conjI) 
+    apply (metis (full_types) DiffD1 DiffI RGdef_def set_list_minus)
+   apply (rule conjI) apply meson
+  apply (meson red_wf_resys res_equiv3)
+  by (metis (no_types, lifting) fst_conv res_invres)
+
+lemma RGressafe_res_empty : "rgsep_essafe n es s h \<Gamma> R G Q 
+                               \<Longrightarrow> rgsep_ressafe n ([], es) s h \<Gamma> R G Q"
+  apply (induct n arbitrary: es s h \<Gamma>, simp, clarsimp)
+  apply (rule conjI, simp add: resaborts_equiv)
+  apply (rule conjI, simp add: resaccesses_def)
+  apply (rule conjI, simp add: reslocked_def, clarsimp)
+  apply (subgoal_tac "a = []", simp add: resllocked_def)
+   apply (drule_tac a = "hF" and b = "b" and c = "aa" and d = "ba" in all4_impD
+                  , simp add: res_equiv2, clarsimp)
+   apply (drule impD, simp add: reslocked_def, clarsimp)
+  apply (rule_tac x = h' and y = \<Gamma>' in ex2I, simp add: reslocked_def)
+  using resred.simps by auto
+
+lemma RGrule_res1 : 
+    "\<lbrakk> R(r := Rr), G(r:=Gr) \<^sup>\<turnstile>resrgsep {RGstar P (RGshared r p)} (rs, es) {RGstar Q (RGshared r q)};
+     \<not> frgnA P r; \<not> frgnA Q r; r \<notin> set rs \<rbrakk> \<Longrightarrow> 
+      R, G \<^sup>\<turnstile>resrgsep {RGstar P (RGlocal p)} (r # rs, es) {RGstar Q (RGlocal q)}"
+  apply (simp add: resRGSep_def)
+  apply (rule conjI, simp add: user_resys_def, clarsimp)
+  apply (drule_tac a = "n" and b = "s" and c = "h1" and d = "\<Gamma>(r := h2)" in all4_impD, simp)
+   apply (metis RGassn_agrees_rgn fun_upd_other)
+  apply (drule RGressafe_res, simp_all add: wf_revent_def user_revent_def user_event_wf)
+   apply (simp add: user_resys_wf)
+  by (metis List.insert_def empty_set fun_upd_triv insert_Nil list.distinct(1) user_resysD)
+
+theorem RGrule_res_res_empty : 
+    " R, G \<^sup>\<turnstile>esrgsep {P} es {Q}  \<Longrightarrow> R, G \<^sup>\<turnstile>resrgsep {P} ([], es) {Q}"
+  by (simp add: esRGSep_def resRGSep_def user_resys_def RGressafe_res_empty)
+
+lemma RGrule_res :
+  "\<lbrakk> (update_list R \<R> rs), (update_list G \<RR> rs) 
+       \<^sup>\<turnstile>esrgsep {RGstar P (RGstar_shared \<G> rs)} es {RGstar Q (RGstar_shared \<GG> rs)};
+     \<forall>r \<in> set rs. \<not> frgnA P r; \<forall>r \<in> set rs. \<not> frgnA Q r; distinct rs \<rbrakk> \<Longrightarrow> 
+      R, G \<^sup>\<turnstile>resrgsep {RGstar P (RGstar_local \<G> rs)} (rs, es) {RGstar Q (RGstar_local \<GG> rs)}"
+  apply (induct rs arbitrary: R G P Q, simp add: RGrule_res_res_empty, clarsimp)
+  apply (drule_tac a = "R(a := \<R> a)" and b = "G(a := \<RR> a)" and c = "RGstar P (RGshared a (\<G> a))"
+        and d = "RGstar Q (RGshared a (\<GG> a))" in mall4_impD, simp add: RGrule_es_pre_post_associate)
+  apply (drule mimp2D, simp) apply auto[1]
+  apply auto[1]
+  apply (simp add: RGrule_res_pre_post_associate)
+  apply (simp add: RGrule_res_pre_post_comassoc1)
+  by (rule RGrule_res1, simp_all add: RGstar_local_frgnA)
+
+
+theorem RGrule_rEvtSeq :"\<lbrakk>(update_list R \<R> rs), (update_list G \<RR> rs) 
+                           \<^sup>\<turnstile>rergsep {RGstar P (RGstar_shared \<G> rs)} re {T};
+                          (update_list R \<R> rs), (update_list G \<RR> rs) \<^sup>\<turnstile>esrgsep 
+                          { T } esys { RGstar Q (RGstar_shared \<GG> rs) };
+                          \<forall>r \<in> set rs. \<not> frgnA P r; \<forall>r \<in> set rs. \<not> frgnA Q r; distinct rs\<rbrakk> 
+                \<Longrightarrow> R , G \<^sup>\<turnstile>resrgsep {RGstar P (RGstar_local \<G> rs)} 
+                    (rs, (EvtSeq re esys)) {RGstar Q (RGstar_local \<GG> rs)}"
+  by (rule_tac \<R> = \<R> and \<RR> = \<RR> in RGrule_res, simp_all add: RGrule_EvtSeq)
+
+theorem RGrule_rEvtSys :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re)  \<^sup>\<turnstile>rergsep {Pre re} re {Post re};
+                          \<forall>re \<in> es.  RGstar P (RGstar_shared \<G> rs)  \<^sup>\<sqsubseteq>rgsep Pre re;
+                          \<forall>re \<in> es.  Post re  \<^sup>\<sqsubseteq>rgsep RGstar Q (RGstar_shared \<GG> rs);
+                          \<forall>re \<in> es.  update_list R \<R> rs  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Rely re;
+                          \<forall>re \<in> es.  Guar re  \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p update_list G \<RR> rs;
+                          Rely_Trans (update_list R \<R> rs); 
+                          stable (RGstar P (RGstar_shared \<G> rs)) [] (update_list R \<R> rs);
+                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<^sup>\<sqsubseteq>rgsep Pre re2;
+                          \<forall>r \<in> set rs. \<not> frgnA P r; \<forall>r \<in> set rs. \<not> frgnA Q r; distinct rs\<rbrakk>
+                        \<Longrightarrow> R, G \<^sup>\<turnstile>resrgsep {RGstar P (RGstar_local \<G> rs)} 
+                            (rs, (EvtSys es)) {RGstar Q (RGstar_local \<GG> rs)}" 
+  by (rule_tac \<R> = \<R> and \<RR> = \<RR> in RGrule_res, simp_all add: RGrule_EvtSys)
+
 theorem RGrule_resconseq : "
   \<lbrakk> R,G \<^sup>\<turnstile>resrgsep {P} res {Q};
    P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
    R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
     \<Longrightarrow> R',G' \<^sup>\<turnstile>resrgsep {P'} res {Q'}"
   by (simp add: resRGSep_def rgsep_implies_def RGressafe_conseq)
+
+lemma RGressafe_frame:
+ "\<lbrakk> rgsep_ressafe n res s h \<Gamma> Rely Guar Q; 
+    disjoint (dom h) (dom hR);
+    disjoint (fvAA R) (wrREsv res);
+    stable R [] (RGUnion Rely Guar);
+    (s, hR, \<Gamma>) \<^sup>\<Turnstile>rgsep R\<rbrakk>
+  \<Longrightarrow> rgsep_ressafe n res s (h ++ hR) \<Gamma> Rely Guar (RGstar Q R)"
+  apply (induct n arbitrary: res s h hR \<Gamma>, simp, clarsimp)
+(* no aborts *)
+  apply (rule conjI, clarify)
+  apply (drule_tac a = "hR ++ hF" in all_impD, simp, simp add: hsimps)
+(* access *)
+  apply (rule conjI, erule order_trans, simp)
+(* rely *)
+  apply (rule conjI, clarsimp)
+   apply (drule_tac a = a and b = b and c = s and d = h and e= hR and f = \<Gamma>' in mall6D)
+   apply (drule mimp4D, simp_all add:stable_def)
+  apply (metis RGUnion_def UnCI)
+(* step *)
+  apply (clarify, frule resred_properties, clarsimp)
+  apply (drule_tac a = "hR ++ hF" and b = "aa" and c = ba and d = ab 
+                            and e = bb in all5_impD, simp add: hsimps)
+   apply (subgoal_tac "hR ++ (hplus_list (map \<Gamma> (list_minus (resllocked (aa, ba)) 
+                      (resllocked (a, b)))) ++ hF) =
+                       hplus_list (map \<Gamma> (list_minus (resllocked (aa, ba)) 
+                      (resllocked (a, b)))) ++ (hR ++ hF)", simp)
+   apply (rule map_add_left_commute, simp_all add: disjoint_hplus_list reslocked_eq)
+  apply (metis  DiffD1 DiffD2 disjoint_search(1))
+  apply (metis  DiffD1 DiffD2 disjoint_search(1), clarsimp)
+  apply (rule_tac x = "h' ++ hR" and y = "\<Gamma>'" in ex2I)
+  apply (rule conjI, simp_all add: hsimps(4) locked_eq, rule map_add_subst)
+   apply (rule map_add_left_commute, simp)
+   apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
+  apply (drule_tac a = aa and b = ba and c = ab and d = h' and e = hR and f = \<Gamma>' in mall6D)
+  apply (drule mimp4D, simp_all)
+   apply auto[1] 
+  apply (drule_tac a = s and b = hR and c = \<Gamma> in all3D, simp)
+  apply (drule_tac a = "\<Gamma>'" in all_imp2D, simp_all add: RGUnion_def)
+    apply blast apply blast
+  by (meson RGassn_agrees agrees_minusD disjoint_search(1))
+
+theorem RGrule_resFrame:
+ "\<lbrakk> Rely ,Guar \<^sup>\<turnstile>resrgsep {P} res {Q};  
+    disjoint (fvAA R) (wrREsv res);
+    stable R [] (RGUnion Rely Guar)\<rbrakk>
+  \<Longrightarrow> Rely ,Guar \<^sup>\<turnstile>resrgsep {RGstar P R} res {RGstar Q R}"
+  by (metis RGressafe_frame RGsat.simps(5) fst_conv resRGSep_def snd_conv)
 
 primrec 
   rgsep_pessafe :: "nat \<Rightarrow> paresys \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> heap) \<Rightarrow> rely \<Rightarrow> guar \<Rightarrow> rgsep_assn \<Rightarrow> bool"
@@ -938,6 +1480,66 @@ lemma peslocked_diff : "\<lbrakk>disjoint_locked_list pes; k < length pes';
                         \<longrightarrow> disjoint (reslocked res') (reslocked (pes ! k'))\<rbrakk>
                          \<Longrightarrow> r \<notin> reslocked res \<or> r \<in> reslocked res'"
   by (metis RGpesllocked_cancel length_list_update list_minus_set peslocked_def reslocked_eq) 
+
+lemma RGpessafe_post_Aemp : "rgsep_pessafe n pes s h \<Gamma> R G Q \<longleftrightarrow> 
+                            rgsep_pessafe n pes s h \<Gamma> R G (RGstar Q (RGlocal Aemp))"
+  by (induct n arbitrary: pes s h \<Gamma>, simp_all)
+
+lemma RGpessafe_post_commute : "rgsep_pessafe n pes s h \<Gamma> R G (RGstar Q1 Q2) \<longleftrightarrow> 
+                               rgsep_pessafe n pes s h \<Gamma> R G (RGstar Q2 Q1)"
+  by (induct n arbitrary: pes s h \<Gamma>, simp, simp only: rgsep_pessafe.simps RGstar_commute)
+
+lemma RGpessafe_post_assoc : "rgsep_pessafe n pes s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
+                     \<longleftrightarrow> rgsep_pessafe n pes s h \<Gamma> R G (RGstar Q1 (RGstar Q2 Q3))"
+  by (induct n arbitrary: pes s h \<Gamma>, simp, simp only: rgsep_pessafe.simps RGstar_assoc)
+
+lemma RGpessafe_post_comassoc : "rgsep_pessafe n pes s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
+                        \<longleftrightarrow> rgsep_pessafe n pes s h \<Gamma> R G (RGstar Q1 (RGstar Q3 Q2))"
+  by (induct n arbitrary: pes s h \<Gamma>, simp, simp only: rgsep_pessafe.simps RGstar_comassoc)
+
+theorem RGrule_pes_pre_commute: 
+  " R, G \<^sup>\<turnstile>pesrgsep {RGstar P1 P2} pes{Q} \<longleftrightarrow> 
+    R, G \<^sup>\<turnstile>pesrgsep {RGstar P2 P1} pes{Q}"
+  using RGstar_commute  pesRGSep_def by auto
+
+theorem RGrule_pes_post_commute:
+  " R, G \<^sup>\<turnstile>pesrgsep {P} pes{RGstar Q1 Q2}  \<longleftrightarrow> 
+    R, G \<^sup>\<turnstile>pesrgsep {P} pes{RGstar Q2 Q1} "
+  by (simp add:  pesRGSep_def RGpessafe_post_commute)
+
+theorem RGrule_pes_pre_post_commute:
+  "R, G \<^sup>\<turnstile>pesrgsep {RGstar P1 P2} pes{RGstar Q1 Q2}  \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>pesrgsep {RGstar P2 P1} pes{RGstar Q2 Q1} "
+  by (simp add: RGrule_pes_post_commute RGrule_pes_pre_commute)
+
+theorem RGrule_pes_pre_associate :
+  "R, G \<^sup>\<turnstile>pesrgsep {RGstar (RGstar P1 P2) P3} pes{Q}  \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>pesrgsep {RGstar P1 (RGstar P2 P3)} pes{Q} "
+  using RGstar_assoc  pesRGSep_def by auto
+
+theorem RGrule_pes_post_associate :
+  "R, G \<^sup>\<turnstile>pesrgsep {P} pes{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+  R, G \<^sup>\<turnstile>pesrgsep {P} pes{RGstar Q1 (RGstar Q2 Q3)}"
+  by (simp add:  pesRGSep_def RGpessafe_post_assoc)
+
+theorem RGrule_pes_pre_post_associate :
+  "R, G \<^sup>\<turnstile>pesrgsep {RGstar (RGstar P1 P2) P3} pes{(RGstar (RGstar Q1 Q2) Q3)} \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>pesrgsep {RGstar P1 (RGstar P2 P3)} pes{RGstar Q1 (RGstar Q2 Q3)}"
+  using RGrule_pes_post_associate RGrule_pes_pre_associate RGrule_pes_pre_commute by auto
+
+theorem RGrule_pes_pre_comassoc :   "R, G \<^sup>\<turnstile>pesrgsep {RGstar (RGstar P1 P2) P3} pes{Q}  \<longleftrightarrow> 
+                                  R, G \<^sup>\<turnstile>pesrgsep {RGstar P1 (RGstar P3 P2)} pes{Q} "
+  using RGstar_comassoc  pesRGSep_def by auto
+
+theorem RGrule_pes_post_comassoc :
+  "R, G \<^sup>\<turnstile>pesrgsep {P} pes{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+   R, G \<^sup>\<turnstile>pesrgsep {P} pes{RGstar Q1 (RGstar Q3 Q2)}"
+  by (simp add:  pesRGSep_def RGpessafe_post_comassoc)
+
+theorem RGrule_pes_pre_post_comassoc :
+   "R, G \<^sup>\<turnstile>pesrgsep {RGstar (RGstar P1 P2) P3} pes{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+    R, G \<^sup>\<turnstile>pesrgsep {RGstar P1 (RGstar P3 P2)} pes{RGstar Q1 (RGstar Q3 Q2)}"
+  by (simp add: RGrule_pes_post_comassoc RGrule_pes_pre_comassoc)  
 
 lemma rgsep_pessafe: 
 " \<lbrakk>\<forall>k. k < length pes \<longrightarrow> rgsep_ressafe n (pes ! k) s (hs ! k) \<Gamma> (Rs ! k) (Gs ! k) (Qs ! k);
@@ -1115,6 +1717,49 @@ corollary RGrule_pes2 :   " \<lbrakk>R1, G1  \<^sup>\<turnstile>resrgsep {P1} re
   apply (simp add: RGsubset_def)
   done
 
+lemma RGpessafe_frame:
+ "\<lbrakk> rgsep_pessafe n pes s h \<Gamma> Rely Guar Q; 
+    disjoint (dom h) (dom hR);
+    disjoint (fvAA R) (wrPEsv pes);
+    stable R [] (RGUnion Rely Guar);
+    (s, hR, \<Gamma>) \<^sup>\<Turnstile>rgsep R\<rbrakk>
+  \<Longrightarrow> rgsep_pessafe n pes s (h ++ hR) \<Gamma> Rely Guar (RGstar Q R)"
+  apply (induct n arbitrary: pes s h hR \<Gamma>, simp, clarsimp)
+(* no aborts *)
+  apply (rule conjI, clarify)
+  apply (drule_tac a = "hR ++ hF" in all_impD, simp, simp add: hsimps)
+(* rely *)
+  apply (rule conjI, clarsimp)
+    apply (drule mall5_imp4D, simp_all)
+   apply (simp add:stable_def)
+  apply (metis (no_types, lifting) RGUnion_def UnCI)
+(* step *)
+  apply (clarify, frule pesred_properties, clarsimp)
+  apply (drule_tac a = "hR ++ hF" and b = "pes'" and c = a and d = b in all4_impD, simp add: hsimps)
+apply (subgoal_tac "hR ++ (hplus_list (map \<Gamma> (list_minus (pesllocked pes') (pesllocked pes))) ++ hF)
+            = hplus_list (map \<Gamma> (list_minus (pesllocked pes') (pesllocked pes))) ++ (hR ++ hF)", simp)
+   apply (rule map_add_left_commute, simp_all add: disjoint_hplus_list peslocked_eq)
+  apply (metis  DiffD1 DiffD2 disjoint_search(1))
+  apply (metis  DiffD1 DiffD2 disjoint_search(1), clarsimp)
+  apply (rule_tac x = "h' ++ hR" and y = "\<Gamma>'" in ex2I)
+  apply (rule conjI, simp_all add: hsimps(4) locked_eq, rule map_add_subst)
+   apply (rule map_add_left_commute, simp)
+  apply (rule disjoint_map_list, clarsimp)
+  apply (metis disjoint_search(1) peslocked_def)
+  apply (drule mall5_imp4D, simp_all)
+   apply auto[1] 
+  apply (simp add: stable_def, drule_tac a = s and b = hR and c = \<Gamma> in all3D, simp)
+  apply (drule_tac a = "\<Gamma>'" in all_imp2D, simp_all add: RGUnion_def)
+    apply blast apply blast
+  by (meson RGassn_agrees agrees_minusD disjoint_search(1))
+
+theorem RGrule_pesFrame:
+ "\<lbrakk> Rely ,Guar \<^sup>\<turnstile>pesrgsep {P} pes {Q};  
+    disjoint (fvAA R) (wrPEsv pes);
+    stable R [] (RGUnion Rely Guar)\<rbrakk>
+  \<Longrightarrow> Rely ,Guar \<^sup>\<turnstile>pesrgsep {RGstar P R} pes {RGstar Q R}"
+  using pesRGSep_def RGpessafe_frame by auto
+
 primrec 
   rgsep_rpessafe :: "nat \<Rightarrow> rparesys \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> heap) \<Rightarrow> rely \<Rightarrow> guar \<Rightarrow> rgsep_assn \<Rightarrow> bool"
   where
@@ -1141,58 +1786,12 @@ primrec
 )))"
 
 
-
 definition
     rpesRGSep :: "rely \<Rightarrow> guar \<Rightarrow> rgsep_assn \<Rightarrow> rparesys \<Rightarrow> rgsep_assn \<Rightarrow> bool"
   ("_ , _ \<^sup>\<turnstile>rpesrgsep { _ } _ { _ }")
 where
   "R,G  \<^sup>\<turnstile>rpesrgsep {P} rpes {Q} \<equiv> (user_rpesys rpes \<and> (\<forall>n s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P
                          \<longrightarrow> rgsep_rpessafe n rpes s h \<Gamma> R G Q))"
-
-lemma rgrpes_equiv : 
-  "rgsep_pessafe n (resources_pes rs pes) s h \<Gamma> R G Q \<Longrightarrow> 
-   rgsep_rpessafe n (rs, pes) s h \<Gamma> R G Q"
-  apply (induct n arbitrary : pes s h \<Gamma>, simp, clarsimp)
-  apply (rule conjI, simp add: rpesaborts_equiv')
-  apply (rule conjI, simp add: resources_pes_def rpeslocked_def)
-  apply (clarsimp, erule rpesred.cases, simp)
-  apply (drule_tac a = "hF" and b = "resources_pes pres pesa[k := (pres @ ers, es')]" 
-        and c = "aa" and d = "ba" in all4_impD, simp)
-   apply (rule pesred.red_Par, simp, simp)
-    apply (simp add: rpesllocked_def res_pes_update)
-    apply (metis list_update_same_conv res_pes_length res_pes_update, simp)
-  apply (drule imp3D, simp_all add: rpesllocked_def res_pes_update)
-  apply (simp add: resources_pes_def rpeslocked_def, clarsimp)
-  apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, clarsimp)
-  apply (rule conjI, simp add: resources_pes_def rpeslocked_def)
-  apply (simp add: resources_pes_def rpeslocked_def)
-  done
-
-theorem RGrule_rpes1 : " \<lbrakk>\<forall>k. k < length pes \<longrightarrow> 
-   (Rs ! k), (Gs ! k)  \<^sup>\<turnstile>resrgsep {Ps ! k} (resources_res rs) (pes ! k) {Qs ! k};
-   \<forall>k. k < length pes \<longrightarrow> (Gs ! k) \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G; \<forall>k. k < length pes \<longrightarrow> R \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p (Rs ! k);
-   \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
-          \<longrightarrow> disjoint (fvREsv (pes ! k1) \<union> fvAA (Qs ! k1)) (wrREsv (pes ! k2));
-   \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
-          \<longrightarrow> (Gs ! k1) \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p (Rs ! k2);
-    length pes = length Ps\<rbrakk>
-   \<Longrightarrow> R,G  \<^sup>\<turnstile>pesrgsep {RGistar Ps} (resources_pes rs pes) {RGistar Qs}"
-  apply (rule RGrule_pes, simp_all, clarify)
-   apply (simp add: res_pes_property)
-  using res_pes_property by auto
-
-theorem RGrule_rpes : " \<lbrakk>\<forall>k. k < length pes \<longrightarrow> 
-   (Rs ! k), (Gs ! k)  \<^sup>\<turnstile>resrgsep {Ps ! k} (resources_res rs) (pes ! k) {Qs ! k};
-   \<forall>k. k < length pes \<longrightarrow> (Gs ! k) \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G; \<forall>k. k < length pes \<longrightarrow> R \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p (Rs ! k);
-   \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
-          \<longrightarrow> disjoint (fvREsv (pes ! k1) \<union> fvAA (Qs ! k1)) (wrREsv (pes ! k2));
-   \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
-          \<longrightarrow> (Gs ! k1) \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p (Rs ! k2);
-    length pes = length Ps\<rbrakk>
-   \<Longrightarrow> R,G  \<^sup>\<turnstile>rpesrgsep {RGistar Ps} (rs, pes) {RGistar Qs}"
-  apply (drule RGrule_rpes1, simp_all)
-  apply (simp add: pesRGSep_def rpesRGSep_def rgrpes_equiv user_rpesys_equiv)
-  done
 
 lemma RGrpessafe_conseq : "\<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G';
    Q \<^sup>\<sqsubseteq>rgsep Q';rgsep_rpessafe n (rs, pes) s h \<Gamma> R G Q\<rbrakk> 
@@ -1207,6 +1806,238 @@ lemma RGrpessafe_conseq : "\<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>
   apply blast
   done
 
+lemma RGrpessafe_post_Aemp : "rgsep_rpessafe n rpes s h \<Gamma> R G Q \<longleftrightarrow> 
+                            rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar Q (RGlocal Aemp))"
+  by (induct n arbitrary: rpes s h \<Gamma>, simp_all)
+
+lemma RGrpessafe_post_commute : "rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar Q1 Q2) \<longleftrightarrow> 
+                               rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar Q2 Q1)"
+  by (induct n arbitrary: rpes s h \<Gamma>, simp, simp only: rgsep_rpessafe.simps RGstar_commute)
+
+lemma RGrpessafe_post_assoc : "rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
+                     \<longleftrightarrow> rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar Q1 (RGstar Q2 Q3))"
+  by (induct n arbitrary: rpes s h \<Gamma>, simp, simp only: rgsep_rpessafe.simps RGstar_assoc)
+
+lemma RGrpessafe_post_comassoc : "rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
+                        \<longleftrightarrow> rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar Q1 (RGstar Q3 Q2))"
+  by (induct n arbitrary: rpes s h \<Gamma>, simp, simp only: rgsep_rpessafe.simps RGstar_comassoc)  
+
+theorem RGrule_rpes_pre_commute: 
+  " R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 P2} rpes {Q} \<longleftrightarrow> 
+    R, G \<^sup>\<turnstile>rpesrgsep {RGstar P2 P1} rpes {Q}"
+  using RGstar_commute rpesRGSep_def by auto
+
+theorem RGrule_rpes_post_commute:
+  " R, G \<^sup>\<turnstile>rpesrgsep {P} rpes {RGstar Q1 Q2}  \<longleftrightarrow> 
+    R, G \<^sup>\<turnstile>rpesrgsep {P} rpes {RGstar Q2 Q1} "
+  by (simp add: rpesRGSep_def RGrpessafe_post_commute)
+
+theorem RGrule_rpes_pre_post_commute:
+  "R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 P2} rpes {RGstar Q1 Q2}  \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>rpesrgsep {RGstar P2 P1} rpes {RGstar Q2 Q1} "
+  by (simp add: RGrule_rpes_post_commute RGrule_rpes_pre_commute)
+
+theorem RGrule_rpes_pre_associate :
+  "R, G \<^sup>\<turnstile>rpesrgsep {RGstar (RGstar P1 P2) P3} rpes {Q}  \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 (RGstar P2 P3)} rpes {Q} "
+  using RGstar_assoc rpesRGSep_def by auto
+
+theorem RGrule_rpes_post_associate :
+  "R, G \<^sup>\<turnstile>rpesrgsep {P} rpes {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+  R, G \<^sup>\<turnstile>rpesrgsep {P} rpes {RGstar Q1 (RGstar Q2 Q3)}"
+  by (simp add: rpesRGSep_def RGrpessafe_post_assoc)
+
+theorem RGrule_rpes_pre_post_associate :
+  "R, G \<^sup>\<turnstile>rpesrgsep {RGstar (RGstar P1 P2) P3} rpes {(RGstar (RGstar Q1 Q2) Q3)} \<longleftrightarrow> 
+   R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 (RGstar P2 P3)} rpes {RGstar Q1 (RGstar Q2 Q3)}"
+  using RGrule_rpes_post_associate RGrule_rpes_pre_associate RGrule_rpes_pre_commute by auto
+
+theorem RGrule_rpes_pre_comassoc :   "R, G \<^sup>\<turnstile>rpesrgsep {RGstar (RGstar P1 P2) P3} rpes {Q}  \<longleftrightarrow> 
+                                  R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 (RGstar P3 P2)} rpes {Q} "
+  using RGstar_comassoc rpesRGSep_def by auto
+
+theorem RGrule_rpes_post_comassoc :
+  "R, G \<^sup>\<turnstile>rpesrgsep {P} rpes {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+   R, G \<^sup>\<turnstile>rpesrgsep {P} rpes {RGstar Q1 (RGstar Q3 Q2)}"
+  by (simp add: rpesRGSep_def RGrpessafe_post_comassoc)
+
+theorem RGrule_rpes_pre_post_comassoc :
+   "R, G \<^sup>\<turnstile>rpesrgsep {RGstar (RGstar P1 P2) P3} rpes {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
+    R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 (RGstar P3 P2)} rpes {RGstar Q1 (RGstar Q3 Q2)}"
+  by (simp add: RGrule_rpes_post_comassoc RGrule_rpes_pre_comassoc)
+
+theorem RGrule_rpes_pre_post_comassoc1 :
+   " R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 (RGstar P2 P3)} rpes {RGstar Q1 (RGstar Q2 Q3)} \<longleftrightarrow> 
+     R, G \<^sup>\<turnstile>rpesrgsep {RGstar (RGstar P1 P3) P2} rpes {RGstar (RGstar Q1 Q3) Q2}"
+  by (simp add: RGrule_rpes_pre_post_comassoc)
+
+lemma RGrpessafe_res:
+ "\<lbrakk> rgsep_rpessafe n (rs, pes) s h \<Gamma> (R(r := Rr)) (G(r := Gr)) (RGstar Q (RGshared r q)); 
+    r \<notin> set rs; wf_rpesys (rs, pes); frgnA Q r = False\<rbrakk> \<Longrightarrow> 
+   (\<forall>hK. r \<notin> rpeslocked (rs, pes) \<longrightarrow> disjoint (dom h) (dom (\<Gamma> r)) \<longrightarrow> 
+    rgsep_rpessafe n (r # rs, pes) s (h ++ (\<Gamma> r)) (\<Gamma>(r := hK)) R G (RGstar Q (RGlocal q)))
+   \<and> (\<forall>hK. r \<in> rpeslocked (rs, pes) \<longrightarrow> 
+      rgsep_rpessafe n (r # rs, pes) s h (\<Gamma>(r := hK)) R G (RGstar Q (RGlocal q)))"
+  apply (induct n arbitrary: pes s h \<Gamma>, simp, simp add: wf_rpesys_def)
+  apply (rule conjI, clarify)
+   apply (rule conjI, simp add: rpesaborts_equiv)
+    apply (metis disjoint_simps(4) dom_map_add map_add_assoc)
+  apply (clarify, rule conjI, clarsimp)
+    apply (drule_tac a = "pes" and b = "s" and c = "h" and d = "\<Gamma>'(r := \<Gamma> r)"  in mall4_impD)
+     apply (erule all_impD,  simp add: rpeslocked_def, clarsimp)
+    apply (subgoal_tac "rgsep_rpessafe n (r # rs, pes) s (h ++ \<Gamma> r) 
+                                  (\<Gamma>'(r := \<Gamma> r)) R G (RGstar Q (RGlocal q))")
+     apply (metis fun_upd_triv, simp)
+   apply (clarify, frule rpesred_properties, clarsimp)
+   apply (subgoal_tac "a = r # rs", simp)
+    apply (case_tac "r \<in> set (rpesllocked (rs, b))", simp add: rpesllocked_def)
+  apply (drule_tac a = "hF" and b = rs and c = b and d = aa
+          and e = "ba" in all5_impD, simp add: hsimps rpeslocked_def peslocked_def)
+      apply (subst hplus_list_map_expand [where r=r], simp_all)
+         apply (rule distinct_list_minus, rule distinct_list_minus)
+  apply (meson red_wf_pesys rpes_equiv2 wf_pesys_distinct_locked)
+       apply (clarsimp)
+       apply (case_tac "r1 = r", simp add: disjoint_commute)
+       apply (case_tac "r2 = r") apply blast apply (simp add: RGdef_def)
+      apply (metis list_minus_removeAll map_add_assoc rpes_equiv3)
+     apply (drule imp2D, simp add: rpeslocked_def list_minus_removeAll_irr)
+       apply (simp add: list_minus_removeAll)
+       apply (rule_tac r = r in RGdef_removeAll, simp_all)
+        apply (metis RGdef_upd_irr member_remove remove_code(1))
+       apply (metis disjoint_search(1) peslocked_eq)
+  apply (simp add: rpeslocked_def)
+      apply (metis disjoint_search(1))
+     apply (clarsimp, rule_tac x = "h'" and y = "\<Gamma>'( r:= hK)" in ex2I)
+     apply (simp add: rpeslocked_def list_minus_removeAll_irr peslocked_def)
+     apply (rule conjI)
+      apply (rule_tac r = "r" and \<Gamma> = "\<Gamma>'(r := hK)" and hK = "\<Gamma>' r" in RGdef_upd_irr, simp, simp)
+     apply (rule conjI) apply meson
+  apply (rule conjI) apply meson
+  apply (meson red_wf_pesys rpes_equiv2)
+    apply (simp add: rpesllocked_def rpeslocked_def rpeslocked_eq peslocked_def)
+  apply (drule_tac a = "hF ++ \<Gamma> r" and b = rs and c = b and d = aa
+          and e = "ba" in all5_impD, simp add: hsimps)
+     apply (subgoal_tac "h ++ (\<Gamma> r ++ (hplus_list (map \<Gamma> (list_minus (list_minus (pesllocked b) rs) 
+                (list_minus (pesllocked pes) rs))) ++hF)) = 
+                         h ++ (hplus_list (map \<Gamma> (list_minus (list_minus (pesllocked b) rs) 
+                (list_minus (pesllocked pes) rs))) ++ (hF ++ \<Gamma> r))")
+  apply (metis (no_types, lifting) list_minus_removeAll_irr list_minus_set rpes_equiv3)
+     apply (rule map_add_subst, subst map_add_left_commute)
+       apply (metis DiffD1 DiffD2 Diff_iff disjoint_map_list disjoint_search(1) set_list_minus)
+      apply (metis DiffE Diff_iff disjoint_map_list disjoint_search(1) set_list_minus)
+     apply (rule map_add_subst, rule map_add_commute) apply blast
+    apply (drule imp3D, simp)
+       apply (metis Diff_iff RGdef_upd_irr set_list_minus)
+      apply (metis disjoint_simps(4) dom_map_add)
+     apply (clarsimp, rule_tac x = "h' ++ \<Gamma>' r" and y = "\<Gamma>'(r := hK)" in ex2I, simp)
+    apply (rule conjI, simp add: hsimps)
+     apply (rule map_add_subst, rule sym, subst map_add_left_commute)
+       apply (metis DiffD1 DiffD2 Diff_iff disjoint_map_list disjoint_search(1) set_list_minus)
+      apply (metis DiffE Diff_iff disjoint_map_list disjoint_search(1) set_list_minus)
+     apply (rule map_add_subst, rule map_add_commute) apply blast
+     apply (rule conjI, rule_tac r = r and \<Gamma> = "\<Gamma>'(r := hK)" 
+                      and hK = "\<Gamma>' r" in RGdef_upd_irr, simp_all)
+    apply (rule conjI) apply meson
+  apply (meson red_wf_pesys rpes_equiv2)
+  using rpesred.simps apply auto[1]
+  apply (simp add: rpesllocked_def rpeslocked_eq, clarify)
+  apply (rule conjI) apply auto[1]
+  apply (simp add: rpesaborts_equiv)
+  apply (clarify, rule conjI, simp add: rpeslocked_def, clarify)
+   apply (drule_tac a = "pes" and b = "s" and c = "h" and d = "\<Gamma>'(r := \<Gamma> r)"  in mall4_impD, simp)
+   apply (metis fun_upd_triv fun_upd_upd)
+  apply (clarify, frule rpesred_properties, clarsimp)
+  apply (subgoal_tac "a = r # rs", simp add: rpeslocked_def peslocked_def)
+   apply (drule_tac a = "hF" and b = rs and c = b and d = aa and e = "ba" in all5_impD
+          , simp add: hsimps  list_minus_removeAll2)
+  using rpes_equiv3 apply auto[1]
+   apply (drule imp3D, simp)
+     apply (metis Diff_iff RGdef_upd_irr list_minus_removeAll2 removeAll_id set_list_minus)
+    apply metis
+apply (case_tac "r \<in> set (rpesllocked (rs, b))", simp add: rpesllocked_def, clarify)
+    apply (rule_tac x = "h'" and y = "\<Gamma>'(r := hK)" in ex2I, simp)
+    apply (rule conjI, simp add: hsimps list_minus_removeAll2)
+    apply (rule conjI, simp add: list_minus_removeAll2)
+     apply (metis Diff_iff RGdef_upd_irr fun_upd_triv fun_upd_upd set_list_minus)
+    apply (rule conjI) apply meson
+    apply (rule conjI) apply meson
+  apply (meson red_wf_pesys rpes_equiv2, clarsimp)
+   apply (rule_tac x = "h' ++ \<Gamma>' r" and y = "\<Gamma>'(r := hK)" in ex2I, simp)
+   apply (rule conjI, simp add: hsimps list_minus_removeAll2)
+    apply (rule map_add_subst, simp add: map_add_assoc)
+    apply (subst hplus_list_map_expand [where r=r], simp_all add: rpesllocked_def rpeslocked_def)
+  apply (meson distinct_list_minus wf_pesys_distinct_locked)
+    apply (metis DiffD1 DiffI RGdef_def set_list_minus)
+  apply (rule conjI) apply (meson disjoint_search(1))
+   apply (rule conjI, simp add: list_minus_removeAll)
+    apply (rule_tac r = r and hK = "\<Gamma>' r" in RGdef_upd_irr, simp_all)
+    apply (metis RGdef_def member_remove remove_code(1))
+  apply (rule conjI) 
+    apply (metis (full_types) DiffD1 DiffI RGdef_def set_list_minus)
+   apply (rule conjI) apply meson
+   apply (meson red_wf_pesys rpes_equiv2)
+  by (metis (no_types, lifting) fst_conv rpes_invres)
+
+lemma RGrpessafe_res_empty : "rgsep_pessafe n pes s h \<Gamma> R G Q 
+                               \<Longrightarrow> rgsep_rpessafe n ([], pes) s h \<Gamma> R G Q"
+  apply (induct n arbitrary: pes s h \<Gamma>, simp, clarsimp)
+  apply (rule conjI, simp add: rpesaborts_equiv)
+  apply (rule conjI, simp add: rpeslocked_def, clarsimp)
+  apply (subgoal_tac "a = []", simp add: rpesllocked_def)
+   apply (drule_tac a = "hF" and b = "b" and c = "aa" and d = "ba" in all4_impD
+                  , simp add: rpes_equiv2, clarsimp)
+   apply (drule impD, simp add: rpeslocked_def, clarsimp)
+   apply (rule_tac x = h' and y = \<Gamma>' in ex2I, simp add: rpeslocked_def)
+  using rpesred.simps by auto
+
+lemma RGrule_rpes1 : 
+    "\<lbrakk> R(r := Rr), G(r:=Gr) \<^sup>\<turnstile>rpesrgsep {RGstar P (RGshared r p)} (rs, pes) {RGstar Q (RGshared r q)};
+     \<not> frgnA P r; \<not> frgnA Q r; r \<notin> set rs \<rbrakk> \<Longrightarrow> 
+      R, G \<^sup>\<turnstile>rpesrgsep {RGstar P (RGlocal p)} (r # rs, pes) {RGstar Q (RGlocal q)}"
+  apply (simp add: rpesRGSep_def)
+  apply (rule conjI, simp add: user_rpesys_def, clarsimp)
+  apply (drule_tac a = "n" and b = "s" and c = "h1" and d = "\<Gamma>(r := h2)" in all4_impD, simp)
+   apply (metis RGassn_agrees_rgn fun_upd_other)
+  apply (drule RGrpessafe_res, simp_all add: wf_revent_def user_revent_def user_event_wf)
+   apply (simp add: user_rpesys_wf)
+  by (metis equals0D fun_upd_triv user_rpesysD)
+
+theorem RGrule_rpes_res_empty : 
+    " R, G \<^sup>\<turnstile>pesrgsep {P} pes {Q}  \<Longrightarrow> R, G \<^sup>\<turnstile>rpesrgsep {P} ([], pes) {Q}"
+  by (simp add: pesRGSep_def rpesRGSep_def user_rpesys_def RGrpessafe_res_empty)
+
+theorem RGrule_rpes :
+  "\<lbrakk> (update_list R \<R> rs), (update_list G \<RR> rs) 
+       \<^sup>\<turnstile>pesrgsep {RGstar P (RGstar_shared \<G> rs)} pes {RGstar Q (RGstar_shared \<GG> rs)};
+     \<forall>r \<in> set rs. \<not> frgnA P r; \<forall>r \<in> set rs. \<not> frgnA Q r; distinct rs \<rbrakk> \<Longrightarrow> 
+      R, G \<^sup>\<turnstile>rpesrgsep {RGstar P (RGstar_local \<G> rs)} (rs, pes) {RGstar Q (RGstar_local \<GG> rs)}"
+  apply (induct rs arbitrary: R G P Q, simp add: RGrule_rpes_res_empty, clarsimp)
+  apply (drule_tac a = "R(a := \<R> a)" and b = "G(a := \<RR> a)" and c = "RGstar P (RGshared a (\<G> a))"
+        and d = "RGstar Q (RGshared a (\<GG> a))" in mall4_impD, simp add: RGrule_pes_pre_post_associate)
+  apply (drule mimp2D, simp) apply auto[1]
+  apply auto[1]
+  apply (simp add: RGrule_rpes_pre_post_associate)
+  apply (simp add: RGrule_rpes_pre_post_comassoc1)
+  by (rule RGrule_rpes1, simp_all add: RGstar_local_frgnA)
+                
+theorem RGrule_rpes' : " \<lbrakk>\<forall>k. k < length pes \<longrightarrow> (Rs ! k), (Gs ! k) 
+                               \<^sup>\<turnstile>resrgsep { Ps ! k} (pes ! k) { Qs ! k};
+   \<forall>k. k < length pes \<longrightarrow> (Gs ! k) \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p (update_list G \<RR> rs); 
+   \<forall>k. k < length pes \<longrightarrow> (update_list R \<R> rs) \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p (Rs ! k);
+   \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
+          \<longrightarrow> disjoint (fvREsv (pes ! k1) \<union> fvAA (Qs ! k1)) (wrREsv (pes ! k2));
+   \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
+          \<longrightarrow> (Gs ! k1) \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p (Rs ! k2);
+    RGstar P (RGstar_shared \<G> rs) \<^sup>\<sqsubseteq>rgsep RGistar Ps;  
+    RGistar Qs \<^sup>\<sqsubseteq>rgsep RGstar Q (RGstar_shared \<GG> rs);
+    length pes = length Ps; \<forall>r \<in> set rs. \<not> frgnA P r; \<forall>r \<in> set rs. \<not> frgnA Q r; distinct rs\<rbrakk>
+   \<Longrightarrow> R,G  \<^sup>\<turnstile>rpesrgsep {RGstar P (RGstar_local \<G> rs)} (rs, pes) 
+                       {RGstar Q (RGstar_local \<GG> rs)}"
+  apply (rule_tac \<R> = \<R> and \<RR> = \<RR> in RGrule_rpes, simp_all)
+  apply (rule_tac R = "update_list R \<R> rs" and G = "(update_list G \<RR> rs)" 
+                in RGrule_pesconseq, simp_all add: RGrule_pes RGsubset_def)
+  done
+
 theorem RGrule_rpesconseq : "
   \<lbrakk> R,G \<^sup>\<turnstile>rpesrgsep {P} (rs, pes) {Q};
    P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
@@ -1214,29 +2045,51 @@ theorem RGrule_rpesconseq : "
     \<Longrightarrow> R',G' \<^sup>\<turnstile>rpesrgsep {P'} (rs, pes) {Q'}"
   by (simp add: rpesRGSep_def RGrpessafe_conseq rgsep_implies_def)
 
-corollary RGrule_rpes2' :   " \<lbrakk>R1, G1  \<^sup>\<turnstile>resrgsep {P1} (resources_res rs res1) {Q1};
-  R2, G2  \<^sup>\<turnstile>resrgsep {P2} (resources_res rs res2) {Q2}; G1 \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R2; G2 \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R1;
-  (RGUnion G1 G2) \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G;  R \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p (RGInter R1 R2); 
-  disjoint (fvREsv (res1) \<union> fvAA (Q1)) (wrREsv (res2));
-  disjoint (fvREsv (res2) \<union> fvAA (Q2)) (wrREsv (res1))\<rbrakk>
-   \<Longrightarrow> R,G  \<^sup>\<turnstile>pesrgsep {RGstar P1 P2} (resources_pes rs [res1, res2]) {RGstar Q1 Q2}"
-    apply (rule_tac P = "RGistar [P1, P2]" and Q = "RGistar [Q1, Q2]"
-        and R = "R" and G = "G" in RGrule_pesconseq)
-  using RGrule_pes2' apply auto[1]
-    apply (simp add: rgsep_implies_def)
-    apply (simp add: rgsep_implies_def)
-   apply (simp add: RGsubset_def)
-  apply (simp add: RGsubset_def)
-  done
+lemma RGrpesafe_frame:
+ "\<lbrakk> rgsep_rpessafe n rpes s h \<Gamma> Rely Guar Q; 
+    disjoint (dom h) (dom hR);
+    disjoint (fvAA R) (wrRPEsv rpes);
+    stable R [] (RGUnion Rely Guar);
+    (s, hR, \<Gamma>) \<^sup>\<Turnstile>rgsep R\<rbrakk>
+  \<Longrightarrow> rgsep_rpessafe n rpes s (h ++ hR) \<Gamma> Rely Guar (RGstar Q R)"
+  apply (induct n arbitrary: rpes s h hR \<Gamma>, simp, clarsimp)
+(* no aborts *)
+  apply (rule conjI, clarify)
+  apply (drule_tac a = "hR ++ hF" in all_impD, simp, simp add: hsimps)
+(* rely *)
+  apply (rule conjI, clarsimp)
+   apply (drule_tac a = a and b = b and c = s and d = h and e= hR and f = \<Gamma>' in mall6D)
+   apply (drule mimp4D, simp_all add:stable_def)
+  apply (metis RGUnion_def UnCI)
+(* step *)
+  apply (clarify, frule rpesred_properties, clarsimp)
+  apply (drule_tac a = "hR ++ hF" and b = "aa" and c = ba and d = ab 
+                            and e = bb in all5_impD, simp add: hsimps)
+   apply (subgoal_tac "hR ++ (hplus_list (map \<Gamma> (list_minus (rpesllocked (aa, ba)) 
+                      (rpesllocked (a, b)))) ++ hF) =
+                       hplus_list (map \<Gamma> (list_minus (rpesllocked (aa, ba)) 
+                      (rpesllocked (a, b)))) ++ (hR ++ hF)", simp)
+   apply (rule map_add_left_commute, simp_all add: disjoint_hplus_list rpeslocked_eq)
+  apply (metis  DiffD1 DiffD2 disjoint_search(1))
+  apply (metis  DiffD1 DiffD2 disjoint_search(1), clarsimp)
+  apply (rule_tac x = "h' ++ hR" and y = "\<Gamma>'" in ex2I)
+  apply (rule conjI, simp_all add: hsimps(4), rule map_add_subst)
+   apply (rule map_add_left_commute, simp)
+   apply (rule disjoint_map_list, clarsimp)
+  apply (metis disjoint_search(1) rpeslocked_eq)
+  apply (drule_tac a = aa and b = ba and c = ab and d = h' and e = hR and f = \<Gamma>' in mall6D)
+  apply (drule mimp4D, simp_all)
+   apply auto[1] 
+  apply (drule_tac a = s and b = hR and c = \<Gamma> in all3D, simp)
+  apply (drule_tac a = "\<Gamma>'" in all_imp2D, simp_all add: RGUnion_def)
+    apply blast apply blast
+  by (meson RGassn_agrees agrees_minusD disjoint_search(1))
 
-corollary RGrule_rpes2 :   " \<lbrakk>R1, G1  \<^sup>\<turnstile>resrgsep {P1} (resources_res rs res1) {Q1};
-  R2, G2  \<^sup>\<turnstile>resrgsep {P2} (resources_res rs res2) {Q2}; G1 \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R2; G2 \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R1;
-  (RGUnion G1 G2) \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G;  R \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p (RGInter R1 R2); 
-  disjoint (fvREsv (res1) \<union> fvAA (Q1)) (wrREsv (res2));
-  disjoint (fvREsv (res2) \<union> fvAA (Q2)) (wrREsv (res1))\<rbrakk>
-   \<Longrightarrow> R,G  \<^sup>\<turnstile>rpesrgsep {RGstar P1 P2} (rs, [res1, res2]) {RGstar Q1 Q2}"
-  apply (drule RGrule_rpes2', simp_all)
-  apply (simp add: pesRGSep_def rpesRGSep_def rgrpes_equiv user_rpesys_equiv)
-  done
+theorem RGrule_rpesFrame:
+ "\<lbrakk> Rely ,Guar \<^sup>\<turnstile>rpesrgsep {P} rpes {Q};  
+    disjoint (fvAA R) (wrRPEsv rpes);
+    stable R [] (RGUnion Rely Guar)\<rbrakk>
+  \<Longrightarrow> Rely ,Guar \<^sup>\<turnstile>rpesrgsep {RGstar P R} rpes {RGstar Q R}"
+  by (metis RGrpesafe_frame RGsat.simps(5) fst_conv rpesRGSep_def snd_conv)
 
 end

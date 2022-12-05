@@ -29,6 +29,7 @@ datatype bexp =                 (*r Boolean expressions *)
     Beq exp exp                 (*r Equality of expressions *)
   | Band bexp bexp              (*r Conjunction *)
   | Bnot bexp                   (*r Negation *)
+  | Bbool bool                 
 
 datatype cmd =                  (*r Commands *)
     Cskip                       (*r Empty command *)
@@ -145,6 +146,7 @@ where
     "bdenot (Beq e1 e2) s   = (edenot e1 s = edenot e2 s)"
   | "bdenot (Band b1 b2) s  = (bdenot b1 s \<and> bdenot b2 s)"
   | "bdenot (Bnot b) s      = (\<not> bdenot b s)"
+  | "bdenot (Bbool b) s     =  b"
 
 subsubsection {* Semantics of commands *}
 
@@ -326,6 +328,7 @@ where
   "fvB (Beq e1 e2)  = (fvE e1 \<union> fvE e2)"
 | "fvB (Band b1 b2) = (fvB b1 \<union> fvB b2)"
 | "fvB (Bnot b)     = (fvB b)"
+| "fvB (Bbool b)    = {}"
 
 primrec
   fvC :: "cmd \<Rightarrow> var set"
@@ -387,6 +390,7 @@ where
   "subB x E (Beq e1 e2)  = Beq (subE x E e1) (subE x E e2)"
 | "subB x E (Band b1 b2) = Band (subB x E b1) (subB x E b2)"
 | "subB x E (Bnot b)     = Bnot (subB x E b)"
+| "subB x E (Bbool b)    = Bbool b"
 
 text {* Basic properties of substitutions: *}
 

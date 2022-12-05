@@ -43,7 +43,35 @@ where
                             \<and> fst (snd \<sigma>) = (h1 ++ h2) \<and> disjoint (dom h1) (dom h2))"
 | "(\<sigma> \<^sup>\<Turnstile>rgsep RGex PP) = (\<exists>v. \<sigma> \<^sup>\<Turnstile>rgsep PP v)"
 
-definition 
+lemma RGstar_Aemp : "(s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P \<longleftrightarrow> (s, h, \<Gamma>)  \<^sup>\<Turnstile>rgsep RGstar P (RGlocal Aemp)"
+  by simp
+
+lemma RGstar_commute : "(s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep (RGstar P Q) \<longleftrightarrow> (s, h, \<Gamma>)  \<^sup>\<Turnstile>rgsep (RGstar Q P)"
+  using map_add_commute by fastforce
+
+lemma RGstar_assoc : "(s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep (RGstar (RGstar P Q) R) \<longleftrightarrow> 
+                      (s, h, \<Gamma>)  \<^sup>\<Turnstile>rgsep (RGstar P (RGstar Q R))"
+proof
+  assume "(s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep (RGstar (RGstar P Q) R)"
+  then show "(s, h, \<Gamma>)  \<^sup>\<Turnstile>rgsep (RGstar P (RGstar Q R))"
+    apply (clarsimp, rule_tac x = "h1a" in exI, simp)
+    apply (rule_tac x = "h2 ++ h2a" in exI, simp add: hsimps)
+    apply (rule_tac x = "h2a" in exI, simp add: hsimps)
+    by (rule_tac x = "h2" in exI, simp add: hsimps)
+next
+  assume "(s, h, \<Gamma>)  \<^sup>\<Turnstile>rgsep (RGstar P (RGstar Q R))"
+  then show "(s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep (RGstar (RGstar P Q) R)"
+    apply (clarsimp, rule_tac x = "h1 ++ h1a" in exI, simp add: hsimps)
+    apply (rule conjI, rule_tac x = "h1" in exI, simp add: hsimps)
+     apply (rule_tac x = "h1a" in exI, simp add: hsimps)
+    by (rule_tac x = "h2a" in exI, simp add: hsimps)
+qed
+
+lemma RGstar_comassoc : "(s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep (RGstar (RGstar P Q) R) \<longleftrightarrow> 
+                      (s, h, \<Gamma>)  \<^sup>\<Turnstile>rgsep (RGstar P (RGstar R Q))"
+  using RGstar_assoc RGstar_commute by auto
+
+definition
   rgsep_implies :: "rgsep_assn \<Rightarrow> rgsep_assn \<Rightarrow> bool" (infixl "\<^sup>\<sqsubseteq>rgsep" 60)
 where
   "P \<^sup>\<sqsubseteq>rgsep Q \<equiv> (\<forall>\<sigma>. \<sigma> \<^sup>\<Turnstile>rgsep P \<longrightarrow> \<sigma> \<^sup>\<Turnstile>rgsep Q)"
@@ -550,6 +578,7 @@ subsubsection {* Frame rule *}
 text {* The safety of the frame rule can be seen as a special case of the parallel composition
   rule taking one thread to be the empty command. *}
 
+
 lemma RGsafe_frame:
  "\<lbrakk> rgsep_safe n C s h \<Gamma> Rely Guar Q; 
     disjoint (dom h) (dom hR);
@@ -567,39 +596,26 @@ lemma RGsafe_frame:
   apply (rule conjI, erule order_trans, simp)
 (* rely *)
   apply (rule conjI, clarsimp)
-  apply (subgoal_tac "rgsep_safe n C s h \<Gamma>' Rely Guar Q")
-    apply (drule mall5_imp4D, simp_all)
-   apply (simp add:stable_def)
+    apply (drule mall5_imp4D, simp_all add:stable_def)
   apply (metis (no_types, lifting) RGUnion_def UnCI)
 (* step *)
   apply (clarify, frule red_properties, clarsimp)
-  apply (drule_tac a = "hR ++ hF" in all4Dto3D, simp add: hsimps)
-  apply (drule_tac a = "C'" and b = "a" and c = "b" in all3_impD)
-   apply (subgoal_tac "hR ++ (hplus_list (map \<Gamma> (list_minus (llocked C') (llocked C))) ++ hF)
+  apply (drule_tac a = "hR ++ hF" and b = "C'" and c = a and d = b in all4_impD, simp add: hsimps)
+apply (subgoal_tac "hR ++ (hplus_list (map \<Gamma> (list_minus (llocked C') (llocked C))) ++ hF)
             = hplus_list (map \<Gamma> (list_minus (llocked C') (llocked C))) ++ (hR ++ hF)", simp)
-   apply (rule hsimps(3))
-    apply (simp add: disjoint_hplus_list)
-    apply (metis  DiffD1 DiffD2 disjoint_search(1) locked_eq)
-    apply (simp add: disjoint_hplus_list)
-  apply (metis  DiffD1 DiffD2 disjoint_search(1) locked_eq)
-  apply (drule imp2D, simp_all, clarsimp)
+   apply (rule map_add_left_commute, simp_all add: disjoint_hplus_list locked_eq)
+  apply (metis  DiffD1 DiffD2 disjoint_search(1))
+  apply (metis  DiffD1 DiffD2 disjoint_search(1), clarsimp)
   apply (rule_tac x = "h' ++ hR" and y = "\<Gamma>'" in ex2I)
-  apply (rule conjI) 
-     apply (simp_all add: hsimps(4))
-   apply (rule map_add_subst)
-   apply (simp add: locked_eq)
-   apply (rule hsimps(3), simp)
-  apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
-  apply (rule conjI)
-   apply auto[1]
+  apply (rule conjI, simp_all add: hsimps(4) locked_eq, rule map_add_subst)
+   apply (rule map_add_left_commute, simp)
+   apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
   apply (drule mall5_imp4D, simp_all)
-    apply auto[1] apply auto[1]
-  apply (subgoal_tac "(s, hR, \<Gamma>') \<^sup>\<Turnstile>rgsep R")
-   apply (subgoal_tac "agrees (fvAA R) a s")
-    apply (simp add: RGassn_agrees)
-   apply auto[1]
-  apply (simp add: stable_def)
-  by (metis RGUnion_def UnCI)
+   apply auto[1] 
+  apply (drule_tac a = s and b = hR and c = \<Gamma> in all3D, simp)
+  apply (drule_tac a = "\<Gamma>'" in all_imp2D, simp_all add: RGUnion_def)
+    apply blast apply blast
+  by (meson RGassn_agrees agrees_minusD disjoint_search(1))
 
 theorem RGrule_frame:
  "\<lbrakk> Rely ,Guar \<^sup>\<turnstile>rgsep {P} C {Q};  

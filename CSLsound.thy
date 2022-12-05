@@ -23,6 +23,9 @@ datatype assn =
   | Adisj assn assn                                (*r Disjunction *)
   | Aex "(nat \<Rightarrow> assn)"                            (*r Existential quantification *)
 
+datatype 'a assn1 = 
+      assn
+      | Aexs "('a \<Rightarrow> assn)"
 text {* Separating conjunction of a finite list of assertions is 
   just a derived assertion. *}
 
@@ -789,5 +792,183 @@ apply (clarify, drule frame_property, simp)
  apply (erule contrapos_nn, erule (1) safety_monotonicity, clarify)
 apply (drule (2) all4_imp2D, clarsimp, fast)
 done
+
+primrec update_list :: "('a \<Rightarrow>'b) \<Rightarrow> ('a \<Rightarrow>'b) \<Rightarrow> ('a list) \<Rightarrow> ('a \<Rightarrow>'b)" 
+  where 
+    "update_list \<Gamma> \<G> [] = \<Gamma>"
+  | "update_list \<Gamma> \<G> (r # rs) = update_list (\<Gamma>(r := \<G> r)) \<G> rs"
+
+lemma list_minus_empty : "list_minus [] l = []"
+  by (induct l, simp_all)
+
+lemma safe_skip_extend : "\<lbrakk>safe n Cskip s h (\<Gamma>(r := R)) Q; (s, hR) \<Turnstile> R; 
+      disjoint (dom h) (dom hR) \<rbrakk> \<Longrightarrow> safe n Cskip s (h ++ hR) \<Gamma> (Q ** R)"
+  apply (case_tac n, simp, simp)
+  apply (rule_tac x = "h" in exI, simp)
+  by (rule_tac x = "hR" in exI, simp)
+
+lemma safe_resources:
+ "\<lbrakk> safe n (Cresources rs C) s h (\<Gamma>(r := R)) Q; wf_cmd C; r \<notin> set rs;
+   disjoint (fvA R) (wrC C) \<rbrakk> \<Longrightarrow> (\<forall>hR. r \<notin> locked C \<longrightarrow> disjoint (dom h) (dom hR) 
+     \<longrightarrow> (s,hR) \<Turnstile> R \<longrightarrow> safe n (Cresources (r # rs) C) s (h ++ hR) \<Gamma> (Q ** R))
+   \<and> (r \<in> locked C \<longrightarrow> safe n (Cresources (r # rs)  C) s h \<Gamma> (Q ** R))"
+apply (induct n arbitrary: C s h, simp, clarsimp)
+apply (rule conjI, clarify)
+ apply (rule conjI, clarify)
+(*no aborts *)
+  apply (erule aborts.cases, simp_all, clarsimp)
+    apply (drule_tac a="hR ++ hF" in all_impD, simp)
+  apply (simp add: aborts_Res2 map_add_assoc)
+(* accesses *)
+ apply (rule conjI, erule order_trans, simp)
+(* step *)
+ apply (clarify, frule red_properties, clarsimp)
+   apply (erule red.cases, simp_all, clarsimp, rename_tac C s C' s' hh)
+    apply (case_tac "r \<in> set (llocked C')", simp_all add: locked_eq)
+    apply (drule_tac a="hJ ++ hR" and b="hF" and c= "Cresources rs C'" and d=s' 
+            and e=hh in all5D, simp add: hsimps red.red_Res3)
+    apply (drule impD, subst sat_envs_expand [where r= r], simp_all)
+     apply (rule distinct_list_minus, rule wf_cmd_distinct_locked, erule (1) red_wf_cmd)
+    apply (intro exI conjI, simp, simp_all add: envs_upd)
+   apply (clarsimp simp add: envs_removeAll_irr) 
+   apply (drule (1) mall3_imp2D, erule (1) red_wf_cmd)
+   apply (drule mimpD, fast, clarsimp) 
+     apply (intro exI conjI, simp+)
+(* @{term "r \<notin> locked C'"} *)
+    apply (drule_tac a="hJ" and b="hR ++ hF" and c="Cresources rs C'" 
+      and d=s' and e=hh in all5D, simp add: hsimps red.red_Res3)
+  apply (clarsimp simp add: envs_upd)
+  apply (drule (1) mall3_imp2D, erule (1) red_wf_cmd)
+  apply (drule mimpD, fast, clarsimp) 
+  apply (rule_tac x="h' ++ hR" and y="hJ'" in ex2I, simp add: hsimps) 
+  apply (drule_tac a=hR in all_imp2D, simp_all add: hsimps)
+    apply (subst assn_agrees, simp_all, fastforce)
+ (* skip *)
+   apply (simp add: envs_def list_minus_empty)
+    apply (drule_tac a="Map.empty" and b= " hF" and c="Cskip" 
+      and d=s and e= "h  ++ hF" in all5D, simp add: hsimps red.red_Res4, clarsimp)
+   apply (subgoal_tac "h' = h", clarify)
+    apply (rule_tac x = "h ++ hR" in exI, simp add: hsimps)
+    apply (simp add: safe_skip_extend)
+   apply (metis disjoint_search(1) map_add_cancel, clarsimp)
+  apply (rule conjI, clarify)
+   apply (erule aborts.cases, simp_all, clarsimp)
+    apply (drule_tac a="hF" in all_impD, simp)
+   apply (simp add: aborts_Res2 map_add_assoc, clarsimp)
+  apply (frule red_properties, clarsimp)
+  apply (erule red.cases, simp_all, clarsimp, rename_tac C s C' s' hh)
+  apply (drule_tac a=hJ and b=hF and c= "Cresources rs C'" and d=s' and e=hh in all5D
+                , simp add: hsimps red.red_Res3)
+  apply (clarsimp simp add: envs_upd envs_removeAll2)
+  apply (drule (1) mall3_imp2D, erule (1) red_wf_cmd)
+  apply (drule mimpD, fast, clarsimp)
+  apply (case_tac "r \<in> set (llocked C')", simp_all add: locked_eq envs_removeAll2 envs_upd)
+   apply (intro exI conjI, simp+)
+  apply (subst (asm) sat_envs_expand [where r=r], simp_all add: wf_cmd_distinct_locked) back
+  using distinct_list_minus wf_cmd_distinct_locked apply blast
+  apply (clarsimp, rename_tac hR' hJ')
+  apply (drule (2) all_imp2D, rule_tac x= "h' ++ hR'" and y=hJ' in ex2I, simp add: hsimps envs_upd)
+  done
+
+lemma rule_resources1:
+ "\<lbrakk> \<Gamma>(r := R) \<turnstile> {P} (Cresources rs C) {Q} ; disjoint (fvA R) (wrC C); r \<notin> set rs \<rbrakk> \<Longrightarrow> 
+    \<Gamma> \<turnstile> {P ** R} (Cresources (r # rs) C) {Q ** R}"
+  apply (clarsimp simp add: CSL_def, drule (1) all3_impD)
+  apply (auto simp add: locked_eq dest!: safe_resources)
+  done
+
+lemma Astar_commute : "(s, h) \<Turnstile> P ** Q \<longleftrightarrow> (s, h) \<Turnstile> Q ** P"
+  using map_add_commute by fastforce
+
+lemma Astar_assoc : "(s, h) \<Turnstile> P ** Q ** R \<longleftrightarrow> (s, h) \<Turnstile> P ** (Q ** R)"
+proof
+  assume " (s, h) \<Turnstile> P ** Q ** R"
+  then show "(s, h) \<Turnstile> P ** (Q ** R)"
+    apply (clarsimp, rule_tac x = h1a in exI)
+    apply (rule conjI, simp)
+    apply (rule_tac x = "h2a ++ h2" in exI)
+    using hsimps(4) by auto
+next
+  assume "(s, h) \<Turnstile> P ** (Q ** R)"
+  then show "(s, h) \<Turnstile> P ** Q ** R"
+    apply (clarsimp, rule_tac x = "h1 ++ h1a" in exI)
+    using map_add_assoc by auto
+qed
+
+lemma Astar_comassoc : "(s, h) \<Turnstile> P ** Q ** R \<longleftrightarrow> (s, h) \<Turnstile> P ** (R ** Q)"
+  using Astar_assoc Astar_commute by auto
+
+lemma safe_post_commute : "safe n C s h \<Gamma> (Q1 ** Q2) \<longleftrightarrow> safe n C s h \<Gamma> (Q2 ** Q1)"
+    using Astar_commute implies_def safe_conseq by auto
+
+lemma safe_post_assoc : "safe n C s h \<Gamma> (Q1 ** Q2 ** Q3) \<longleftrightarrow> safe n C s h \<Gamma> (Q1 ** (Q2 ** Q3))"
+  using Astar_assoc implies_def safe_conseq by auto
+
+
+lemma safe_post_comassoc : "safe n C s h \<Gamma> (Q1 ** Q2 ** Q3) \<longleftrightarrow> safe n C s h \<Gamma> (Q1 ** (Q3 ** Q2))"
+  using Astar_commute implies_def safe_conseq safe_post_assoc by auto
+
+theorem rule_pre_commute: 
+ "\<Gamma> \<turnstile> {P1 ** P2} C {Q1 ** Q2} \<longleftrightarrow> \<Gamma> \<turnstile> {P2 ** P1} C {Q1 ** Q2}"
+  using Astar_commute CSL_def by auto
+
+theorem rule_post_commute:
+  "\<Gamma> \<turnstile> {P1 ** P2} C {Q1 ** Q2} \<longleftrightarrow> \<Gamma> \<turnstile> {P1 ** P2} C {Q2 ** Q1}"
+  by (simp add: CSL_def safe_post_commute)
+
+theorem rule_pre_post_commute:
+  "\<Gamma> \<turnstile> {P1 ** P2} C {Q1 ** Q2} \<longleftrightarrow> \<Gamma> \<turnstile> {P2 ** P1} C {Q2 ** Q1}"
+  by (simp add: rule_post_commute rule_pre_commute)
+
+theorem rule_pre_associate :
+  "\<Gamma> \<turnstile> {P1 ** P2 ** P3} C {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile> {P1 ** (P2 ** P3)} C {Q1 ** Q2 ** Q3}"
+  using Astar_assoc CSL_def by auto
+
+theorem rule_post_associate :
+  "\<Gamma> \<turnstile> {P1 ** P2 ** P3} C {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile> {P1 ** P2 ** P3} C {Q1 ** (Q2 ** Q3)}"
+  by (simp add: CSL_def safe_post_assoc)
+
+theorem rule_pre_post_associate :
+  "\<Gamma> \<turnstile> {P1 ** P2 ** P3} C {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile> {P1 ** (P2 ** P3)} C {Q1 ** (Q2 ** Q3)}"
+  using rule_post_associate rule_pre_associate rule_pre_commute by auto
+
+theorem rule_pre_comassoc : "\<Gamma> \<turnstile> {P1 ** P2 ** P3} C {Q1 ** Q2 ** Q3} \<longleftrightarrow> 
+                          \<Gamma> \<turnstile> {P1 ** (P3 ** P2)} C {Q1 ** Q2 ** Q3}"
+  using Astar_comassoc CSL_def by auto
+
+theorem rule_post_comassoc :
+  "\<Gamma> \<turnstile> {P1 ** P2 ** P3} C {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile> {P1 ** P2 ** P3} C {Q1 ** (Q3 ** Q2)}"
+  by (simp add: CSL_def safe_post_comassoc)
+
+theorem rule_pre_post_comassoc :
+  "\<Gamma> \<turnstile> {P1 ** P2 ** P3} C {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile> {P1 ** (P3 ** P2)} C {Q1 ** (Q3 ** Q2)}"
+  using rule_post_comassoc rule_pre_comassoc rule_pre_post_commute by auto
+
+lemma safe_resources_empty : "safe n C s h \<Gamma> Q \<Longrightarrow> safe n (Cresources [] C) s h \<Gamma> Q"
+  apply (induct n arbitrary: C s h, simp, clarsimp)
+  apply (rule conjI, clarify)
+   apply (erule aborts.cases, simp_all, clarsimp)
+  apply (clarsimp, erule red.cases, simp_all)
+   apply (drule_tac a = "hJ" and b = "hF" and c = "C'a" 
+                                  and d = "a" and e = "b" in all5_impD, simp)
+   apply (drule imp2D, simp, simp, clarsimp)
+   apply (rule_tac x = "h'" and y = "hJ'" in ex2I, simp, clarsimp)
+  apply (rule_tac x = "h" and y = "hJ" in ex2I, simp add: safe_skip)
+  done
+
+lemma Star_Aemp : "(s, h) \<Turnstile> P \<longleftrightarrow> (s, h) \<Turnstile> P ** Aemp"
+  by simp
+
+lemma safe_post_Aemp : "safe n C s h \<Gamma> Q \<longleftrightarrow> safe n C s h \<Gamma> (Q ** Aemp)"
+    using implies_def safe_conseq by auto
+
+theorem rule_resources:
+  "\<lbrakk> (update_list \<Gamma> \<G> rs) \<turnstile> {P} C {Q} ; disjoint (fvA (Aistar (map \<G> rs))) (wrC C); distinct rs \<rbrakk> 
+    \<Longrightarrow> \<Gamma> \<turnstile> {P ** (Aistar (map \<G> rs))} (Cresources rs C) {Q ** (Aistar (map \<G> rs))}"
+  apply (induct rs arbitrary: \<Gamma>, simp add: CSL_def, clarsimp)
+  using safe_post_Aemp safe_resources_empty apply auto[1]
+  apply (clarsimp, drule_tac a = "\<Gamma>(a := \<G> a)" in mall_impD, simp)
+  apply (drule rule_resources1, simp_all)
+  by (simp add: rule_pre_post_comassoc)
 
 end

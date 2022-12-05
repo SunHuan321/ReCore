@@ -1,5 +1,5 @@
 theory Event_Helper
-  imports Lang VHelper Event_Computation AuxillaryLemma
+  imports Lang VHelper Event_Computation AuxillaryLemma 
 begin
 
 subsection \<open>definition of disjoint of locked list\<close>
@@ -120,6 +120,12 @@ corollary user_event_wf[intro]: "user_event e \<Longrightarrow> wf_event e"
 corollary user_event_llocked[simp] : "user_event e \<Longrightarrow> ellocked e = []"
   by (drule user_eventD, simp add: elocked_eq)
 
+lemma red_wf_event : "ered e \<sigma> e' \<sigma>' \<Longrightarrow> wf_event e \<Longrightarrow> wf_event e'"
+  by (metis ered.simps red_wf_cmd snd_conv wf_event.simps(1) wf_event.simps(2))
+
+lemma wf_event_distinct_locked: "wf_event e \<Longrightarrow> distinct (ellocked e)"
+  by (induct e, simp_all add: wf_cmd_distinct_locked)
+
 definition user_revent :: "revent \<Rightarrow> bool"
   where "user_revent re = user_event (snd re)"
 
@@ -134,6 +140,14 @@ corollary user_revent_wf[intro]: "user_revent re \<Longrightarrow> wf_revent re"
 
 corollary user_revent_llocked[simp] : "user_revent re \<Longrightarrow> rellocked re = []"
   by (drule user_reventD, simp add: relocked_eq)
+
+lemma red_wf_revent : "rered re \<sigma> re' \<sigma>' \<Longrightarrow> wf_revent re \<Longrightarrow> wf_revent re'"
+  apply (simp add: wf_revent_def)
+  using red_wf_cmd rered.simps by auto
+
+lemma wf_revent_distinct_locked: "wf_revent re \<Longrightarrow> distinct (rellocked re)"
+  apply (simp add: wf_revent_def rellocked_def)
+  by (simp add: distinct_list_minus wf_event_distinct_locked)
 
 primrec user_esys :: "esys \<Rightarrow> bool"
   where "user_esys (EvtSeq res esys) = ((user_revent res) \<and> (user_esys esys))"
@@ -152,6 +166,15 @@ corollary user_esys_wf[intro]: "user_esys esys \<Longrightarrow> wf_esys esys"
 corollary user_esys_llocked[simp] : "user_esys esys \<Longrightarrow> esllocked esys = []"
   by (drule user_esysD, simp add: eslocked_eq)
 
+lemma red_wf_esys : "esred esys \<sigma> esys' \<sigma>' \<Longrightarrow> wf_esys esys \<Longrightarrow> wf_esys esys'"
+  apply (induct esys, erule esred.cases, simp_all add: red_wf_revent)
+  apply (erule esred.cases, simp_all)
+  by (simp add: red_wf_revent)
+
+lemma wf_esys_distinct_locked: "wf_esys esys \<Longrightarrow> distinct (esllocked esys)"
+  apply (induct esys, simp_all)
+  by (simp add: wf_revent_distinct_locked)
+
 definition user_resys :: "resys \<Rightarrow> bool"
   where "user_resys resys = user_esys (snd resys)"
 
@@ -167,6 +190,13 @@ corollary user_resys_wf[intro]: "user_resys resys \<Longrightarrow> wf_resys res
 corollary user_resys_llocked[simp] : "user_resys resys \<Longrightarrow> resllocked resys = []"
   by (drule user_resysD, simp add: reslocked_eq)
 
+lemma red_wf_resys : "resred resys \<sigma> resys' \<sigma>' \<Longrightarrow> wf_resys resys \<Longrightarrow> wf_resys resys'"
+  by (metis prod.exhaust_sel red_wf_esys res_equiv2 res_invres wf_resys_def)
+
+lemma wf_resys_distinct_locked : "wf_resys resys \<Longrightarrow> distinct (resllocked resys)"
+  apply (simp add: wf_resys_def resllocked_def)
+  by (simp add: distinct_list_minus wf_esys_distinct_locked)
+
 primrec user_pesys :: "paresys \<Rightarrow> bool"
   where "user_pesys [] = True"
   |     "user_pesys (x # xs) = ((user_resys x) \<and> (user_pesys xs))"
@@ -175,6 +205,21 @@ primrec wf_pesys :: "paresys \<Rightarrow> bool"
   where "wf_pesys [] = True"
   |     "wf_pesys (x # xs) = ((wf_resys x) \<and> (wf_pesys xs) \<and> 
     (disjoint_locked_list (x # xs)))"
+
+lemma user_pesys_equiv : "user_pesys pes \<longleftrightarrow> (\<forall>res \<in> (set pes). user_resys res)"
+  by (induct pes, simp_all)
+
+lemma wf_pesys_equiv: 
+    "wf_pesys pes \<longleftrightarrow> ((\<forall>res \<in> (set pes). wf_resys res) \<and> disjoint_locked_list pes)"
+proof
+  assume " wf_pesys pes"
+  then show "(\<forall>res\<in>set pes. wf_resys res) \<and> disjoint_locked_list pes"
+    by (induct pes, simp_all)
+next
+  assume "(\<forall>res\<in>set pes. wf_resys res) \<and> disjoint_locked_list pes"
+  then show "wf_pesys pes"
+    by (induct pes, simp, clarsimp)
+qed
 
 lemma wf_peslocked : "wf_pesys pes \<Longrightarrow> disjoint_locked_list pes"
   by (induct pes, simp, simp)
@@ -197,17 +242,43 @@ lemma user_pesysI[simp] : "\<forall>k < length pes. user_resys (pes ! k) \<Longr
   apply (induct pes, simp)
   by force
 
+lemma red_wf_pesys : "pesred pes \<sigma> pes' \<sigma>' \<Longrightarrow> wf_pesys pes \<Longrightarrow> wf_pesys pes'"
+  apply (erule pesred.cases, simp add: wf_pesys_equiv)
+  apply (rule conjI)
+   apply (metis insertE nth_mem red_wf_resys rev_subsetD set_update_subset_insert)
+  by (simp add: disjoint_locked_list_update)
+
+lemma pesllocked_distinct : 
+      "\<lbrakk> disjoint_locked_list pes; \<forall>res \<in> set pes. distinct (resllocked res)\<rbrakk> 
+      \<Longrightarrow> distinct (pesllocked pes)"
+  apply (induct pes, simp, simp add: pesllocked_induct)
+  by (metis disjoint_def disjoint_locked_with_property peslocked_def reslocked_eq)
+  
+lemma wf_pesys_distinct_locked : "wf_pesys pes \<Longrightarrow> distinct (pesllocked pes)"
+  by (simp add: pesllocked_distinct wf_pesys_equiv wf_resys_distinct_locked)
+
 definition user_rpesys :: "rparesys \<Rightarrow> bool"
-  where "user_rpesys rpes = user_pesys (resources_pes (fst rpes) (snd rpes))"
+  where "user_rpesys rpes = user_pesys (snd rpes)"
 
 definition wf_rpesys :: "rparesys \<Rightarrow> bool"
-  where "wf_rpesys rpes = wf_pesys (resources_pes (fst rpes) (snd rpes))"
+  where "wf_rpesys rpes = wf_pesys (snd rpes)"
 
-lemma user_rpesys_equiv: "user_pesys (resources_pes rs pes) \<Longrightarrow>  user_rpesys (rs, pes)"
-  by (simp add: user_rpesys_def)
+lemma user_rpesysD : "user_rpesys rpes \<Longrightarrow> wf_rpesys rpes \<and> rpeslocked rpes = {}"
+  by (simp add: user_rpesys_def wf_rpesys_def rpeslocked_def user_pesysD)
 
-lemma wf_rpesys_equiv: "wf_pesys (resources_pes rs pes) \<Longrightarrow>  wf_rpesys (rs, pes)"
-  by (simp add: wf_rpesys_def)
+lemma user_rpesys_wf[intro] : "user_rpesys rpes \<Longrightarrow> wf_rpesys rpes"
+  by (simp add: user_rpesys_def wf_rpesys_def user_pesys_wf)
+
+lemma user_rpesys_llocked[simp]: "user_rpesys rpes \<Longrightarrow> rpesllocked rpes = []"
+  apply (simp add: user_rpesys_def rpesllocked_def)
+  by (metis empty_Diff set_empty set_list_minus)
+
+lemma red_wf_rpesys : "rpesred rpes \<sigma> rpes' \<sigma>' \<Longrightarrow> wf_rpesys rpes \<Longrightarrow> wf_rpesys rpes'"
+  by (metis prod.collapse red_wf_pesys rpes_equiv2 rpes_invres wf_rpesys_def)
+  
+lemma wf_rpesys_distinct_locked : "wf_rpesys rpes \<Longrightarrow> distinct (rpesllocked rpes)"
+  apply (simp add: wf_rpesys_def rpesllocked_def)
+  using distinct_list_minus wf_pesys_distinct_locked by blast
 
 subsection \<open>auxillary lemma used to prove parallel event system\<close>
 
@@ -245,13 +316,6 @@ proof-
     by (metis a2 map_add_assoc map_add_commute)
 qed
 
-subsection \<open>relation between parallel event system and resource paralllel event system\<close>
-lemma res_pes_update : "k < length pesa \<Longrightarrow>
-      resources_pes pres pesa[k := (pres @ ers, es)] = resources_pes pres (pesa[k := (ers, es)])"
-  apply (induct pesa arbitrary: k, simp)
-  apply (case_tac "k", simp add: resources_res_def)
-  apply (simp add: list_update_code)
-  done
 
 end
 
