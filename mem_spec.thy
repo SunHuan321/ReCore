@@ -1,165 +1,181 @@
 theory mem_spec
-  imports CSLsound
+  imports CSLsound test 
 begin
 
+(* constant definition *)
 abbreviation "NULL \<equiv> 0"
 
 abbreviation "BLOCKED \<equiv>  0 :: nat"
 abbreviation "READY \<equiv>  1 :: nat"
 abbreviation "RUNNING \<equiv>  2 :: nat"
 
+abbreviation "K_NO_WAIT \<equiv> 0 :: nat"
+
+abbreviation "EBUSY \<equiv> 1 :: nat"
+abbreviation "EAGAIN \<equiv> 2 :: nat"
+abbreviation "ENOMEM \<equiv> 3 :: nat"
+
+(* definition of data structure *)
 type_synonym tcb = "nat \<times> nat \<times> nat \<times> nat"
 type_synonym tcbs = "tcb list"
 type_synonym buf = "nat list"
 type_synonym stack = "nat \<times> nat \<times> nat \<times> nat \<times> buf \<times> tcbs"
+type_synonym tid = "nat"
 
-primrec le :: "nat \<Rightarrow> nat list \<Rightarrow> bool"
+(* pointer for data structure *)
+definition stack_p_base :: "exp \<Rightarrow> exp" ("(_\<Down>\<^sub>sbase)")
+  where "stack_p_base p = p"
+
+definition stack_p_next :: "exp \<Rightarrow> exp" ("(_\<Down>\<^sub>snext)")
+  where "stack_p_next p = (p +\<^sub>e ([1]\<^sub>n))"
+
+definition stack_p_top :: "exp \<Rightarrow> exp" ("(_\<Down>\<^sub>stop)")
+  where "stack_p_top p = (p +\<^sub>e ([2]\<^sub>n))"
+
+definition stack_p_wait :: "exp \<Rightarrow> exp" ("(_\<Down>\<^sub>swaitq)")
+  where "stack_p_wait p = (p +\<^sub>e ([3]\<^sub>n))"
+
+definition tcb_p_state :: "exp \<Rightarrow> exp" ("(_\<Down>\<^sub>tstate)")
+  where "tcb_p_state p = p"
+
+definition tcb_p_pri :: "exp \<Rightarrow> exp" ("(_\<Down>\<^sub>tpriority)")
+  where "tcb_p_pri p = (p +\<^sub>e ([1]\<^sub>n))"
+
+definition tcb_p_next :: "exp \<Rightarrow> exp" ("(_\<Down>\<^sub>tnext)")
+  where "tcb_p_next p = (p +\<^sub>e ([2]\<^sub>n))"
+
+definition tcb_p_data :: "exp \<Rightarrow> exp" ("(_\<Down>\<^sub>tdata)")
+  where "tcb_p_data p = (p +\<^sub>e ([3]\<^sub>n))"
+
+(* resource name *)
+type_synonym StackId = "string"
+type_synonym Stack_Pool = "StackId list"
+abbreviation "CUR \<equiv> ''cur''"
+abbreviation "READYQ \<equiv> ''ready_q''"
+
+(* varname spec *)
+type_synonym Thread = var
+                                            
+definition p_stack :: "StackId \<Rightarrow> var"  ("(_\<^sup>s)")
+  where "p_stack sId \<equiv> ''p_'' @ sId "
+
+(* local variable definition *)
+
+definition Thread_Local :: "Thread \<Rightarrow> var \<Rightarrow> var" ("(_\<diamondop>_)")
+  where "Thread_Local t v = t @ v"
+
+abbreviation "BASE \<equiv> ''base''"
+abbreviation "NEXT \<equiv> ''next''"
+abbreviation "TOP \<equiv> ''top''"
+abbreviation "DATA \<equiv> ''data''"
+abbreviation "RET \<equiv> ''ret''" 
+abbreviation "FIRST_PENDING_THREAD \<equiv> ''first_pending_thread''"
+abbreviation "WAITQ \<equiv> ''waitq''"
+abbreviation "END \<equiv> ''END''"
+abbreviation "AUX \<equiv> ''AUX''"
+
+(* expression name *)
+abbreviation "CUR_THREAD \<equiv> ''cur_thread''"
+abbreviation "P_READYQ \<equiv> ''p_readyq'' "
+
+
+definition stm :: "Thread \<Rightarrow> cmd \<Rightarrow> cmd"  ("_ \<^enum> _" [0,0] 61)
+  where "stm t c = WITH CUR WHEN ([t]\<^sub>v) =\<^sub>b ([CUR_THREAD]\<^sub>v) DO c OD"
+
+definition z_pend_curr :: "cmd"
+  where "z_pend_curr \<equiv> Cskip"
+
+definition z_unpend_first_thread :: "cmd"
+  where "z_unpend_first_thread \<equiv> Cskip"
+
+definition z_ready_thread :: "cmd"
+  where "z_ready_thread \<equiv> Cskip"
+
+definition z_thread_return_value_set_with_data :: "cmd"
+  where "z_thread_return_value_set_with_data \<equiv> Cskip"
+
+definition z_reschedule :: "cmd"
+  where "z_reschedule \<equiv> Cskip"
+
+definition stack_push :: "Thread \<Rightarrow> StackId \<Rightarrow> nat \<Rightarrow> cmd"
   where
-    "le a [] = True"
-  | "le a (x # xs) = (a \<le> x \<and> le a xs)"
+    "stack_push t sId data \<equiv> 
+    (t \<^enum> (t \<diamondop> END) := ([0]\<^sub>n)) ;;
+    WITH sId WHEN [True]\<^sub>b DO 
+      (t \<^enum> (t \<diamondop> NEXT) := \<lbrakk>([sId\<^sup>s]\<^sub>v\<Down>\<^sub>snext)\<rbrakk>) ;;
+      (t \<^enum> (t \<diamondop> TOP) := \<lbrakk>([sId\<^sup>s]\<^sub>v\<Down>\<^sub>stop)\<rbrakk>);;
+      IF ([(t \<diamondop> NEXT)]\<^sub>v) =\<^sub>b ([(t \<diamondop> TOP)]\<^sub>v) THEN
+        (t \<^enum> (t \<diamondop> RET) := ([ENOMEM]\<^sub>n)) ;;
+        (t \<^enum> (t \<diamondop> END) := ([1]\<^sub>n))
+      ELSE
+        z_unpend_first_thread ;;
+        IF ([t \<diamondop> FIRST_PENDING_THREAD]\<^sub>v) =\<^sub>b ([NULL]\<^sub>n) THEN
+          (t \<^enum> \<lbrakk>([sId\<^sup>s]\<^sub>v\<Down>\<^sub>snext)\<rbrakk> := ([data]\<^sub>n)) ;;
+          (t \<^enum>  \<lbrakk>([sId\<^sup>s]\<^sub>v\<Down>\<^sub>snext)\<rbrakk> := ([(t \<diamondop> NEXT)]\<^sub>v) +\<^sub>e ([1]\<^sub>n))
+        ELSE
+          (t \<^enum> z_ready_thread) ;;
+          (t \<^enum> z_thread_return_value_set_with_data) ;;
+          (t \<^enum> z_reschedule)
+        FI
+       FI
+    OD ;;
+    IF ([t \<diamondop> END]\<^sub>v) =\<^sub>b ([0]\<^sub>n) THEN
+      (t \<^enum> (t \<diamondop> RET) := ([0]\<^sub>n))
+    ELSE
+      Cskip
+    FI"
 
-primrec sorted :: "nat list \<Rightarrow> bool"
-  where 
-    "sorted [] = True"
-  | "sorted (x # xs) = (le x xs & sorted xs)"
-
-definition thd_st :: "tcb \<Rightarrow> nat"
-  where "thd_st t = fst t"
-
-definition thd_pri :: "tcb \<Rightarrow> nat"
-  where "thd_pri t = fst (snd t)"
-
-definition thd_next :: "tcb \<Rightarrow> nat"
-  where "thd_next t = fst (snd (snd t))"
-
-definition thd_data :: "tcb \<Rightarrow> nat"
-  where "thd_data t = snd (snd (snd t))"
-
-definition is_running :: "tcb \<Rightarrow> bool"
-  where "is_running t =  (thd_st t = RUNNING)"
-
-definition is_blocked :: "tcb \<Rightarrow> bool"
-  where "is_blocked t =  (thd_st t = BLOCKED)"
-
-definition tcb2list :: "tcb \<Rightarrow> nat list"
-  where "tcb2list t = [thd_st t, thd_pri t, thd_next t, thd_data t]"
-
-definition tcbs_next :: "tcbs \<Rightarrow> nat list"
-  where "tcbs_next ts = map thd_next ts"
-
-definition tcbs_pri :: "tcbs \<Rightarrow> nat list"
-  where "tcbs_pri ts = map thd_pri ts"
-
-definition tcbs_st :: "tcbs \<Rightarrow> nat list"
-  where "tcbs_st ts = map thd_st ts"
-
-primrec all_running :: "tcbs \<Rightarrow> bool"
-  where 
-    "all_running [] = True"
-  | "all_running (x # xs) = (is_running x \<and> all_running xs)"
-
-primrec all_blocked :: "tcbs \<Rightarrow> bool"
-  where 
-    "all_blocked [] = True"
-  | "all_blocked (x # xs) = (is_blocked x \<and> all_blocked xs)"
-
-definition stack_base :: "stack \<Rightarrow> nat"
-  where "stack_base s = fst s"
-
-definition stack_next :: "stack \<Rightarrow> nat"
-  where "stack_next s = fst (snd s)"
-
-definition stack_top :: "stack \<Rightarrow> nat"
-  where "stack_top s = fst (snd (snd s))"
-
-definition stack_wait :: "stack \<Rightarrow> nat"
-  where "stack_wait s = fst (snd (snd (snd s)))"
-
-definition stack_buf :: "stack \<Rightarrow> nat list"
-  where "stack_buf s = fst (snd (snd (snd (snd s))))"
-
-definition stack_tcbs :: "stack \<Rightarrow> tcbs"
-  where "stack_tcbs s = snd (snd (snd (snd (snd s))))"
-
-definition stack2list :: "stack \<Rightarrow> nat list"
-  where "stack2list s = [stack_base s, stack_next s, stack_top s, stack_wait s]"
-
-(* auxillary assertion *)
-primrec array :: "exp \<Rightarrow> nat list \<Rightarrow> assn"
-  where 
-    "array p [] = Aemp"
-  | "array p (x # xs) = (p \<longmapsto> Enum x) ** (array (Eplus p (Enum 1)) xs)"
-
-primrec buf :: "exp \<Rightarrow> exp \<Rightarrow> nat list \<Rightarrow> assn"
+definition stack_pop :: "Thread \<Rightarrow> StackId \<Rightarrow> nat \<Rightarrow> cmd"
   where
-    "buf b t [] = Apure (Beq b t)"
-  | "buf b t (x # xs) = (b \<longmapsto> (Enum x)) ** (buf (Eplus b (Enum 1)) t xs)"
+    "stack_pop t sId timeout \<equiv> 
+    (t \<^enum> (t \<diamondop> END) := ([0]\<^sub>n)) ;;
+    WITH sId WHEN [True]\<^sub>b DO 
+       (t \<^enum> (t \<diamondop> NEXT) := \<lbrakk>([sId\<^sup>s]\<^sub>v\<Down>\<^sub>snext)\<rbrakk>)  ;;
+       (t \<^enum> (t \<diamondop> BASE) := \<lbrakk>([sId\<^sup>s]\<^sub>v\<Down>\<^sub>sbase)\<rbrakk>) ;;
+       IF ([(t \<diamondop> NEXT)]\<^sub>v) >\<^sub>b ([(t \<diamondop> BASE)]\<^sub>v) THEN
+          (t \<^enum>  \<lbrakk>([sId\<^sup>s]\<^sub>v\<Down>\<^sub>snext)\<rbrakk> := ([(t \<diamondop> NEXT)]\<^sub>v) -\<^sub>e ([1]\<^sub>n));;
+          (t \<^enum> (t \<diamondop> NEXT) := \<lbrakk>([sId\<^sup>s]\<^sub>v\<Down>\<^sub>snext)\<rbrakk>) ;;
+          (t \<^enum>  (t \<diamondop> DATA) := \<lbrakk>([t \<diamondop> NEXT]\<^sub>v)\<rbrakk>) ;;
+          (t \<^enum>  (t \<diamondop> RET) := ([0]\<^sub>n)) ;;
+          (t \<^enum> (t \<diamondop> END) := ([1]\<^sub>n)) 
+      ELSE
+         IF [ timeout = K_NO_WAIT ]\<^sub>b THEN
+           (t \<^enum>  (t \<diamondop> RET) := ([0]\<^sub>n)) ;;
+           (t \<^enum> (t \<diamondop> END) := ([1]\<^sub>n)) 
+         ELSE
+           (t \<^enum> z_pend_curr) 
+         FI
+      FI     
+    OD;;
+    IF ([t \<diamondop> END]\<^sub>v) =\<^sub>b ([0]\<^sub>n)  THEN
+      IF ([(t \<diamondop> RET)]\<^sub>v) =\<^sub>b ([EAGAIN]\<^sub>n) THEN
+        Cskip
+       ELSE
+          (t \<^enum> (t \<diamondop> DATA) := \<lbrakk>([t]\<^sub>v\<Down>\<^sub>tdata)\<rbrakk>) ;;
+          (t \<^enum> (t \<diamondop> RET) := ([0]\<^sub>n))
+       FI
+    ELSE  
+      Cskip
+    FI
+"
 
-definition thread_node :: "exp \<Rightarrow> tcb \<Rightarrow> assn"
-  where "thread_node p t = array p (tcb2list t)"
+definition z_pend_curr1 :: "Thread \<Rightarrow> StackId \<Rightarrow> cmd"
+  where "z_pend_curr1 t sId \<equiv> 
+      \<lbrakk>[t]\<^sub>v\<Down>\<^sub>tstate\<rbrakk> := ([BLOCKED]\<^sub>n) ;;
+      (t \<diamondop> WAITQ) := \<lbrakk>[sId\<^sup>s]\<^sub>v\<Down>\<^sub>swaitq\<rbrakk> ;;
+      \<lbrakk>[t]\<^sub>v\<Down>\<^sub>tnext\<rbrakk> := ([(t \<diamondop> WAITQ)]\<^sub>v) ;;
+      \<lbrakk>([sId\<^sup>s]\<^sub>v\<Down>\<^sub>swaitq)\<rbrakk> := ([t]\<^sub>v)"
 
-primrec thread_slseg :: "exp \<Rightarrow> exp \<Rightarrow> tcbs \<Rightarrow> assn"
-  where 
-    "thread_slseg h tn [] = Apure (Beq h tn)"
-  | "thread_slseg h tn (x # xs) = (thread_node h x) ** (thread_slseg (Enum (thd_next x)) tn xs)"
-
-definition thread_sl :: "exp \<Rightarrow> tcbs \<Rightarrow> assn"
-  where "thread_sl h ts = thread_slseg h (Enum NULL) ts"
-
-definition stack_node :: "exp \<Rightarrow> stack \<Rightarrow> assn"
-  where "stack_node p s = array p (stack2list s) ** 
-                          (buf (Enum (stack_base s + 1)) (Enum (stack_top s - 1)) (stack_buf s)) 
-                          ** (thread_sl (Enum (stack_wait s)) (stack_tcbs s))"
-
-(* invariant *)
-definition inv_pri :: "tcbs \<Rightarrow> assn"
-  where "inv_pri ts = Apure (Bbool (sorted (tcbs_pri ts)))"
-
-definition inv_is_running :: "tcb \<Rightarrow> assn"
-  where "inv_is_running t = Apure (Bbool (is_running t))"
-
-definition inv_all_running :: "tcbs \<Rightarrow> assn"
-  where "inv_all_running ts = Apure (Bbool (all_running ts))"
-
-definition inv_all_blocked :: "tcbs \<Rightarrow> assn"
-  where "inv_all_blocked ts = Apure (Bbool (all_blocked ts))"
-
-primrec inv_thread_distinct :: "exp \<Rightarrow> tcbs \<Rightarrow> assn"
-  where 
-    "inv_thread_distinct p [] = Apure (Bbool True)"
-  | "inv_thread_distinct p (x # xs) = Aconj (Apure (Bnot (Beq p (Enum (thd_next x)))))
-                                        (Apure (Bbool (distinct (tcbs_next (x # xs)))))"
+definition z_unpend_first_thread1 :: "Thread \<Rightarrow> StackId \<Rightarrow> cmd"
+  where "z_unpend_first_thread1 t sId \<equiv>
+      (t \<diamondop> FIRST_PENDING_THREAD) := \<lbrakk>[sId\<^sup>s]\<^sub>v\<Down>\<^sub>swaitq\<rbrakk> ;; 
+      IF ([(t \<diamondop> FIRST_PENDING_THREAD)]\<^sub>v) =\<^sub>b ([NULL]\<^sub>n) THEN
+        Cskip
+      ELSE
+        (t \<diamondop> AUX) := \<lbrakk>[t \<diamondop> FIRST_PENDING_THREAD]\<^sub>v\<Down>\<^sub>tnext\<rbrakk>;;
+        \<lbrakk>([sId\<^sup>s]\<^sub>v\<Down>\<^sub>swaitq)\<rbrakk> := ([t \<diamondop> AUX]\<^sub>v)
+      FI
+"
 
 
-definition inv_waitq :: "exp \<Rightarrow> tcbs \<Rightarrow> assn"
-  where "inv_waitq w ts = thread_sl w ts ** inv_all_blocked ts **
-                                            inv_thread_distinct w ts"
-
-definition inv_buf_waitq :: "nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> assn"
-  where "inv_buf_waitq b n w = Apure (Bbool (w = NULL \<longrightarrow> b = n))"
-
-
-definition inv_stack_pt :: " stack \<Rightarrow> assn"
-  where "inv_stack_pt s = Apure (Bbool ((stack_base s) \<le> (stack_next s) 
-                                        \<and> (stack_next s) \<le> (stack_top s)))"
-
-definition inv_stack_waitq :: "stack \<Rightarrow> assn"
-  where "inv_stack_waitq s = inv_waitq (Enum (stack_wait s)) (stack_tcbs s)"
-
-definition inv_stack_buf_waitq :: "stack \<Rightarrow> assn"
-  where "inv_stack_buf_waitq s = inv_buf_waitq (stack_base s) (stack_next s) (stack_wait s)"
-
-(* resource invariant *)
-definition inv_cur :: "exp \<Rightarrow> tcb \<Rightarrow> assn"
-  where "inv_cur p t = (thread_node p t) ** inv_is_running t"
-
-definition inv_readyq :: "exp \<Rightarrow> tcbs \<Rightarrow> assn"
-  where "inv_readyq r ts = thread_sl r ts ** inv_all_running ts **
-                                             inv_thread_distinct r ts"
-
-definition inv_stack ::  "exp \<Rightarrow> stack \<Rightarrow> assn"
-  where "inv_stack p s = stack_node p s ** (inv_stack_waitq s) 
-                      ** (inv_stack_buf_waitq s) ** (inv_stack_pt s)"
-
-                                                         
 end

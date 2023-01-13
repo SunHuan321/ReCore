@@ -20,34 +20,36 @@ type_synonym  stack = "(var \<Rightarrow> nat)"        (*r Stacks *)
 type_synonym  state = "stack \<times> heap"        (*r States *)
 type_synonym  rnames = "rname list"          (*r List of Resource names *)
 
-datatype exp =                  (*r Arithmetic expressions *)
-    Evar var                    (*r Variable *)
-  | Enum nat                    (*r Constant *)
-  | Eplus exp exp               (*r Addition *)
+datatype exp =                                  (*r Arithmetic expressions *)
+    Evar var         ("([_]\<^sub>v)" [40] 140)             (*r Variable *)
+  | Enum nat         ("([_]\<^sub>n)" [40] 140)             (*r Constant *)
+  | Eplus exp exp    (infixl "+\<^sub>e" 65)           (*r Addition *)
+  | Eminus exp exp   (infixl "-\<^sub>e" 65)
 
-datatype bexp =                 (*r Boolean expressions *)
-    Beq exp exp                 (*r Equality of expressions *)
-  | Band bexp bexp              (*r Conjunction *)
-  | Bnot bexp                   (*r Negation *)
-  | Bbool bool                 
+datatype bexp =                                 (*r Boolean expressions *)
+    Beq exp exp      (infixl "=\<^sub>b" 50)           (*r Equality of expressions *)
+  | Band bexp bexp   (infixr "\<and>\<^sub>b" 35)           (*r Conjunction *)
+  | Bnot bexp        ("\<not>\<^sub>b _" [40] 40)           (*r Negation *)
+  | Bbool bool       ("([_]\<^sub>b)" [40] 140)
+  | BGt exp exp      (infixl ">\<^sub>b" 50)
 
-datatype cmd =                  (*r Commands *)
-    Cskip                       (*r Empty command *)
-  | Cassign var exp             (*r Assignment *)
-  | Cread   var exp             (*r Memory load *)
-  | Cwrite  exp exp             (*r Memory store *)
-  | Calloc  var exp             (*r Memory allocation *)
-  | Cdispose exp                (*r Memory de-allocation *)
-  | Cseq   cmd cmd              (*r Sequential composition *)
-  | Cpar   cmd cmd              (*r Parallel composition *)
-  | Cif    bexp cmd cmd         (*r If-then-else *)
-  | Cwhile bexp cmd             (*r While loops *)
-  | Clocal var exp cmd          (*r Local variable declaration *)
-  | Cinlocal var nat cmd        (*r Local variable declaration (runtime) *) 
-  | Cresource rname cmd         (*r Resource declaration *)
+datatype cmd =                          (*r Commands *)
+    Cskip                               (*r Empty command *)
+  | Cassign var exp                     (*r Assignment *)
+  | Cread   var exp                     (*r Memory load *)
+  |  Cwrite  exp exp                     (*r Memory store *)
+  | Calloc  var exp                     (*r Memory allocation *)
+  | Cdispose exp                        (*r Memory de-allocation *)
+  | Cseq   cmd cmd                      (*r Sequential composition *)
+  | Cpar   cmd cmd                      (*r Parallel composition *)
+  | Cif    bexp cmd cmd                 (*r If-then-else *)
+  | Cwhile bexp cmd                     (*r While loops *)
+  | Clocal var exp cmd                  (*r Local variable declaration *)
+  | Cinlocal var nat cmd                (*r Local variable declaration (runtime) *) 
+  | Cresource rname cmd                 (*r Resource declaration *)
   | Cresources rnames cmd   
-  | Cwith     rname bexp cmd    (*r Conditional critical region *)
-  | Cinwith   rname cmd         (*r Conditional critical region (runtime) *)
+  | Cwith     rname bexp cmd            (*r Conditional critical region *)
+  | Cinwith   rname cmd                 (*r Conditional critical region (runtime) *)
 
 text {* Arithmetic expressions (@{text exp}) consist of variables, constants, and
 arithmetic operations. Boolean expressions (@{text bexp}) consist of comparisons
@@ -134,11 +136,12 @@ subsubsection {* Semantics of expressions *}
 text {* Denotational semantics for arithmetic and boolean expressions. *}
 
 primrec
-  edenot :: "exp \<Rightarrow> stack \<Rightarrow> nat"
+  edenot :: "exp \<Rightarrow> stack \<Rightarrow> nat"     
 where
     "edenot (Evar v) s      = s v"
   | "edenot (Enum n) s      = n"
   | "edenot (Eplus e1 e2) s = edenot e1 s + edenot e2 s"
+  | "edenot (Eminus e1 e2) s = edenot e1 s - edenot e2 s"
 
 primrec
   bdenot :: "bexp \<Rightarrow> stack \<Rightarrow> bool" 
@@ -147,6 +150,7 @@ where
   | "bdenot (Band b1 b2) s  = (bdenot b1 s \<and> bdenot b2 s)"
   | "bdenot (Bnot b) s      = (\<not> bdenot b s)"
   | "bdenot (Bbool b) s     =  b"
+  | "bdenot (BGt e1 e2) s     =  (edenot e1 s > edenot e2 s)"
 
 subsubsection {* Semantics of commands *}
 
@@ -321,6 +325,7 @@ where
   "fvE (Evar v) = {v}"
 | "fvE (Enum n) = {}"
 | "fvE (Eplus e1 e2) = (fvE e1 \<union> fvE e2)"
+| "fvE (Eminus e1 e2) = (fvE e1 \<union> fvE e2)"
 
 primrec
   fvB :: "bexp \<Rightarrow> var set"
@@ -329,6 +334,7 @@ where
 | "fvB (Band b1 b2) = (fvB b1 \<union> fvB b2)"
 | "fvB (Bnot b)     = (fvB b)"
 | "fvB (Bbool b)    = {}"
+| "fvB (BGt e1 e2)  = (fvE e1 \<union> fvE e2)"
 
 primrec
   fvC :: "cmd \<Rightarrow> var set"
@@ -383,6 +389,7 @@ where
   "subE x E (Evar y)      = (if x = y then E else Evar y)"
 | "subE x E (Enum n)      = Enum n"
 | "subE x E (Eplus e1 e2) = Eplus (subE x E e1) (subE x E e2)"
+| "subE x E (Eminus e1 e2) = Eminus (subE x E e1) (subE x E e2)"
 
 primrec
   subB :: "var \<Rightarrow> exp \<Rightarrow> bexp \<Rightarrow> bexp"
@@ -391,6 +398,7 @@ where
 | "subB x E (Band b1 b2) = Band (subB x E b1) (subB x E b2)"
 | "subB x E (Bnot b)     = Bnot (subB x E b)"
 | "subB x E (Bbool b)    = Bbool b"
+| "subB x E (BGt e1 e2)  = BGt (subE x E e1) (subE x E e2)"
 
 text {* Basic properties of substitutions: *}
 
@@ -490,7 +498,7 @@ by (erule red.induct, auto simp add: agrees_def)
 text {* Proposition 4.2: Semantics does not depend on variables not free in the term *}
 
 lemma exp_agrees: "agrees (fvE E) s s' \<Longrightarrow> edenot E s = edenot E s'"
-by (simp add: agrees_def, induct E, auto)
+  by (simp add: agrees_def, induct E, auto)
 
 lemma bexp_agrees: "agrees (fvB B) s s' \<Longrightarrow> bdenot B s = bdenot B s'"
 by (induct B, auto simp add: exp_agrees)

@@ -13,19 +13,24 @@ subsection {* Separation logic assertions *}
 
 text {* A deep embedding of separation logic assertions. *}
 
+type_synonym tcb = "nat \<times> nat  \<times> nat"
+type_synonym tcbs = "tcb list"
+type_synonym buf = "nat list"
+type_synonym stack_mem = "nat \<times> nat \<times> nat \<times> nat \<times> buf \<times> tcbs"
+
 datatype assn = 
     Aemp                                           (*r Empty heap *)
-  | Apointsto exp exp    (infixl "\<longmapsto>" 200)        (*r Singleton heap *)
+  | Apointsto exp exp    (infixl "\<longmapsto>" 100)        (*r Singleton heap *)
   | Astar assn assn      (infixl "**" 100)         (*r Separating conjunction *)
-  | Awand assn assn                                (*r Separating implication *)
-  | Apure bexp                                     (*r Pure assertion *)
-  | Aconj assn assn                                (*r Conjunction *)
-  | Adisj assn assn                                (*r Disjunction *)
+  | Awand assn assn      (infixl "-*" 100)         (*r Separating implication *)
+  | Apure bexp           ("(\<langle>_\<rangle>\<^sub>S\<^sub>L)" [40] 140)          (*r Pure assertion *)
+  | Aconj assn assn      (infixr "\<and>\<^sub>S\<^sub>L" 35)         (*r Conjunction *)
+  | Adisj assn assn      (infixr "\<or>\<^sub>S\<^sub>L" 30)         (*r Disjunction *)
   | Aex "(nat \<Rightarrow> assn)"                            (*r Existential quantification *)
+  | Aexcur "(nat \<Rightarrow> tcb \<Rightarrow> assn)"
+  | Aexreadyq "(nat \<Rightarrow> tcbs \<Rightarrow> assn)"
+  | Aexstack "(nat \<Rightarrow> stack_mem \<Rightarrow> assn)"
 
-datatype 'a assn1 = 
-      assn
-      | Aexs "('a \<Rightarrow> assn)"
 text {* Separating conjunction of a finite list of assertions is 
   just a derived assertion. *}
 
@@ -46,6 +51,9 @@ where
 | "(\<sigma> \<Turnstile> Aconj P Q) = (\<sigma> \<Turnstile> P \<and> \<sigma> \<Turnstile> Q)" 
 | "(\<sigma> \<Turnstile> Adisj P Q) = (\<sigma> \<Turnstile> P \<or> \<sigma> \<Turnstile> Q)" 
 | "(\<sigma> \<Turnstile> Aex PP)    = (\<exists>v. \<sigma> \<Turnstile> PP v)" 
+| "(\<sigma> \<Turnstile> Aexcur PP)  = (\<exists>p t. \<sigma> \<Turnstile> PP p t)"
+| "(\<sigma> \<Turnstile> Aexreadyq PP)  = (\<exists>p t. \<sigma> \<Turnstile> PP p t)"
+| "(\<sigma> \<Turnstile> Aexstack PP)  = (\<exists>p t. \<sigma> \<Turnstile> PP p t)"
 
 definition 
   implies :: "assn \<Rightarrow> assn \<Rightarrow> bool" (infixl "\<sqsubseteq>" 60)
@@ -146,6 +154,9 @@ where
 | "fvA (Aconj P Q) = (fvA P \<union> fvA Q)"
 | "fvA (Adisj P Q) = (fvA P \<union> fvA Q)"
 | "fvA (Aex P)     = (\<Union>x. fvA (P x))"
+| "fvA (Aexcur P)     = (\<Union>x xs. fvA (P x xs))"
+| "fvA (Aexreadyq P)     = (\<Union>x xs. fvA (P x xs))"
+| "fvA (Aexstack P)     = (\<Union>x xs. fvA (P x xs))"
 
 definition
   fvAs :: "('a \<Rightarrow> assn) \<Rightarrow> var set"
@@ -163,10 +174,14 @@ where
 | "subA x E (Aconj P Q) = Aconj (subA x E P) (subA x E Q)"
 | "subA x E (Adisj P Q) = Adisj (subA x E P) (subA x E Q)"
 | "subA x E (Aex PP)    = Aex (\<lambda>n. subA x E (PP n))"
+| "subA x E (Aexcur PP)    = Aexcur (\<lambda>n ns. subA x E (PP n ns))"
+| "subA x E (Aexreadyq PP)    = Aexreadyq (\<lambda>n ns. subA x E (PP n ns))"
+| "subA x E (Aexstack PP)    = Aexstack (\<lambda>n ns. subA x E (PP n ns))"
 
 lemma subA_assign:
  "(s,h) \<Turnstile> subA x E P \<longleftrightarrow> (s(x := edenot E s), h) \<Turnstile> P"
-by (induct P arbitrary: h, simp_all add: subE_assign subB_assign fun_upd_def)
+  apply (induct P arbitrary: h, simp_all add: subE_assign subB_assign fun_upd_def)
+  apply blast apply blast by blast
 
 lemma fvA_istar[simp]: "fvA (Aistar Ps) = (\<Union>P \<in> set Ps. fvA P)"
 by (induct Ps, simp_all)
@@ -176,8 +191,11 @@ text {* Proposition 4.2 for assertions *}
 lemma assn_agrees: "agrees (fvA P) s s' \<Longrightarrow> (s, h) \<Turnstile> P \<longleftrightarrow> (s', h) \<Turnstile> P"
 apply (induct P arbitrary: h, simp_all add: bexp_agrees)
 apply (clarsimp, (subst exp_agrees, simp_all)+ )
-apply (rule iff_exI, simp add: agrees_def)
-done
+    apply (rule iff_exI, simp add: agrees_def)
+    apply (rule iff_exI, simp add: agrees_def) apply blast 
+   apply (rule iff_exI, simp add: agrees_def) apply blast
+apply (rule iff_exI, simp add: agrees_def) 
+  by (meson UNIV_I imageI)
 
 text {* Corollaries of Proposition 4.2, useful for automation. *}
 
@@ -457,6 +475,21 @@ apply (clarsimp simp add: envs_def, rename_tac hQ hJ)
 apply (rule_tac x="hQ" and y="hJ" in ex2I, simp add: hsimps, fast)
 done
 
+lemma safe_inwith1:
+  "\<lbrakk>safe n C s h (\<Gamma>(r := A)) (Q ** \<Gamma> r); wf_cmd (Cinwith r C) \<rbrakk>
+  \<Longrightarrow> safe n (Cinwith r C) s h \<Gamma> Q"
+apply (induct n arbitrary: C s h, simp_all, clarify)
+apply (rule conjI)
+ apply (clarify, erule aborts.cases, simp_all, clarsimp)
+apply (clarify, erule_tac red.cases, simp_all, clarify)
+ apply (frule (1) red_wf_cmd)
+ apply (drule (1) all5_imp2D, simp_all)
+ apply (simp add: envs_def list_minus_removeAll [THEN sym] locked_eq)+
+ apply fast
+apply (clarsimp simp add: envs_def, rename_tac hQ hJ)
+apply (rule_tac x="hQ" and y="hJ" in ex2I, simp add: hsimps, fast)
+  done
+
 theorem rule_with:
   "\<lbrakk> \<Gamma> \<turnstile> {Aconj (P ** \<Gamma> r) (Apure B)} C {Q ** \<Gamma> r} \<rbrakk>
    \<Longrightarrow> \<Gamma> \<turnstile> {P} Cwith r B C {Q}"
@@ -467,6 +500,22 @@ apply (clarify, erule red.cases, simp_all, clarsimp)
 apply (simp add: envs_def, rule_tac x="h ++ hJ" in exI, simp)
 apply (rule safe_inwith, erule all3_impD, auto dest: user_cmdD)
 done
+
+theorem rule_with1:
+  "\<lbrakk> \<Gamma>(r := A) \<turnstile> {Aconj (P ** \<Gamma> r) (Apure B)} C {Q ** \<Gamma> r} \<rbrakk>
+   \<Longrightarrow> \<Gamma> \<turnstile> {P} Cwith r B C {Q}"
+apply (clarsimp simp add: CSL_def)
+apply (case_tac n, simp, clarsimp)
+apply (rule conjI, clarify, erule aborts.cases, simp_all)
+apply (clarify, erule red.cases, simp_all, clarsimp)
+apply (simp add: envs_def, rule_tac x="h ++ hJ" in exI, simp)
+apply (rule safe_inwith1, erule all3_impD, auto dest: user_cmdD)
+  done
+
+corollary rule_with':
+   "\<lbrakk> \<Gamma>(r := Aemp) \<turnstile> {Aconj (P ** \<Gamma> r) (Apure B)} C {Q ** \<Gamma> r} \<rbrakk>
+   \<Longrightarrow> \<Gamma> \<turnstile> {P} Cwith r B C {Q}"
+  by (simp add: rule_with1)
 
 subsubsection {* Sequential composition *}
 

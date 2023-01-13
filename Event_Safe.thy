@@ -1,6 +1,10 @@
 theory Event_Safe
-  imports CSLsound Event_Helper
+  imports Aux_for_CSL Event_Helper
 begin
+
+primrec update_list_env :: "(rname \<Rightarrow> assn) \<Rightarrow> (rname \<times> assn) list \<Rightarrow> (rname \<Rightarrow> assn)"
+  where "update_list_env \<Gamma> [] = \<Gamma>"
+  | "update_list_env \<Gamma> (x # xs) = update_list_env (\<Gamma> (fst x := snd x)) xs"
 
 subsection \<open>specification and proof rules for events\<close>
 primrec
@@ -65,6 +69,26 @@ lemma envs_empty_minus[simp]: " envs \<Gamma> [] l = Aemp"
 lemma envs_minus_empty[simp]: " envs \<Gamma> l [] = Aistar (map \<Gamma> l)"
   by (simp add: envs_def)
 
+lemma esafe_conseq : "\<lbrakk> esafe n e s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> esafe n e s h \<Gamma> Q'"
+  apply (induct n arbitrary: e s h, simp)
+  apply (clarsimp, simp add : implies_def)
+  apply (clarify, erule ered.cases, simp_all, clarsimp)
+   apply (drule_tac a = "hJ" and b = "hF" and c = "AnonyEvent C'" 
+          and d = "ab" and e = "bb" in all5_impD)
+    apply (simp add: ered.red_AnonyEvt)
+   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
+  apply (drule_tac a = "hJ" and b = "hF" and c = "AnonyEvent C" 
+          and d = "a" and e = "b" in all5_impD)
+  using ered.red_BasicEvt apply blast
+  apply (clarsimp, rule_tac x = "h'" in exI, simp)
+  done
+
+theorem rule_Evtconseq : "\<lbrakk> \<Gamma> \<turnstile>\<^sub>e {P} e {Q};  P' \<sqsubseteq> P; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>e {P'} e {Q'}"
+  by (meson eCSL_def esafe_conseq implies_def)
+
+theorem rule_Evt_equiv : "\<lbrakk> \<Gamma> \<turnstile>\<^sub>e {P} e {Q};  P' \<equiv>\<^sub>S\<^sub>L P; Q \<equiv>\<^sub>S\<^sub>L Q'\<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>e {P'} e {Q'}"
+  using equiv_implies rule_Evtconseq by blast
+
 lemma esafe_AnonyEvt: "safe n C s h \<Gamma> Q \<Longrightarrow> esafe n (AnonyEvent C) s h \<Gamma> Q"
   apply (induct n arbitrary: C s h, simp, clarsimp)
   apply (rule conjI)
@@ -91,22 +115,10 @@ theorem rule_BasicEvt: "\<Gamma> \<turnstile> {Aconj P (Apure guard)} C {Q}
   apply (simp add: eCSL_def CSL_def, clarify)
   by (simp add: esafe_BasicEvt)
 
-lemma esafe_conseq : "\<lbrakk> esafe n e s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> esafe n e s h \<Gamma> Q'"
-  apply (induct n arbitrary: e s h, simp)
-  apply (clarsimp, simp add : implies_def)
-  apply (clarify, erule ered.cases, simp_all, clarsimp)
-   apply (drule_tac a = "hJ" and b = "hF" and c = "AnonyEvent C'" 
-          and d = "ab" and e = "bb" in all5_impD)
-    apply (simp add: ered.red_AnonyEvt)
-   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-  apply (drule_tac a = "hJ" and b = "hF" and c = "AnonyEvent C" 
-          and d = "a" and e = "b" in all5_impD)
-  using ered.red_BasicEvt apply blast
-  apply (clarsimp, rule_tac x = "h'" in exI, simp)
-  done
-
-theorem rule_Evtconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>e {P'} e {Q'} \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>e {P} e {Q}"
-  by (meson eCSL_def esafe_conseq implies_def)
+corollary rule_BasicEvt_true : "\<Gamma> \<turnstile> {P} C {Q} 
+                    \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>e {P} (BasicEvent ([True]\<^sub>b, C)) {Q}"
+  apply (rule rule_BasicEvt, rule rule_conseq, simp_all)
+  by (simp_all add: implies_def)
 
 lemma esafe_frame:
  "\<lbrakk> esafe n e s h J Q; 
@@ -204,56 +216,11 @@ lemma resafe_conseq : "\<lbrakk> resafe n re s h \<Gamma> Q; Q \<sqsubseteq> Q'\
   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
   done
 
-lemma resafe_post_Aemp : "resafe n re s h \<Gamma> Q \<longleftrightarrow> resafe n re s h \<Gamma> (Q ** Aemp)"
-  by (metis Star_Aemp implies_def prod.exhaust_sel resafe_conseq)
+theorem rule_rEvtconseq : "\<lbrakk>\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} re {Q} ; P' \<sqsubseteq> P; Q \<sqsubseteq> Q' \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e {P'} re {Q'}"
+  by (meson implies_def reCSL_def resafe_conseq)
 
-lemma resafe_post_commute : "resafe n re s h \<Gamma> (Q1 ** Q2) \<longleftrightarrow> resafe n re s h \<Gamma> (Q2 ** Q1)"
-  by (metis Astar_commute implies_def prod.exhaust_sel resafe_conseq)
-
-lemma resafe_post_assoc : "resafe n re s h \<Gamma> (Q1 ** Q2 ** Q3) 
-                     \<longleftrightarrow> resafe n re s h \<Gamma> (Q1 ** (Q2 ** Q3))"
-  by (metis (no_types, hide_lams) Astar_assoc implies_def prod.exhaust_sel resafe_conseq)
-
-lemma resafe_post_comassoc : "resafe n re s h \<Gamma> (Q1 ** Q2 ** Q3) 
-                        \<longleftrightarrow> resafe n re s h \<Gamma> (Q1 ** (Q3 ** Q2))"
-  apply (induct n arbitrary: re s h, simp, simp only: resafe.simps)
-  using Astar_comassoc by blast
-
-theorem rule_re_pre_commute: 
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** P2} re {Q1 ** Q2} \<longleftrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e {P2 ** P1} re {Q1 ** Q2}"
-  using Astar_commute reCSL_def by auto
-
-theorem rule_re_post_commute:
-  "\<Gamma>  \<turnstile>\<^sub>r\<^sub>e {P1 ** P2} re {Q1 ** Q2} \<longleftrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e {P1 ** P2} re {Q2 ** Q1}"
-  by (simp add: reCSL_def resafe_post_commute)
-
-theorem rule_re_pre_post_commute:
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** P2} re {Q1 ** Q2} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P2 ** P1} re {Q2 ** Q1}"
-  by (simp add: rule_re_post_commute rule_re_pre_commute)
-
-theorem rule_re_pre_associate :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** P2 ** P3} re {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** (P2 ** P3)} re {Q1 ** Q2 ** Q3}"
-  using Astar_assoc reCSL_def by auto
-
-theorem rule_re_post_associate :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** P2 ** P3} re {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** P2 ** P3} re {Q1 ** (Q2 ** Q3)}"
-  by (simp add: reCSL_def resafe_post_assoc)
-
-theorem rule_re_pre_post_associate :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** P2 ** P3} re {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** (P2 ** P3)} re {Q1 ** (Q2 ** Q3)}"
-  using rule_re_post_associate rule_re_pre_associate rule_re_pre_commute by auto
-
-theorem rule_re_pre_comassoc : "\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** P2 ** P3} re {Q1 ** Q2 ** Q3} \<longleftrightarrow> 
-                          \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** (P3 ** P2)} re {Q1 ** Q2 ** Q3}"
-  using Astar_comassoc reCSL_def by auto
-
-theorem rule_re_post_comassoc :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** P2 ** P3} re {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** P2 ** P3} re {Q1 ** (Q3 ** Q2)}"
-  by (simp add: reCSL_def resafe_post_comassoc)
-
-theorem rule_re_pre_post_comassoc :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** P2 ** P3} re {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P1 ** (P3 ** P2)} re {Q1 ** (Q3 ** Q2)}"
-  using rule_re_post_comassoc rule_re_pre_comassoc rule_re_pre_post_commute by auto  
+theorem rule_re_equiv: "\<lbrakk> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} re {Q}; P \<equiv>\<^sub>S\<^sub>L P'; Q \<equiv>\<^sub>S\<^sub>L Q' \<rbrakk> \<Longrightarrow>  \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P'} re {Q'}"
+  by (simp add: assn_equiv_symmetry equiv_implies rule_rEvtconseq)
 
 lemma resafe_res:
  "\<lbrakk>resafe n (rs, e) s h (\<Gamma>(r := R)) Q; wf_revent (rs, e); r \<notin> set rs;
@@ -322,8 +289,7 @@ apply (clarsimp, rule_tac x = "h' ++ hR" and y = "hJ'" in ex2I, simp add: hsimps
         simp add: hsimps envs_upd)
   by (metis fst_conv re_invres)
 
-lemma resafe_res_empty : "esafe n e s h \<Gamma> Q 
-                               \<Longrightarrow> resafe n ([], e) s h \<Gamma> Q"
+lemma resafe_res_empty : "esafe n e s h \<Gamma> Q \<Longrightarrow> resafe n ([], e) s h \<Gamma> Q"
   apply (induct n arbitrary: e s h, simp, clarsimp)
   apply (rule conjI, simp add: reaborts_equiv snd_conv)
   apply (rule conjI, simp add: reaccesses_def, clarsimp)
@@ -332,6 +298,9 @@ lemma resafe_res_empty : "esafe n e s h \<Gamma> Q
     apply (simp add: re_equiv2, drule imp2D, simp add: rellocked_def, simp, clarsimp)
    apply (rule_tac x = h' and y = hJ' in ex2I, simp add: rellocked_def)
   by (metis fst_conv re_invres)
+
+theorem rule_re_empty : "\<Gamma> \<turnstile>\<^sub>e { P } e { Q } \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e { P } ([], e) { Q }"
+  by (simp add: eCSL_def reCSL_def user_revent_def resafe_res_empty)
 
 lemma rule_re1 : "\<lbrakk> \<Gamma>(r := R) \<turnstile>\<^sub>r\<^sub>e {P} (rs, e) {Q} ; disjoint (fvA R) (wrREv (rs, e)); r \<notin> set rs \<rbrakk> 
   \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e  {P ** R} (r # rs, e) {Q ** R}"
@@ -343,19 +312,20 @@ lemma rule_re1 : "\<lbrakk> \<Gamma>(r := R) \<turnstile>\<^sub>r\<^sub>e {P} (r
 theorem rule_re : 
     "\<lbrakk>(update_list \<Gamma> \<G> rs) \<turnstile>\<^sub>e {P} e {Q} ;disjoint (fvA (Aistar (map \<G> rs))) (wrEv e); distinct rs\<rbrakk> 
     \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P ** (Aistar (map \<G> rs))} (rs, e) {Q ** (Aistar (map \<G> rs))}"
-  apply (induct rs arbitrary: \<Gamma>, simp add: eCSL_def reCSL_def)
-  using resafe_post_Aemp resafe_res_empty user_revent_def apply auto[1]
-  apply (clarsimp, drule_tac a = "\<Gamma>(a := \<G> a)" in mall_impD, simp)
-  apply (drule rule_re1, simp_all add: wrREv_def)
-  by (simp add: rule_re_pre_post_comassoc)
+  apply (induct rs arbitrary: \<Gamma>, rule_tac P = "P" and Q = "Q" in rule_re_equiv)
+     apply (simp add: rule_re_empty, simp, simp add: assn_equiv_def, simp add: assn_equiv_def)
+  apply (drule_tac a = "\<Gamma>(a := \<G> a)" in mall_impD, clarsimp)
+  apply (rule_tac P = "(P ** Aistar (map \<G> rs)) ** \<G> a" and Q = "(Q ** Aistar (map \<G> rs)) ** \<G> a"
+  in rule_re_equiv, rule rule_re1, simp, simp add: wrREv_def, simp)
+   apply (meson Aistar_equiv) apply (meson Aistar_equiv)
+  done
 
+(*
 theorem rule_rBasicEvt : "\<lbrakk>(update_list \<Gamma> \<G> rs) \<turnstile> {Aconj P (Apure guard)} C {Q};
                            disjoint (fvA (Aistar (map \<G> rs))) (wrC C); distinct rs\<rbrakk>
    \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P ** (Aistar (map \<G> rs))} (rs, BasicEvent (guard, C)) {Q ** (Aistar (map \<G> rs))}"
   by (rule rule_re, simp_all add: rule_BasicEvt)
-
-theorem rule_rEvtconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>r\<^sub>e {P'} re {Q'} \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e {P} re {Q}"
-  by (meson implies_def reCSL_def resafe_conseq)
+*)
 
 lemma resafe_frame:
  "\<lbrakk> resafe n re s h J Q; 
@@ -437,6 +407,29 @@ apply (simp only: safe.simps, clarsimp)
 apply (drule all5D, drule (2) imp3D, simp, clarsimp)
 apply (rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
   done
+
+lemma essafe_conseq : "\<lbrakk> essafe n es s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> essafe n es s h \<Gamma> Q'"
+  apply (induct n arbitrary: es s h, simp)
+  apply (clarsimp, simp add : implies_def)
+  apply (erule esred.cases, simp_all, clarify)
+    apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq (ac, bc) res" 
+          and d = "ad" and e = "bd" in all5_impD)
+     apply (simp add: esred.red_EvtSeq1)
+    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
+   apply (drule_tac a = "hJ" and b = "hF" and c = "res" and d = "a" and e = "b" in all5_impD)
+    apply (simp add: esred.red_EvtSeq2)
+   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
+  apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq re' (EvtSys revts)" and d = "a" 
+        and e = "b" in all5_impD)
+   apply (simp add: esred.red_EvtSet)
+  apply (clarsimp, rule_tac x = "h'" in exI, simp)
+  done
+
+theorem rule_esconseq : "\<lbrakk>\<Gamma> \<turnstile>\<^sub>e\<^sub>s {P} es {Q};  P' \<sqsubseteq> P; Q \<sqsubseteq> Q' \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>e\<^sub>s {P'} es {Q'}"
+  by (meson esCSL_def essafe_conseq implies_def)
+
+theorem rule_es_equiv : "\<lbrakk>\<Gamma> \<turnstile>\<^sub>e\<^sub>s {P} es {Q};  P' \<equiv>\<^sub>S\<^sub>L P; Q \<equiv>\<^sub>S\<^sub>L Q' \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>e\<^sub>s {P'} es {Q'}"
+  using equiv_implies rule_esconseq by blast
 
 lemma essafe_EvtSeq :"\<lbrakk>resafe n re s h \<Gamma> Q;
         \<forall>m s' h'. m \<le> n \<and> (s', h') \<Turnstile> (Q ** (Aistar (map \<Gamma> (esllocked esys)))) 
@@ -550,25 +543,13 @@ theorem rule_EvtSys :  "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<
   apply (rule essafe_EvtSys, simp_all)
   by (simp add: pre_conj)
 
-lemma essafe_conseq : "\<lbrakk> essafe n es s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> essafe n es s h \<Gamma> Q'"
-  apply (induct n arbitrary: es s h, simp)
-  apply (clarsimp, simp add : implies_def)
-  apply (erule esred.cases, simp_all, clarify)
-    apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq (ac, bc) res" 
-          and d = "ad" and e = "bd" in all5_impD)
-     apply (simp add: esred.red_EvtSeq1)
-    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-   apply (drule_tac a = "hJ" and b = "hF" and c = "res" and d = "a" and e = "b" in all5_impD)
-    apply (simp add: esred.red_EvtSeq2)
-   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-  apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq re' (EvtSys revts)" and d = "a" 
-        and e = "b" in all5_impD)
-   apply (simp add: esred.red_EvtSet)
-  apply (clarsimp, rule_tac x = "h'" in exI, simp)
-  done
+definition all_Aemp :: "revent \<Rightarrow> assn"
+  where "all_Aemp = (\<lambda>x. Aemp)"
 
-theorem rule_esconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>e\<^sub>s {P'} es {Q'} \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>e\<^sub>s {P} es {Q}"
-  by (meson esCSL_def essafe_conseq implies_def)
+corollary rule_EvtSys' :  " \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {Aemp} re {Aemp}
+                        \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>e\<^sub>s {Aemp} (EvtSys es) {Aemp}"
+  apply (rule_tac Pre = "all_Aemp" and Post = "all_Aemp" in rule_EvtSys, simp_all add: all_Aemp_def)
+  by (simp_all add: implies_def)
 
 lemma essafe_frame:
  "\<lbrakk> essafe n es s h J Q; 
@@ -667,55 +648,11 @@ lemma ressafe_conseq : "\<lbrakk> ressafe n res s h \<Gamma> Q; Q \<sqsubseteq> 
   apply (simp add: resllocked_def, clarify, rule_tac x = "h'" in exI, simp)
   done
 
-lemma ressafe_post_Aemp : "ressafe n res s h \<Gamma> Q \<longleftrightarrow> ressafe n res s h \<Gamma> (Q ** Aemp)"
-  by (metis Star_Aemp implies_def prod.exhaust_sel ressafe_conseq)
+theorem rule_resconseq : "\<lbrakk>\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P} res {Q};  P' \<sqsubseteq> P; Q \<sqsubseteq> Q' \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P'} res {Q'}"
+  by (meson implies_def resCSL_def ressafe_conseq)
 
-lemma ressafe_post_commute : "ressafe n res s h \<Gamma> (Q1 ** Q2) \<longleftrightarrow> ressafe n res s h \<Gamma> (Q2 ** Q1)"
-  by (metis Astar_commute implies_def prod.exhaust_sel ressafe_conseq)
-
-lemma ressafe_post_assoc : "ressafe n res s h \<Gamma> (Q1 ** Q2 ** Q3) 
-                     \<longleftrightarrow> ressafe n res s h \<Gamma> (Q1 ** (Q2 ** Q3))"
-  by (metis (no_types, hide_lams) Astar_assoc implies_def prod.exhaust_sel ressafe_conseq)
-
-lemma ressafe_post_comassoc : "ressafe n res s h \<Gamma> (Q1 ** Q2 ** Q3) 
-                        \<longleftrightarrow> ressafe n res s h \<Gamma> (Q1 ** (Q3 ** Q2))"
-  by (induct n arbitrary: res s h, simp, simp only: ressafe.simps)
-
-theorem rule_res_pre_commute: 
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** P2} res {Q1 ** Q2} \<longleftrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P2 ** P1} res {Q1 ** Q2}"
-  using Astar_commute resCSL_def by auto
-
-theorem rule_res_post_commute:
-  "\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** P2} res {Q1 ** Q2} \<longleftrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** P2} res {Q2 ** Q1}"
-  by (simp add: resCSL_def ressafe_post_commute)
-
-theorem rule_res_pre_post_commute:
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** P2} res {Q1 ** Q2} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P2 ** P1} res {Q2 ** Q1}"
-  by (simp add: rule_res_post_commute rule_res_pre_commute)
-
-theorem rule_res_pre_associate :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** P2 ** P3} res {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** (P2 ** P3)} res {Q1 ** Q2 ** Q3}"
-  using Astar_assoc resCSL_def by auto
-
-theorem rule_res_post_associate :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** P2 ** P3} res {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** P2 ** P3} res {Q1 ** (Q2 ** Q3)}"
-  by (simp add: resCSL_def ressafe_post_assoc)
-
-theorem rule_res_pre_post_associate :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** P2 ** P3} res {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** (P2 ** P3)} res {Q1 ** (Q2 ** Q3)}"
-  using rule_res_post_associate rule_res_pre_associate rule_res_pre_commute by auto
-
-theorem rule_res_pre_comassoc : "\<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** P2 ** P3} res {Q1 ** Q2 ** Q3} \<longleftrightarrow> 
-                          \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** (P3 ** P2)} res {Q1 ** Q2 ** Q3}"
-  using Astar_comassoc resCSL_def by auto
-
-theorem rule_res_post_comassoc :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** P2 ** P3} res {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** P2 ** P3} res {Q1 ** (Q3 ** Q2)}"
-  by (simp add: resCSL_def ressafe_post_comassoc)
-
-theorem rule_res_pre_post_comassoc :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** P2 ** P3} res {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1 ** (P3 ** P2)} res {Q1 ** (Q3 ** Q2)}"
-  using rule_res_post_comassoc rule_res_pre_comassoc rule_res_pre_post_commute by auto
+theorem rule_res_equiv : "\<lbrakk>\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P} res {Q};  P' \<equiv>\<^sub>S\<^sub>L P; Q \<equiv>\<^sub>S\<^sub>L Q' \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P'} res {Q'}"
+  using equiv_implies rule_resconseq by blast
 
 lemma ressafe_res : 
 "\<lbrakk>ressafe n (rs, es) s h (\<Gamma>(r := R)) Q; wf_resys (rs, es); r \<notin> set rs;
@@ -801,6 +738,9 @@ lemma ressafe_res_empty : "essafe n es s h \<Gamma> Q \<Longrightarrow> ressafe 
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp add: resllocked_def)
   using resred.simps by auto
 
+lemma rule_res_empty : "\<Gamma> \<turnstile>\<^sub>e\<^sub>s { P } es { Q } \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s { P } ([], es) { Q}"
+  by (simp add: esCSL_def resCSL_def user_resys_def ressafe_res_empty)
+
 lemma rule_res1 : "\<lbrakk> \<Gamma>(r := R) \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P} (rs, es) {Q} ; disjoint (fvA R) (wrREsv (rs, es)); r \<notin> set rs \<rbrakk> 
   \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s  {P ** R} (r # rs, es) {Q ** R}"
   apply (clarsimp simp add: resCSL_def)
@@ -811,12 +751,15 @@ lemma rule_res1 : "\<lbrakk> \<Gamma>(r := R) \<turnstile>\<^sub>r\<^sub>e\<^sub
 theorem rule_res : 
     "\<lbrakk>(update_list \<Gamma> \<G> rs) \<turnstile>\<^sub>e\<^sub>s {P} es {Q} ;disjoint (fvA (Aistar (map \<G> rs))) (wrEsv es)
     ; distinct rs\<rbrakk>  \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P ** (Aistar (map \<G> rs))} (rs, es) {Q ** (Aistar (map \<G> rs))}"
-  apply (induct rs arbitrary: \<Gamma>, simp add: esCSL_def resCSL_def, clarsimp)
-  using ressafe_post_Aemp ressafe_res_empty user_resys_def apply auto[1]
-  apply (clarsimp, drule_tac a = "\<Gamma>(a := \<G> a)" in mall_impD, simp)
-  apply (drule rule_res1, simp_all add: wrREsv_def)
-  by (simp add: rule_res_pre_post_comassoc)
+  apply (induct rs arbitrary: \<Gamma>, simp, rule_tac P = P and Q = Q in rule_res_equiv)
+  apply (simp add: rule_res_empty, simp add: assn_equiv_def, simp add: assn_equiv_def)
+  apply (drule_tac a = "\<Gamma>(a := \<G> a)" in mall_impD, clarsimp)
+  apply (rule_tac P = "(P ** Aistar (map \<G> rs)) ** \<G> a" and Q = "(Q ** Aistar (map \<G> rs)) ** \<G> a"
+  in rule_res_equiv, rule rule_res1, simp, simp add: wrREsv_def, simp)
+   apply (meson Aistar_equiv assn_equiv_symmetry) apply (meson Aistar_equiv assn_equiv_symmetry)
+  done
 
+(*
 theorem rule_rEvtSeq : "\<lbrakk>(update_list \<Gamma> \<G> rs) \<turnstile>\<^sub>r\<^sub>e {P} re {Q};
                          (update_list \<Gamma> \<G> rs) \<turnstile>\<^sub>e\<^sub>s {Q } esys {R};
                          disjoint (fvA (Aistar (map \<G> rs))) (wrEsv (EvtSeq re esys)); distinct rs\<rbrakk>
@@ -830,9 +773,7 @@ theorem rule_rEvtSys :  "\<lbrakk>\<forall> re \<in> es. (update_list \<Gamma> \
                         \<Longrightarrow>  \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P ** (Aistar (map \<G> rs))} (rs, (EvtSys es)) 
                                     {Q ** (Aistar (map \<G> rs))}"
   by (rule rule_res, simp_all add: rule_EvtSys)
-
-theorem rule_resconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P'} res {Q'} \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P} res {Q}"
-  by (meson implies_def resCSL_def ressafe_conseq)
+*)
 
 lemma ressafe_frame:
  "\<lbrakk> ressafe n res s h J Q; 
@@ -863,7 +804,7 @@ theorem resrule_frame:
 subsection \<open>specification and proof rules for parallel event systems\<close>
 
 primrec 
-  pessafe :: "nat \<Rightarrow>paresys \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> bool"
+  pessafe :: "nat \<Rightarrow> paresys \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> bool"
   where
   "pessafe 0 pes s h \<Gamma> Q = True"
 | "pessafe (Suc n) pes s h \<Gamma> Q =  (
@@ -883,6 +824,23 @@ definition
   ("_ \<turnstile>\<^sub>p\<^sub>e\<^sub>s { _ } _ { _ }")
   where
     "\<Gamma> \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q} \<equiv> (user_pesys pes) \<and> (\<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> pessafe n pes s h \<Gamma> Q)"
+
+lemma pessafe_conseq : "\<lbrakk> pessafe n pes s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> pessafe n pes s h \<Gamma> Q'"
+    apply (induct n arbitrary: pes s h, simp)
+  apply (clarsimp, simp add : implies_def)
+  apply (erule pesred.cases, simp_all, clarsimp)
+  apply (drule_tac a = "hJ" and b = "hF" and c = "pesa[k := (ac, bc)]" 
+          and d = "ad" and e = "bd" in all5_impD)
+  using pesred.red_Par apply blast
+   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
+  done
+
+theorem rule_pesconseq : "\<lbrakk> \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q}; P' \<sqsubseteq> P; Q \<sqsubseteq> Q' \<rbrakk> \<Longrightarrow>  \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P'} pes {Q'}"
+  apply (simp add: pesCSL_def)
+  using implies_def pessafe_conseq by blast
+
+theorem rule_pes_equiv : "\<lbrakk> \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q}; P' \<equiv>\<^sub>S\<^sub>L P; Q \<equiv>\<^sub>S\<^sub>L Q' \<rbrakk> \<Longrightarrow>  \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P'} pes {Q'}"
+  using equiv_implies rule_pesconseq by auto
 
 lemma envs_app' : "disjoint (set a) (set b) \<Longrightarrow> disjoint (set a) (set c) \<Longrightarrow> disjoint (set b) (set c)
     \<Longrightarrow> envs \<Gamma> (a @ b @ c) (a @ b' @ c) = envs \<Gamma> b b'"
@@ -988,19 +946,17 @@ theorem rule_pes : " \<lbrakk>\<forall>k. k < length pes \<longrightarrow> \<Gam
   apply (simp add: user_pesysD wf_peslocked)
   by blast
 
-lemma pessafe_conseq : "\<lbrakk> pessafe n pes s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> pessafe n pes s h \<Gamma> Q'"
-    apply (induct n arbitrary: pes s h, simp)
-  apply (clarsimp, simp add : implies_def)
-  apply (erule pesred.cases, simp_all, clarsimp)
-  apply (drule_tac a = "hJ" and b = "hF" and c = "pesa[k := (ac, bc)]" 
-          and d = "ad" and e = "bd" in all5_impD)
-  using pesred.red_Par apply blast
-   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-  done
+lemma List_Aemp_equiv : "Aistar (replicate n Aemp) \<equiv>\<^sub>S\<^sub>L Aemp"
+  by (induct n, simp_all add: assn_equiv_def)
 
-theorem rule_pesconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P'} pes {Q'} \<rbrakk> \<Longrightarrow>  \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q}"
-  apply (simp add: pesCSL_def)
-  using implies_def pessafe_conseq by blast
+theorem rule_pes' : " \<lbrakk>\<forall>k. k < length pes \<longrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s  {Aemp} (pes ! k) {Aemp};
+                  \<forall>k1 k2. k1 < length pes \<and> k2 < length pes \<and> k1 \<noteq> k2 
+                  \<longrightarrow> disjoint (fvREsv (pes ! k1)  \<union> fvAs \<Gamma>) (wrREsv (pes ! k2))\<rbrakk> 
+                  \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {Aemp} pes {Aemp}"
+  apply (rule_tac P = "Aistar (replicate (length pes) Aemp)" and Q = "Aistar (replicate (length pes)
+   Aemp)" in rule_pes_equiv, rule rule_pes, simp_all) apply blast
+  by (simp_all add: assn_equiv_symmetry List_Aemp_equiv)
+
 
 corollary rule_pes2' : "\<lbrakk>\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P1} res1 {Q1} ; \<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P2} res2 {Q2};
            disjoint ((fvREsv res1) \<union> fvA Q1 \<union> fvAs \<Gamma>) (wrREsv res2);
@@ -1013,10 +969,9 @@ corollary rule_pes2 : "\<lbrakk>\<Gamma>  \<turnstile>\<^sub>r\<^sub>e\<^sub>s {
            disjoint ((fvREsv res1) \<union> fvA Q1 \<union> fvAs \<Gamma>) (wrREsv res2);
            disjoint ((fvREsv res2) \<union> fvA Q2 \<union> fvAs \<Gamma>) (wrREsv res1)\<rbrakk>
            \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P1 ** P2} [res1, res2] {Q1 ** Q2}"
-  apply (rule_tac P' = "Aistar [P1, P2]" and Q' = "Aistar [Q1, Q2]" in rule_pesconseq)
-    apply (simp add: implies_def)
-   apply (simp add: implies_def)
-  using rule_pes2' by auto
+  apply (rule_tac P = "Aistar [P1, P2]" and Q = "Aistar [Q1, Q2]" in rule_pesconseq)
+  using rule_pes2' apply auto[1]
+  by (simp_all add: implies_def)
 
 lemma pessafe_frame:
  "\<lbrakk> pessafe n pes s h J Q; 
@@ -1077,55 +1032,12 @@ lemma rpessafe_conseq : "\<lbrakk> rpessafe n (rs, pes) s h \<Gamma> Q; Q \<sqsu
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
   done
 
-lemma rpessafe_post_Aemp : "rpessafe n rpes s h \<Gamma> Q \<longleftrightarrow> rpessafe n rpes s h \<Gamma> (Q ** Aemp)"
-  by (metis Star_Aemp implies_def prod.exhaust_sel rpessafe_conseq)
+theorem rule_rpesconseq : "\<lbrakk>\<Gamma>  \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P} rpes {Q};  P' \<sqsubseteq> P; Q \<sqsubseteq> Q' \<rbrakk> \<Longrightarrow>  \<Gamma>  \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P'} rpes {Q'}"
+  apply (simp add: rpesCSL_def)
+  by (metis implies_def rpessafe_conseq surj_pair)
 
-lemma rpessafe_post_commute : "rpessafe n rpes s h \<Gamma> (Q1 ** Q2) \<longleftrightarrow> rpessafe n rpes s h \<Gamma> (Q2 ** Q1)"
-  by (metis Astar_commute implies_def prod.exhaust_sel rpessafe_conseq)
-
-lemma rpessafe_post_assoc : "rpessafe n rpes s h \<Gamma> (Q1 ** Q2 ** Q3) 
-                     \<longleftrightarrow> rpessafe n rpes s h \<Gamma> (Q1 ** (Q2 ** Q3))"
-  by (metis (no_types, hide_lams) Astar_assoc implies_def prod.exhaust_sel rpessafe_conseq)
-
-lemma rpessafe_post_comassoc : "rpessafe n rpes s h \<Gamma> (Q1 ** Q2 ** Q3) 
-                        \<longleftrightarrow> rpessafe n rpes s h \<Gamma> (Q1 ** (Q3 ** Q2))"
-  by (induct n arbitrary: rpes s h, simp, simp only: rpessafe.simps)
-
-theorem rule_rpes_pre_commute: 
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2} rpes {Q1 ** Q2} \<longleftrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P2 ** P1} rpes {Q1 ** Q2}"
-  using Astar_commute rpesCSL_def by auto
-
-theorem rule_rpes_post_commute:
-  "\<Gamma>  \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2} rpes {Q1 ** Q2} \<longleftrightarrow> \<Gamma>  \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2} rpes {Q2 ** Q1}"
-  by (simp add: rpesCSL_def rpessafe_post_commute)
-
-theorem rule_rpes_pre_post_commute:
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2} rpes {Q1 ** Q2} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P2 ** P1} rpes {Q2 ** Q1}"
-  by (simp add: rule_rpes_post_commute rule_rpes_pre_commute)
-
-theorem rule_rpes_pre_associate :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2 ** P3} rpes {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** (P2 ** P3)} rpes {Q1 ** Q2 ** Q3}"
-  using Astar_assoc rpesCSL_def by auto
-
-theorem rule_rpes_post_associate :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2 ** P3} rpes {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2 ** P3} rpes {Q1 ** (Q2 ** Q3)}"
-  by (simp add: rpesCSL_def rpessafe_post_assoc)
-
-theorem rule_rpes_pre_post_associate :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2 ** P3} rpes {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** (P2 ** P3)} rpes {Q1 ** (Q2 ** Q3)}"
-  using rule_rpes_post_associate rule_rpes_pre_associate rule_rpes_pre_commute by auto
-
-theorem rule_rpes_pre_comassoc : "\<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2 ** P3} rpes {Q1 ** Q2 ** Q3} \<longleftrightarrow> 
-                          \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** (P3 ** P2)} rpes {Q1 ** Q2 ** Q3}"
-  using Astar_comassoc rpesCSL_def by auto
-
-theorem rule_rpes_post_comassoc :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2 ** P3} rpes {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2 ** P3} rpes {Q1 ** (Q3 ** Q2)}"
-  by (simp add: rpesCSL_def rpessafe_post_comassoc)
-
-theorem rule_rpes_pre_post_comassoc :
-  "\<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** P2 ** P3} rpes {Q1 ** Q2 ** Q3} \<longleftrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P1 ** (P3 ** P2)} rpes {Q1 ** (Q3 ** Q2)}"
-  using rule_rpes_post_comassoc rule_rpes_pre_comassoc rule_rpes_pre_post_commute by auto
+theorem rule_rpes_equiv : "\<lbrakk>\<Gamma>  \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P} rpes {Q};  P' \<equiv>\<^sub>S\<^sub>L P; Q \<equiv>\<^sub>S\<^sub>L Q' \<rbrakk> \<Longrightarrow>  \<Gamma>  \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P'} rpes {Q'}"
+  using equiv_implies rule_rpesconseq by blast
 
 lemma rpessafe_res:
  "\<lbrakk> rpessafe n (rs, pes) s h (\<Gamma>(r := R)) Q;  wf_rpesys (rs,pes); r \<notin> set rs;
@@ -1206,9 +1118,8 @@ lemma rpessafe_res_empty : "pessafe n pes s h \<Gamma> Q \<Longrightarrow> rpess
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp add: rpesllocked_def)
   by (metis fst_conv rpes_invres)
 
-theorem rule_rpesconseq : "\<lbrakk> P \<sqsubseteq> P'; Q' \<sqsubseteq> Q; \<Gamma>  \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P'} rpes {Q'} \<rbrakk> \<Longrightarrow>  \<Gamma>  \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P} rpes {Q}"
-  apply (simp add: rpesCSL_def)
-  by (metis implies_def rpessafe_conseq surj_pair)
+lemma rule_rpes_empty : "\<Gamma> \<turnstile>\<^sub>p\<^sub>e\<^sub>s { P } pes { Q } \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s { P } ([], pes) { Q }"
+  by (simp add: pesCSL_def rpesCSL_def user_rpesys_def rpessafe_res_empty)
 
 lemma rule_rpes1 : "\<lbrakk> \<Gamma>(r := R) \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P} (rs, pes) {Q} ; 
         disjoint (fvA R) (wrRPEsv (rs, pes)); r \<notin> set rs \<rbrakk> 
@@ -1218,14 +1129,36 @@ lemma rule_rpes1 : "\<lbrakk> \<Gamma>(r := R) \<turnstile>\<^sub>r\<^sub>p\<^su
   apply (drule_tac a = n and b = s and c = h1 in all3_impD, simp)
   by (simp add: rpessafe_res user_rpesysD)
 
+(*
 theorem rule_rpes : 
     "\<lbrakk>(update_list \<Gamma> \<G> rs) \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q} ;disjoint (fvA (Aistar (map \<G> rs))) (wrPEsv pes)
     ; distinct rs\<rbrakk>  \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P ** (Aistar (map \<G> rs))} (rs, pes) {Q ** (Aistar (map \<G> rs))}"
-  apply (induct rs arbitrary: \<Gamma>, simp add: pesCSL_def rpesCSL_def, clarsimp)
-  using rpessafe_post_Aemp rpessafe_res_empty user_rpesys_def apply auto[1]
-  apply (clarsimp, drule_tac a = "\<Gamma>(a := \<G> a)" in mall_impD, simp)
-  apply (drule rule_rpes1, simp_all)
-  by (simp add: rule_rpes_pre_post_comassoc)
+  apply (induct rs arbitrary: \<Gamma>, simp, rule_tac P = P and Q = Q in rule_rpes_equiv)
+  apply (simp add: rule_rpes_empty, simp add: assn_equiv_def, simp add: assn_equiv_def)
+  apply (drule_tac a = "\<Gamma>(a := \<G> a)" in mall_impD, clarsimp)
+  apply (rule_tac P = "(P ** Aistar (map \<G> rs)) ** \<G> a" and Q = "(Q ** Aistar (map \<G> rs)) ** \<G> a"
+  in rule_rpes_equiv, rule rule_rpes1, simp, simp add: wrREsv_def, simp)
+   apply (meson Aistar_equiv assn_equiv_symmetry) apply (meson Aistar_equiv assn_equiv_symmetry)
+  done
+*)
+
+theorem rule_rpes : 
+    "\<lbrakk>(update_list_env \<Gamma> upd) \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q} ;disjoint (fvA (Aistar (map snd upd))) (wrPEsv pes)
+    ; distinct (map fst upd)\<rbrakk>  \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P ** (Aistar (map snd upd))} ((map fst upd), pes) {Q ** (Aistar (map snd upd))}"
+  apply (induct upd arbitrary: \<Gamma>, simp, rule_tac P = P and Q = Q in rule_rpes_equiv)
+     apply (simp add: rule_rpes_empty, simp add: assn_equiv_def, simp add: assn_equiv_def)
+  apply (rule_tac P = "P ** Aistar (map snd upd) ** (snd a)" and Q = "Q ** Aistar (map snd upd) ** 
+  (snd a)" in rule_rpes_equiv)
+    apply (drule_tac a = "\<Gamma>(fst a := snd a)" in mallD, simp)
+    apply (rule rule_rpes1, simp_all)
+  using Astar_assoc_equiv Astar_assoc_equiv2 assn_equiv_symmetry assn_equiv_trans apply blast
+  using Astar_assoc_equiv Astar_assoc_equiv2 assn_equiv_trans by blast
+
+corollary rule_rpes' : "\<lbrakk>(update_list_env \<Gamma> upd) \<turnstile>\<^sub>p\<^sub>e\<^sub>s {Aemp} pes {Aemp} ;disjoint (fvA (Aistar (map snd upd))) (wrPEsv pes)
+    ; distinct rs; I \<equiv>\<^sub>S\<^sub>L Aistar (map snd upd); map fst upd = rs\<rbrakk>  \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {I} (rs, pes) {I}"
+  apply (drule rule_rpes, simp_all, rule_tac P = "Aemp ** Aistar (map snd upd)" and Q = "Aemp ** 
+  Aistar (map snd upd)" in rule_rpes_equiv)
+  by (simp_all add: assn_equiv_def)
 
 lemma rpessafe_frame:
  "\<lbrakk> rpessafe n rpes s h J Q; 
