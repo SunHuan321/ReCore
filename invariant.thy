@@ -161,10 +161,6 @@ definition inv_ready_aux :: "nat \<Rightarrow> assn"
   where "inv_ready_aux p = \<langle>[READY_LIST]\<^sub>v =\<^sub>b [p]\<^sub>n\<rangle>\<^sub>S\<^sub>L"
 
 (* resource invariant *)
-
-definition cur_node :: "nat \<Rightarrow> assn"
-  where "cur_node p =  ([A_Cur]\<^sub>v \<longmapsto> [p]\<^sub>n \<and>\<^sub>S\<^sub>L \<langle>[CUR_THREAD]\<^sub>v =\<^sub>b [p]\<^sub>n\<rangle>\<^sub>S\<^sub>L)"
-
 definition is_cur :: "nat \<Rightarrow> tcb \<Rightarrow> assn"
   where "is_cur p t = ((thread_node p t) \<and>\<^sub>S\<^sub>L (inv_is_running t))"
 
@@ -178,9 +174,6 @@ definition inv_cur :: "assn"
 lemma "(is_cur p t \<and>\<^sub>S\<^sub>L \<langle>[p = NULL]\<^sub>b\<rangle>\<^sub>S\<^sub>L) \<equiv>\<^sub>S\<^sub>L \<langle>[False]\<^sub>b\<rangle>\<^sub>S\<^sub>L "
   apply (case_tac p, simp add: is_cur_def assn_equiv_def)
   by (simp add: assn_equiv_def)
-
-definition ready_node :: "nat \<Rightarrow> assn"
-  where "ready_node r =  ([A_Readyq]\<^sub>v \<longmapsto> [r]\<^sub>n \<and>\<^sub>S\<^sub>L \<langle>[READY_LIST]\<^sub>v =\<^sub>b [r]\<^sub>n\<rangle>\<^sub>S\<^sub>L)"
 
 definition is_readyq :: "nat  \<Rightarrow> tcbs \<Rightarrow> assn"
   where "is_readyq r xs = ((thread_sl r xs) \<and>\<^sub>S\<^sub>L (inv_all_ready xs))"

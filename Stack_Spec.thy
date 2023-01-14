@@ -227,7 +227,7 @@ abbreviation "scheduler \<equiv>
         IF [sched \<diamondop> FIRST_READY]\<^sub>v =\<^sub>b [NULL]\<^sub>n  THEN
           Cskip
         ELSE
-        sched \<diamondop> SECOND_READY :=\<^sub>C \<lbrakk>[sched \<diamondop> FIRST_READY]\<^sub>v\<Down>\<^sub>tnext\<rbrakk> ;;
+          sched \<diamondop> SECOND_READY :=\<^sub>C \<lbrakk>[sched \<diamondop> FIRST_READY]\<^sub>v\<Down>\<^sub>tnext\<rbrakk> ;;
           WITH Cur WHEN [True]\<^sub>b DO
             sched \<diamondop> CUR_RUNNING :=\<^sub>C \<lbrakk>[A_Cur]\<^sub>v\<rbrakk> ;;
             IF [sched \<diamondop> CUR_RUNNING]\<^sub>v =\<^sub>b [NULL]\<^sub>n THEN

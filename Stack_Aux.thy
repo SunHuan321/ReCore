@@ -81,10 +81,10 @@ lemma fvA_thread_wait_sl : "fvA (thread_wait_sl p xs) = {}"
   by (simp add: fvA_thread_wait_sl_nonempty)
 
 lemma fvA_inv_cur : "fvA inv_cur = {A_Cur}"
-  by (simp add: inv_cur_def inv_cur1_def fvA_is_cur cur_node_def insert_commute)
+  by (simp add: inv_cur_def inv_cur1_def fvA_is_cur  insert_commute)
 
 lemma fvA_inv_readyq : "fvA inv_readyq = {A_Readyq}"
-  by (simp add: inv_readyq_def inv_readyq1_def fvA_is_readyq ready_node_def insert_commute)
+  by (simp add: inv_readyq_def inv_readyq1_def fvA_is_readyq  insert_commute)
 
 
 lemma fvA_is_stack : "fvA (is_stack s st) = {}"
