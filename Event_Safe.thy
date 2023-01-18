@@ -206,11 +206,11 @@ lemma resafe_conseq : "\<lbrakk> resafe n re s h \<Gamma> Q; Q \<sqsubseteq> Q'\
     apply (induct n arbitrary: re s h, simp)
   apply (clarsimp, simp add : implies_def)
   apply (clarify, erule rered.cases, simp_all, clarsimp)
-   apply (drule_tac a = "hJ" and b = "hF" and c = "rs" and d = "AnonyEvent C'" 
-          and e = "ad" and f = "bd" in all6_impD)
+   apply (drule_tac a = "hJ" and b = "hF" and c = "a" and d = "AnonyEvent C'" 
+          and e = "ad" and f = "bc" in all6_impD)
   apply (simp add: rered.red_AnonyEvt)
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-  apply (drule_tac a = "hJ" and b = "hF" and c = "rs" and d = "AnonyEvent C" 
+  apply (drule_tac a = "hJ" and b = "hF" and c = "a" and d = "AnonyEvent C" 
          and e = "s" and f = "h ++ hJ ++ hF" in all6_impD)
   using rered.red_BasicEvt apply blast
   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
@@ -634,16 +634,16 @@ lemma ressafe_conseq : "\<lbrakk> ressafe n res s h \<Gamma> Q; Q \<sqsubseteq> 
   apply (induct n arbitrary: res s h, simp)
   apply (clarsimp, simp add : implies_def)
   apply (erule resred.cases, simp_all, clarify)
-    apply (drule_tac a = "hJ" and b = "hF" and c = "rs" and d = "EvtSeq (ae, be) res" 
-          and e = "af" and f = "bf" in all6_impD)
+    apply (drule_tac a = "hJ" and b = "hF" and c = "a" and d = "EvtSeq (ae, bd) res" 
+          and e = "af" and f = "be" in all6_impD)
      apply (simp add: resred.red_EvtSeq1)
     apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-   apply (clarsimp, drule_tac a = "hJ" and b = "hF" and c = "rs" 
-          and d = "res" and e = "ad" and f = "h ++ hJ ++ hF" in all6_impD)
+   apply (clarsimp, drule_tac a = "hJ" and b = "hF" and c = "a" 
+         and d = "ba"  and e = "ad" and f = "h ++ hJ ++ hF" in all6_impD)
     apply (simp add: resred.red_EvtSeq2)
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp, clarsimp)
-  apply ( drule_tac a = "hJ" and b = "hF" and c = "rs" and 
-        d = "EvtSeq (ae, be)(EvtSys revts)" and e = "af" and f = "bf" in all6_impD)
+  apply ( drule_tac a = "hJ" and b = "hF" and c = "a" and d = "EvtSeq (ae, bd) (EvtSys revts)" and  
+          e = "af" and f = "be" in all6_impD)
    apply (simp add: resred.red_EvtSet)
   apply (simp add: resllocked_def, clarify, rule_tac x = "h'" in exI, simp)
   done
@@ -1026,8 +1026,7 @@ lemma rpessafe_conseq : "\<lbrakk> rpessafe n (rs, pes) s h \<Gamma> Q; Q \<sqsu
     apply (induct n arbitrary: pes s h, simp)
   apply (clarsimp, simp add : implies_def)
   apply (erule rpesred.cases, simp_all, clarsimp)
-  apply (drule_tac a = "hJ" and b = "hF" and  c = "rs" and 
-          d = "pesa[k := (ad, bd)]" and e = "ae" and f = "be" in all6_impD)
+  apply (drule  all6_impD)
   using rpesred.red_Par apply blast
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
   done

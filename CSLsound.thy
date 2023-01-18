@@ -2,16 +2,16 @@ theory CSLsound
 imports Main VHelper Lang
 begin
 
-text {* This file contains a soundness proof for CSL (with multiple resources)
+text \<open> This file contains a soundness proof for CSL (with multiple resources)
   as presented by O'Hearn and Brookes including the data-race freedom property
   of CSL.  For simplicity, there is a slight difference regarding variable
-  side-conditions: we do not allow resource-owned variables. *}
+  side-conditions: we do not allow resource-owned variables. \<close>
 
-text {* (Adapted to Isabelle 2016-1 by Qin Yu and James Brotherston) *}
+text \<open> (Adapted to Isabelle 2016-1 by Qin Yu and James Brotherston) \<close>
 
-subsection {* Separation logic assertions *}          
+subsection \<open> Separation logic assertions \<close>          
 
-text {* A deep embedding of separation logic assertions. *}
+text \<open> A deep embedding of separation logic assertions. \<close>
 
 type_synonym tcb = "nat \<times> nat  \<times> nat"
 type_synonym tcbs = "tcb list"
@@ -31,8 +31,8 @@ datatype assn =
   | Aexreadyq "(nat \<Rightarrow> tcbs \<Rightarrow> assn)"
   | Aexstack "(nat \<Rightarrow> stack_mem \<Rightarrow> assn)"
 
-text {* Separating conjunction of a finite list of assertions is 
-  just a derived assertion. *}
+text \<open> Separating conjunction of a finite list of assertions is 
+  just a derived assertion. \<close>
 
 primrec 
   Aistar :: "assn list \<Rightarrow> assn"
@@ -72,11 +72,11 @@ apply (induction l arbitrary: \<sigma>, auto)
 apply (intro exI conjI, (simp add: hsimps)+)+
 done
 
-subsubsection {* Precision *}
+subsubsection \<open> Precision \<close>
 
-text {* We say that an assertion is precise if for any given heap, there is at
+text \<open> We say that an assertion is precise if for any given heap, there is at
 most one subheap that satisfies the formula. (The formal definition below says 
-that if there are two such subheaps, they must be equal.) *}
+that if there are two such subheaps, they must be equal.) \<close>
 
 definition
   precise :: "assn \<Rightarrow> bool"
@@ -85,9 +85,9 @@ where
                    \<and> h1 ++ h2 = h1' ++ h2' \<and> (s, h1) \<Turnstile> P \<and> (s, h1') \<Turnstile> P 
                \<longrightarrow> h1 = h1'"
 
-text {* A direct consequence of the definition that is more useful in
+text \<open> A direct consequence of the definition that is more useful in
 Isabelle, because unfolding the definition slows down Isabelle's simplifier
-dramatically. *}
+dramatically. \<close>
 
 lemma preciseD:
   "\<lbrakk> precise P; (s, x) \<Turnstile> P; (s, x') \<Turnstile> P; x ++ y = x' ++ y'; 
@@ -97,7 +97,7 @@ unfolding precise_def
 by (drule all5_impD, (erule conjI)+, simp_all, rule map_add_cancel)
    (subst (1 2) map_add_comm, auto simp add: disjoint_def)
 
-text {* The separating conjunction of precise assertions is precise: *}
+text \<open> The separating conjunction of precise assertions is precise: \<close>
 
 lemma precise_istar:
   "\<forall>x \<in> set l. precise x \<Longrightarrow> precise (Aistar l)"
@@ -106,7 +106,7 @@ apply (clarsimp simp add: map_add_assoc [THEN sym])
 apply (drule (3) preciseD, simp_all, clarsimp?)+
 done
 
-subsubsection {* Auxiliary definition for resource environments *}
+subsubsection \<open> Auxiliary definition for resource environments \<close>
 
 definition
   envs :: "('a \<Rightarrow> assn) \<Rightarrow> 'a list \<Rightarrow> 'a list \<Rightarrow> assn"
@@ -141,7 +141,7 @@ lemma envs_app:
   "disjoint (set z) (set x) \<Longrightarrow> envs \<Gamma> (z @ x) (z @ y) = envs \<Gamma> x y"
 by (simp_all add: envs_def list_minus_appl list_minus_appr)
 
-subsubsection {* Free variables, substitutions *}
+subsubsection \<open> Free variables, substitutions \<close>
 
 primrec
   fvA :: "assn \<Rightarrow> var set"
@@ -186,7 +186,7 @@ lemma subA_assign:
 lemma fvA_istar[simp]: "fvA (Aistar Ps) = (\<Union>P \<in> set Ps. fvA P)"
 by (induct Ps, simp_all)
 
-text {* Proposition 4.2 for assertions *}
+text \<open> Proposition 4.2 for assertions \<close>
 
 lemma assn_agrees: "agrees (fvA P) s s' \<Longrightarrow> (s, h) \<Turnstile> P \<longleftrightarrow> (s', h) \<Turnstile> P"
 apply (induct P arbitrary: h, simp_all add: bexp_agrees)
@@ -197,7 +197,7 @@ apply (clarsimp, (subst exp_agrees, simp_all)+ )
 apply (rule iff_exI, simp add: agrees_def) 
   by (meson UNIV_I imageI)
 
-text {* Corollaries of Proposition 4.2, useful for automation. *}
+text \<open> Corollaries of Proposition 4.2, useful for automation. \<close>
 
 lemma assns_agrees:
   "agrees (fvAs J) s s' \<Longrightarrow> (s, h) \<Turnstile> envs J l1 l2 \<longleftrightarrow> (s', h) \<Turnstile> envs J l1 l2"
@@ -217,22 +217,22 @@ corollary assns_agrees2[simp]:
   "x \<notin> fvAs J \<Longrightarrow> (s(x := v), h) \<Turnstile> envs J l l' \<longleftrightarrow> (s, h) \<Turnstile> envs J l l'"
 by (rule assns_agrees, simp add: agrees_def)
 
-subsection {* Meaning of CSL judgments *}
+subsection \<open> Meaning of CSL judgments \<close>
 
-text {* Definition 5.1: Configuration safety. *}
+text \<open> Definition 5.1: Configuration safety. \<close>
 
 primrec
   safe :: "nat \<Rightarrow> cmd \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> bool"
 where
   "safe 0       C s h \<Gamma> Q = True"
 | "safe (Suc n) C s h \<Gamma> Q = (
-(* Condition (i) *)
+
             (C = Cskip \<longrightarrow> (s, h) \<Turnstile> Q)
-(* Condition (ii) *)
+
           \<and> (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> aborts C (s, h ++ hF))
-(* Condition (iii) *)
+
           \<and> accesses C s \<subseteq> dom h
-(* Condition (iv) *)
+
           \<and> (\<forall>hJ hF C' \<sigma>'.
                   red C (s,h ++ hJ ++ hF) C' \<sigma>'
                  \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (llocked C') (llocked C)
@@ -243,7 +243,7 @@ where
                        \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (llocked C) (llocked C')
                        \<and> safe n C' (fst \<sigma>') h' \<Gamma> Q)))"
 
-text {* The predicate @{text "safe n C s h \<Gamma> Q"} says that the command @{text C} and the logical state
+text \<open> The predicate @{text "safe n C s h \<Gamma> Q"} says that the command @{text C} and the logical state
   @{text "(s, h)"} are safe with respect to the resource environment @{text \<Gamma>} and the 
   postcondition @{text Q} for @{text n} execution steps. 
   Intuitively, any configuration is safe for zero steps.
@@ -252,9 +252,9 @@ text {* The predicate @{text "safe n C s h \<Gamma> Q"} says that the command @{
   (ii) not abort, 
   (iii) access memory only inside its footprint, and 
   (iv) after any step it does, re-establish the resource invariant and be safe for 
-  another @{text n} steps. *}
+  another @{text n} steps. \<close>
 
-text {* Definition 5.2: The meaning of CSL judgements. *}
+text \<open> Definition 5.2: The meaning of CSL judgements. \<close>
 
 definition
   CSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> cmd \<Rightarrow> assn \<Rightarrow> bool"
@@ -262,9 +262,9 @@ definition
 where
   "\<Gamma> \<turnstile> {P} C {Q} \<equiv> (user_cmd C \<and> (\<forall>n s h. (s, h) \<Turnstile> P \<longrightarrow> safe n C s h \<Gamma> Q))" 
 
-subsubsection {* Basic properties of Definition 5.1 *}
+subsubsection \<open> Basic properties of Definition 5.1 \<close>
 
-text {* Proposition 4.3: Monotonicity with respect to the step number. *}
+text \<open> Proposition 4.3: Monotonicity with respect to the step number. \<close>
 lemma safe_mon:
   "\<lbrakk> safe n C s h J Q; m \<le> n \<rbrakk> \<Longrightarrow> safe m C s h J Q"
 apply (induct m arbitrary: C s n h l, simp) 
@@ -274,8 +274,8 @@ apply (drule all5D, drule (2) imp3D, simp, clarsimp)
 apply (rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
 done
 
-text {* Proposition 4.4: Safety depends only the free variables
-        of @{term "C"}, @{term "Q"}, and @{term "\<Gamma>"}. *}
+text \<open> Proposition 4.4: Safety depends only the free variables
+        of @{term "C"}, @{term "Q"}, and @{term "\<Gamma>"}. \<close>
                                                       
 lemma safe_agrees: 
   "\<lbrakk> safe n C s h \<Gamma> Q ; 
@@ -296,9 +296,9 @@ apply (erule (1) mall4_imp2D, simp add: agreesC)
 apply (drule red_properties, auto)
 done
 
-subsection {* Soundness of the proof rules *}
+subsection \<open> Soundness of the proof rules \<close>
 
-subsubsection {* Skip *}
+subsubsection \<open> Skip \<close>
 
 lemma safe_skip[intro!]:
   "(s,h) \<Turnstile> Q \<Longrightarrow> safe n Cskip s h J Q"
@@ -308,7 +308,7 @@ theorem rule_skip:
   "\<Gamma> \<turnstile> {P} Cskip {P}"
 by (auto simp add: CSL_def)
 
-subsubsection {* Parallel composition *}
+subsubsection \<open> Parallel composition \<close>
 
 lemma safe_par:
  "\<lbrakk> safe n C1 s h1 J Q1; safe n C2 s h2 J Q2;
@@ -365,7 +365,7 @@ theorem rule_par:
   \<Longrightarrow> \<Gamma> \<turnstile> {P1 ** P2} (Cpar C1 C2) {Q1 ** Q2}"
 by (auto simp add: CSL_def intro!: safe_par)
 
-subsubsection {* Resource declaration *}
+subsubsection \<open> Resource declaration \<close>
 
 lemma safe_resource:
  "\<lbrakk> safe n C s h (\<Gamma>(r := R)) Q; wf_cmd C; disjoint (fvA R) (wrC C) \<rbrakk> \<Longrightarrow>
@@ -425,10 +425,10 @@ theorem rule_resource:
 by (clarsimp simp add: CSL_def, drule (1) all3_impD)
    (auto simp add: locked_eq dest!: safe_resource)
 
-subsubsection {* Frame rule *}
+subsubsection \<open> Frame rule \<close>
 
-text {* The safety of the frame rule can be seen as a special case of the parallel composition
-  rule taking one thread to be the empty command. *}
+text \<open> The safety of the frame rule can be seen as a special case of the parallel composition
+  rule taking one thread to be the empty command. \<close>
 
 lemma safe_frame:
  "\<lbrakk> safe n C s h J Q; 
@@ -458,7 +458,7 @@ theorem rule_frame:
   \<Longrightarrow> \<Gamma> \<turnstile> {P ** R} C {Q ** R}"
 by (auto simp add: CSL_def intro: safe_frame)
 
-subsubsection {* Conditional critical regions *}
+subsubsection \<open> Conditional critical regions \<close>
 
 lemma safe_inwith:
   "\<lbrakk>safe n C s h \<Gamma> (Q ** \<Gamma> r); wf_cmd (Cinwith r C) \<rbrakk>
@@ -517,7 +517,7 @@ corollary rule_with':
    \<Longrightarrow> \<Gamma> \<turnstile> {P} Cwith r B C {Q}"
   by (simp add: rule_with1)
 
-subsubsection {* Sequential composition *}
+subsubsection \<open> Sequential composition \<close>
 
 lemma safe_seq:
  "\<lbrakk> safe n C s h J Q; user_cmd C2;
@@ -538,7 +538,7 @@ theorem rule_seq:
   "\<lbrakk> \<Gamma> \<turnstile> {P} C1 {Q} ; \<Gamma> \<turnstile> {Q} C2 {R} \<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile> {P} Cseq C1 C2 {R}"
 by (auto simp add: CSL_def intro!: safe_seq)
 
-subsubsection {* Conditionals (if-then-else) *}
+subsubsection \<open> Conditionals (if-then-else) \<close>
 
 theorem rule_if:
   "\<lbrakk> \<Gamma> \<turnstile> {Aconj P (Apure B)} C1 {Q} ; 
@@ -552,7 +552,7 @@ apply (erule red.cases, simp_all)
 apply (clarsimp, intro exI, (rule conjI, simp)+, simp)+
 done
 
-subsubsection {* While *}
+subsubsection \<open> While \<close>
 
 lemma safe_while:
   "\<lbrakk> \<Gamma> \<turnstile> {Aconj P (Apure B)} C {P} ; (s, h) \<Turnstile> P \<rbrakk>
@@ -576,7 +576,7 @@ theorem rule_while:
   \<Longrightarrow> \<Gamma> \<turnstile> {P} Cwhile B C {Aconj P (Apure (Bnot B))}"
 by (auto simp add: CSL_def intro: safe_while)
 
-subsubsection {* Local variable declaration *}
+subsubsection \<open> Local variable declaration \<close>
 
 lemma safe_inlocal:
   "\<lbrakk> safe n C (s(x:=v)) h \<Gamma> Q ; x \<notin> fvA Q \<union> fvAs \<Gamma> \<rbrakk>
@@ -600,7 +600,7 @@ apply (elim conjE, erule red.cases, simp_all, clarsimp)
 apply (intro exI conjI, simp_all, rule safe_inlocal, simp_all)
 done
 
-subsubsection {* Basic commands (Assign, Read, Write, Alloc, Free) *}
+subsubsection \<open> Basic commands (Assign, Read, Write, Alloc, Free) \<close>
 
 theorem rule_assign:
   "x \<notin> fvAs \<Gamma> \<Longrightarrow> \<Gamma> \<turnstile> {subA x E Q} Cassign x E {Q}"
@@ -618,8 +618,8 @@ theorem rule_read:
 apply (clarsimp simp add: CSL_def)
 apply (case_tac n, simp, clarsimp)
 apply (rule conjI)
- apply (clarsimp, erule aborts.cases, simp_all, clarsimp simp add: dom_def)
-apply (clarify, erule red.cases, simp_all, elim exE conjE, hypsubst)
+   apply (clarsimp, erule aborts.cases, simp_all, clarsimp simp add: dom_def)
+  apply (clarify, erule red.cases, simp_all)
 apply (rule_tac x="h" in exI, rule_tac x="hJ" in exI, clarsimp)
 apply (simp add: disjoint_def, clarsimp, elim disjE, clarsimp+)
 done
@@ -631,11 +631,11 @@ apply (case_tac n, simp, clarsimp)
 apply (rule conjI)
  apply (clarsimp, erule aborts.cases, simp_all, clarsimp simp add: dom_def)
 apply (clarify, erule red.cases, simp_all, clarsimp)
-apply (rule_tac x="h(edenot E sa \<mapsto> edenot E' sa)" in exI, rule_tac x="hJ" in exI, simp)
+apply (rule_tac x="h(edenot E a \<mapsto> edenot E' a)" in exI, rule_tac x="hJ" in exI, simp)
 apply (rule conjI [rotated], clarsimp) 
 apply (subst map_add_assoc [THEN sym], subst map_add_commute, simp add: hsimps)
-apply (subst map_add_upd [THEN sym], simp add: hsimps del: map_add_upd)
-done
+  apply (subst map_add_upd [THEN sym], simp add: hsimps del: map_add_upd)
+  done
 
 theorem rule_alloc:
   "\<lbrakk> x \<notin> fvE E \<union> fvAs \<Gamma> \<rbrakk>
@@ -646,7 +646,6 @@ apply (rule conjI, clarsimp, erule aborts.cases, simp_all)
 apply (clarify)
 apply (erule red.cases, simp_all)
 apply (rule_tac x="Map.empty(v \<mapsto> edenot E s)" in exI, rule_tac x="hJ" in exI, simp)
-apply (elim conjE, hypsubst, simp, elim conjE)
 apply (clarsimp simp add: map_add_upd_left disjoint_def)
 done
 
@@ -657,11 +656,11 @@ apply (case_tac n, simp, clarsimp)
 apply (rule conjI)
  apply (clarsimp, erule aborts.cases, simp_all, clarsimp simp add: dom_def)
 apply (clarify, erule red.cases, simp_all, clarsimp)
-apply (rule_tac x="h(edenot E sa := None)" in exI, rule_tac x="hJ" in exI, simp)
-apply (clarsimp, rule ext, simp, clarify, erule dom_eqD, simp)
-done
+apply (rule_tac x="h(edenot E a := None)" in exI, rule_tac x="hJ" in exI, simp)
+  apply (clarsimp, rule ext, simp, clarify, erule dom_eqD, simp)
+  done
 
-subsubsection {* Simple structural rules (Conseq, Disj, Ex) *}
+subsubsection \<open> Simple structural rules (Conseq, Disj, Ex) \<close>
 
 lemma safe_conseq:
  "\<lbrakk> safe n C s h \<Gamma> Q ; Q \<sqsubseteq> Q' \<rbrakk> \<Longrightarrow> safe n C s h \<Gamma> Q'"
@@ -684,7 +683,7 @@ theorem rule_ex:
 by (clarsimp simp add: CSL_def, rule_tac Q = "Q v" in safe_conseq, 
     auto simp add: implies_def)
 
-subsubsection {* Conjunction rule *}
+subsubsection \<open> Conjunction rule \<close>
 
 lemma safe_conj:
   "\<lbrakk> safe n C s h \<Gamma> Q1; 
@@ -706,7 +705,7 @@ theorem rule_conj:
   \<Longrightarrow> \<Gamma> \<turnstile> {Aconj P1 P2} C {Aconj Q1 Q2}"
 by (auto simp add: CSL_def intro: safe_conj)
 
-subsubsection {* Auxiliary variables *}
+subsubsection \<open> Auxiliary variables \<close>
 
 lemma safe_aux:
   "\<lbrakk> safe n C s h \<Gamma> Q; disjoint X (fvC (rem_vars X C) \<union> fvA Q \<union> fvAs \<Gamma>) \<rbrakk>
@@ -724,9 +723,9 @@ apply (drule (1) mall3_imp2D, fast)
 apply (erule safe_agrees, fastforce simp add: disjoint_commute agreesC)
 done
 
-text {* The proof rule for eliminating auxiliary variables. Note that a
+text \<open> The proof rule for eliminating auxiliary variables. Note that a
   set of variables, @{term X}, is auxiliary for a command @{term C}
-  iff it disjoint from @{term "fvC (rem_vars X C)"}. *}
+  iff it disjoint from @{term "fvC (rem_vars X C)"}. \<close>
 
 theorem rule_aux:
   "\<lbrakk> \<Gamma> \<turnstile> {P} C {Q} ;
@@ -735,23 +734,23 @@ theorem rule_aux:
 by (auto simp add: CSL_def safe_aux disjoint_commute)
 
 
-subsection {* Alternative definition of configuration safety *}
+subsection \<open> Alternative definition of configuration safety \<close>
 
-text {* Here is an alternative definition of safety monotonicity that does not 
-  quantify over the frame @{term hF}. *}
+text \<open> Here is an alternative definition of safety monotonicity that does not 
+  quantify over the frame @{term hF}. \<close>
 
 primrec
   safe_weak :: "nat \<Rightarrow> cmd \<Rightarrow> stack \<Rightarrow> heap \<Rightarrow> (rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> bool"
 where
   "safe_weak 0       C s h \<Gamma> Q = True"
 | "safe_weak (Suc n) C s h \<Gamma> Q = (
-(* Condition (i) *)
+
             (C = Cskip \<longrightarrow> (s, h) \<Turnstile> Q)
-(* Condition (ii) *)
+
           \<and> \<not> aborts C (s, h)
-(* Condition (iii) *)
+
           \<and> accesses C s \<subseteq> dom h
-(* Condition (iv) *)
+
           \<and> (\<forall>hJ C' \<sigma>'.
                   red C (s,h ++ hJ) C' \<sigma>'
                  \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (llocked C') (llocked C)
@@ -762,8 +761,8 @@ where
                        \<and> (fst \<sigma>', hJ') \<Turnstile> envs \<Gamma> (llocked C) (llocked C')
                        \<and> safe_weak n C' (fst \<sigma>') h' \<Gamma> Q)))"
 
-text {* It is easy to show that the alternative definition is weaker
-  than the one with the quantification: *}
+text \<open> It is easy to show that the alternative definition is weaker
+  than the one with the quantification: \<close>
 
 lemma safe_weakI:
   "safe n C s h \<Gamma> Q \<Longrightarrow> safe_weak n C s h \<Gamma> Q"
@@ -774,14 +773,14 @@ lemma safe_weakI:
   by (metis disjoint_simps(2) dom_empty map_add_empty)
 
 
-text {* If, however, the operational semantics satisfies the safety
+text \<open> If, however, the operational semantics satisfies the safety
 monotonicity and frame properties (which it does), then the two
 definitions are equivalent.  We first prove that the operational
 semantics satisfies these two properties, and then using these
 properties, we show that the alternative definition of configuration
-safety implies the original one. *}
+safety implies the original one. \<close>
 
-text {* [A] Safety monotonicity: *}
+text \<open> [A] Safety monotonicity: \<close>
 
 lemma safety_monotonicity_helper[rule_format]: 
   "aborts C \<sigma>  \<Longrightarrow> \<forall>s h hF. \<sigma> = (s, h ++ hF) \<longrightarrow> disjoint (dom h) (dom hF) \<longrightarrow> aborts C (s, h)"
@@ -791,7 +790,7 @@ lemma safety_monotonicity:
   "\<lbrakk> aborts C (s, h ++ hF); disjoint (dom h) (dom hF) \<rbrakk> \<Longrightarrow> aborts C (s, h)"
 by (erule safety_monotonicity_helper, simp_all)
 
-text {* [B] Frame property: *}
+text \<open> [B] Frame property: \<close>
 
 lemma frame_property_helper[rule_format]: 
   "red C \<sigma>  C' \<sigma>' \<Longrightarrow> \<forall>s h hF s' h''. \<sigma> = (s, h ++ hF) \<longrightarrow> \<sigma>' = (s', h'')
@@ -829,8 +828,8 @@ lemma frame_property:
   \<Longrightarrow> \<exists>h'. red C (s, h) C' (s', h') \<and> h'' = h' ++ hF \<and> disjoint (dom h') (dom hF)"
 by (erule frame_property_helper, simp_all)
 
-text {* Finally, using safety monotonicity and the frame property, we conclude that
-  @{term "safe_weak n C s h \<Gamma> Q"} implies @{term "safe n C s h \<Gamma> Q"}. *}
+text \<open> Finally, using safety monotonicity and the frame property, we conclude that
+  @{term "safe_weak n C s h \<Gamma> Q"} implies @{term "safe n C s h \<Gamma> Q"}. \<close>
 
 lemma safe_weakE:
   "safe_weak n C s h \<Gamma> Q \<Longrightarrow> safe n C s h \<Gamma> Q"

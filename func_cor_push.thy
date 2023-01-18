@@ -358,8 +358,8 @@ lemma p12_post_frame_equiv : "\<lbrakk>stack_next st \<noteq> stack_top st; stac
       (st :=\<^sub>n\<^sub>e (stack_next st + 1) :=\<^sub>b\<^sub>f ((stack_buf st)[(stack_next st -stack_base st) := data]))"
   apply (simp add: inv_stack1_def p12_post_noframe_def p11_frame_def)
   apply (rule_tac Q = "[A_Stack]\<^sub>v \<longmapsto> [s]\<^sub>n ** (stack_node s (st :=\<^sub>n\<^sub>e stack_next st + 1) ** is_waitq 
-  (stack_wait st) (stack_tcbs st) ** buf (stack_base st) (stack_top st) (stack_buf st[stack_next st 
-  - stack_base st := data]) \<and>\<^sub>S\<^sub>L inv_stack_buf_waitq st \<and>\<^sub>S\<^sub>L inv_stack_pt st)" in assn_equiv_trans)
+  (stack_wait st) (stack_tcbs st) **  buf (stack_base st) (stack_top st) ((stack_buf st)[stack_next st - stack_base st := data]) 
+  \<and>\<^sub>S\<^sub>L inv_stack_buf_waitq st \<and>\<^sub>S\<^sub>L inv_stack_pt st)" in assn_equiv_trans)
    apply (simp add: inv_stack_buf_waitq_def inv_stack_pt_def p12_post_equiv_aux)
   apply (rule assn_equiv_cong_star, simp add: assn_equiv_reflex, simp add: is_stack_def)
   apply (rule assn_equiv_cong_conj, intro assn_equiv_cong_star)

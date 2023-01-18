@@ -1,10 +1,10 @@
 theory LRGSound
   imports Lang
-begin
+begin       
 
-subsection {* state definition *}
+subsection \<open>state definition \<close>
 
-subsection {* LRG assertions *}
+subsection \<open> LRG assertions \<close>
 datatype lrg_assn = 
       Apure bexp
     | emp\<^sub>h

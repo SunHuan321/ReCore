@@ -2,16 +2,16 @@ theory Lang
 imports Main VHelper
 begin
 
-text {* This file defines the syntax and semantics of the programming language
+text \<open> This file defines the syntax and semantics of the programming language
   used by O'Hearn and Brookes. For simplicity, we do not allow resource-owned
-  variables. *}
+  variables. \<close>
 
-text {* (Adapted to Isabelle 2016-1 by Qin Yu and James Brotherston) *}
+text \<open> (Adapted to Isabelle 2016-1 by Qin Yu and James Brotherston) \<close>
 
-subsection {* Language syntax and semantics *}
+subsection \<open> Language syntax and semantics \<close>
 
-text {* We define the syntax and the operational semantics of the programming 
-language of O'Hearn and Brookes. *}
+text \<open> We define the syntax and the operational semantics of the programming 
+language of O'Hearn and Brookes. \<close>
 
 type_synonym  var   = string                (*r Variables *)
 type_synonym  rname = string                (*r Resource names *)
@@ -51,7 +51,7 @@ datatype cmd =                          (*r Commands *)
   | Cwith     rname bexp cmd            (*r Conditional critical region *)
   | Cinwith   rname cmd                 (*r Conditional critical region (runtime) *)
 
-text {* Arithmetic expressions (@{text exp}) consist of variables, constants, and
+text \<open> Arithmetic expressions (@{text exp}) consist of variables, constants, and
 arithmetic operations. Boolean expressions (@{text bexp}) consist of comparisons
 between arithmetic expressions.  Commands (@{text cmd}) include the empty command,
 variable assignments, memory reads, writes, allocations and deallocations,
@@ -59,7 +59,7 @@ sequential and parallel composition, conditionals, while loops, local variable
 declarations, resource declarations and conditional critical regions (CCRs).
 There are two command forms (@{text Cinlocal}, @{text Cinwith}) that represent 
 partially executed local variable declarations and CCRs and do not appear
-in user programs. This restriction is captured by the following definition: *}
+in user programs. This restriction is captured by the following definition: \<close>
 
 primrec 
   user_cmd :: "cmd \<Rightarrow> bool"
@@ -81,8 +81,8 @@ where
   | "user_cmd (Cwith r B C)    = user_cmd C"
   | "user_cmd (Cinwith r C)    = False"
 
-text {* The following function returns the set of locks that a command is
-currently holding. *} 
+text \<open> The following function returns the set of locks that a command is
+currently holding. \<close> 
 
 primrec 
   locked :: "cmd \<Rightarrow> rname set"
@@ -104,9 +104,9 @@ where
   | "locked (Cwith r B C)    = {}"
   | "locked (Cinwith r C)    = ({r} \<union> locked C)"
 
-text {* Now the same definition, but return a list of locks that the
+text \<open> Now the same definition, but return a list of locks that the
   command is currently holding in some fixed order. This defnition 
-  is needed to work around the deep embedding of assertions. *}
+  is needed to work around the deep embedding of assertions. \<close>
 
 primrec 
   llocked :: "cmd \<Rightarrow> rname list"
@@ -131,9 +131,9 @@ where
 lemma locked_eq: "locked C = set (llocked C)"
 by (induct C, simp_all)
 
-subsubsection {* Semantics of expressions *}
+subsubsection \<open> Semantics of expressions \<close>
 
-text {* Denotational semantics for arithmetic and boolean expressions. *}
+text \<open> Denotational semantics for arithmetic and boolean expressions. \<close>
 
 primrec
   edenot :: "exp \<Rightarrow> stack \<Rightarrow> nat"     
@@ -152,16 +152,16 @@ where
   | "bdenot (Bbool b) s     =  b"
   | "bdenot (BGt e1 e2) s     =  (edenot e1 s > edenot e2 s)"
 
-subsubsection {* Semantics of commands *}
+subsubsection \<open> Semantics of commands \<close>
 
-text {* We give a standard small-step operational semantics to commands
-  with configurations being command-state pairs. *}
+text \<open> We give a standard small-step operational semantics to commands
+  with configurations being command-state pairs. \<close>
 
-text {*
+text \<open>
   For illustration purposes, our semantics for @{term "Cwrite E E'"} is unusual
   in that if @{term "E"} is not allocated, then the command will allocate @{term "E"}
   and do the assignment.  Requiring that @{term "(edenot E s) \<in> dom h"} does 
-  not change the proof. *}
+  not change the proof. \<close>
 
 inductive
   red :: "cmd \<Rightarrow> state \<Rightarrow> cmd \<Rightarrow> state \<Rightarrow> bool"
@@ -186,18 +186,18 @@ where
 | red_With3[intro]: "red (Cinwith r Cskip) \<sigma> Cskip \<sigma>"
 | red_Assign[intro]:"\<lbrakk> \<sigma> = (s,h); \<sigma>' = (s(x := edenot E s), h) \<rbrakk> \<Longrightarrow> red (Cassign x E) \<sigma> Cskip \<sigma>'"
 | red_Read[intro]:  "\<lbrakk> \<sigma> = (s,h); h(edenot E s) = Some v; \<sigma>' = (s(x := v), h) \<rbrakk> \<Longrightarrow> red (Cread x E) \<sigma> Cskip \<sigma>'"
-| red_Write[intro]: "\<lbrakk> \<sigma> = (s,h); (*(edenot E s) \<in> dom h;*) \<sigma>' = (s, h(edenot E s \<mapsto> edenot E' s)) \<rbrakk>  \<Longrightarrow> red (Cwrite E E') \<sigma> Cskip \<sigma>'"
+| red_Write[intro]: "\<lbrakk> \<sigma> = (s,h); \<sigma>' = (s, h(edenot E s \<mapsto> edenot E' s)) \<rbrakk>  \<Longrightarrow> red (Cwrite E E') \<sigma> Cskip \<sigma>'"
 | red_Alloc[intro]: "\<lbrakk> \<sigma> = (s,h); v \<notin> dom h; \<sigma>' = (s(x := v), h(v \<mapsto> edenot E s)) \<rbrakk>  \<Longrightarrow> red (Calloc x E) \<sigma> Cskip \<sigma>'"
 | red_Free[intro]:  "\<lbrakk> \<sigma> = (s,h); \<sigma>' = (s, h(edenot E s := None)) \<rbrakk> \<Longrightarrow> red (Cdispose E) \<sigma> Cskip \<sigma>'"
 
 inductive_cases red_par_cases: "red (Cpar C1 C2) \<sigma> C' \<sigma>'"
 
-subsubsection {* Abort semantics *}
+subsubsection \<open> Abort semantics \<close>
 
-text {* Below, we define the sets of memory accesses and memory writes
+text \<open> Below, we define the sets of memory accesses and memory writes
   that a command performs in one step. These are used to define what a
   race condition is.  We do not count memory allocation as a memory
-  access because the memory cell allocated is fresh. *}
+  access because the memory cell allocated is fresh. \<close>
 
 primrec
   accesses :: "cmd \<Rightarrow> stack \<Rightarrow> nat set"
@@ -239,10 +239,10 @@ where
   | "writes (Cwith r B C)    s = {}"
   | "writes (Cinwith r C)    s = writes C s"
 
-text {* A command aborts in a given state whenever it can access
+text \<open> A command aborts in a given state whenever it can access
   unallocated memory or has a race condition in its first execution
   step. The soundness statement of the logic asserts that these
-  transitions never occur. *}
+  transitions never occur. \<close>
 
 inductive
   aborts :: "cmd \<Rightarrow> state \<Rightarrow> bool"
@@ -260,12 +260,12 @@ where
 | aborts_Write[intro]: "edenot E (fst \<sigma>) \<notin> dom (snd \<sigma>) \<Longrightarrow> aborts (Cwrite E E') \<sigma>"
 | aborts_Free[intro]:  "edenot E (fst \<sigma>) \<notin> dom (snd \<sigma>) \<Longrightarrow> aborts (Cdispose E) \<sigma>"
 
-subsubsection {* Well-formed commands *}
+subsubsection \<open> Well-formed commands \<close>
 
-text {* Well-formed commands are those that can arise from a user
+text \<open> Well-formed commands are those that can arise from a user
 command by a reduction sequence.  In particular, they can have
 partially executed CCRs only at reduction positions and their
-partially executed CCRs must satisfy mutual exclusion.  *}
+partially executed CCRs must satisfy mutual exclusion.  \<close>
 
 primrec 
   wf_cmd :: "cmd \<Rightarrow> bool"
@@ -287,9 +287,9 @@ where
   | "wf_cmd (Cwith r B C)   = (user_cmd C)"
   | "wf_cmd (Cinwith r C)   = (wf_cmd C \<and> r \<notin> locked C)"
 
-text {* Now, we establish some basic properties of well-formed commands: *}
+text \<open> Now, we establish some basic properties of well-formed commands: \<close>
 
-text {* (1) User commands are well-formed and have no locks acquired. *}
+text \<open> (1) User commands are well-formed and have no locks acquired. \<close>
 
 lemma user_cmdD:
   "user_cmd C \<Longrightarrow> (wf_cmd C \<and> locked C = {})"
@@ -303,21 +303,21 @@ corollary user_cmd_llocked[simp]:
   "user_cmd C \<Longrightarrow> llocked C = []"
 by (drule user_cmdD, simp add: locked_eq)
 
-text {* (2) Well-formedness is preserved under reduction. *}
+text \<open> (2) Well-formedness is preserved under reduction. \<close>
 
 lemma red_wf_cmd:
   "\<lbrakk> red C \<sigma> C' \<sigma>' ; wf_cmd C\<rbrakk> \<Longrightarrow> wf_cmd C'"
 by (subgoal_tac "wf_cmd C \<longrightarrow> wf_cmd C'", erule_tac[2] red.induct, auto dest: user_cmdD)
 
-text {* (3) Well-formed commands satisfy mutual-exclusion. *}
+text \<open> (3) Well-formed commands satisfy mutual-exclusion. \<close>
 
 lemma wf_cmd_distinct_locked: "wf_cmd C \<Longrightarrow> distinct (llocked C)"
   by (induct C, auto simp add: distinct_removeAll locked_eq disjoint_def distinct_list_minus)
 
-subsection {* Free variables, updated variables and substitutions *}
+subsection \<open> Free variables, updated variables and substitutions \<close>
 
-text {* The free variables of expressions, boolean expressions, and
-commands are defined as expected: *}
+text \<open> The free variables of expressions, boolean expressions, and
+commands are defined as expected: \<close>
 
 primrec
   fvE :: "exp \<Rightarrow> var set"
@@ -356,9 +356,9 @@ where
 | "fvC (Cwith r B C)   = (fvB B \<union> fvC C)"
 | "fvC (Cinwith r C)   = (fvC C)"
 
-text {* Below, we define the set of syntactically updated variables 
+text \<open> Below, we define the set of syntactically updated variables 
   of a command. This set overapproximates the set of variables that
-  are actually updated during the command's execution. *}
+  are actually updated during the command's execution. \<close>
 
 primrec
   wrC :: "cmd \<Rightarrow> var set"
@@ -380,8 +380,8 @@ where
 | "wrC (Cwith r B C)   = (wrC C)"
 | "wrC (Cinwith r C)   = (wrC C)"
 
-text {* We also define the operation of substituting an expression for
-a variable in expressions. *}
+text \<open> We also define the operation of substituting an expression for
+a variable in expressions. \<close>
 
 primrec
   subE :: "var \<Rightarrow> exp \<Rightarrow> exp \<Rightarrow> exp"
@@ -400,7 +400,7 @@ where
 | "subB x E (Bbool b)    = Bbool b"
 | "subB x E (BGt e1 e2)  = BGt (subE x E e1) (subE x E e2)"
 
-text {* Basic properties of substitutions: *}
+text \<open> Basic properties of substitutions: \<close>
 
 lemma subE_assign:
  "edenot (subE x E e) s = edenot e (s(x := edenot E s))"
@@ -410,10 +410,10 @@ lemma subB_assign:
  "bdenot (subB x E b) s = bdenot b (s(x := edenot E s))"
 by (induct b, simp_all add: subE_assign fun_upd_def)
 
-subsection {* Variable erasure *}
+subsection \<open> Variable erasure \<close>
 
-text {* The following function erases all assignments and reads to
-  variables in the set @{term X}. *}
+text \<open> The following function erases all assignments and reads to
+  variables in the set @{term X}. \<close>
 
 primrec 
   rem_vars :: "var set \<Rightarrow> cmd \<Rightarrow> cmd"
@@ -435,7 +435,7 @@ where
   | "rem_vars X (Cwith r B C) = Cwith r B (rem_vars X C)"
   | "rem_vars X (Cinwith r C) = Cinwith r (rem_vars X C)"
 
-text {* Properties of variable erasure: *}
+text \<open> Properties of variable erasure: \<close>
 
 lemma remvars_simps[simp]:
   "locked (rem_vars X C) = locked C"
@@ -465,11 +465,11 @@ by (auto simp add: disjoint_def)
 lemma aux_red[rule_format]:
   "red C \<sigma> C' \<sigma>' \<Longrightarrow> \<forall>X C1. C = rem_vars X C1 \<longrightarrow> disjoint X (fvC C) \<longrightarrow> \<not> aborts C1 \<sigma> \<longrightarrow>
    (\<exists>C2 s2. red C1 \<sigma> C2 (s2,snd \<sigma>') \<and> rem_vars X C2 = C' \<and> agrees (-X) (fst \<sigma>') s2)"
-apply (erule_tac red.induct, simp_all, tactic {* ALLGOALS (clarify_tac @{context}) *})
+apply (erule_tac red.induct, simp_all, tactic \<open> ALLGOALS (clarify_tac @{context}) \<close>)
 apply (case_tac C1, simp_all split: if_split_asm, (fastforce simp add: agrees_def)+)
 apply (case_tac[1-5] C1a, simp_all split: if_split_asm, (fastforce intro: agrees_refl)+)
 apply (case_tac[!] C1, simp_all split: if_split_asm)
-apply (tactic {* TRYALL (clarify_tac @{context}) *}, simp_all add: disjoint_minus [THEN sym])
+apply (tactic \<open> TRYALL (clarify_tac @{context}) \<close>, simp_all add: disjoint_minus [THEN sym])
 apply (fastforce simp add: agrees_def)+
 apply (intro exI conjI, rule_tac v=v in red_Alloc, (fastforce simp add: agrees_def)+)
 done
@@ -477,16 +477,16 @@ done
 lemma aborts_remvars:
   "aborts (rem_vars X C) \<sigma> \<Longrightarrow> aborts C \<sigma>"
 apply (induct C arbitrary: X \<sigma>, erule_tac[!] aborts.cases, simp_all split: if_split_asm)
-apply (tactic {* TRYALL (fast_tac @{context}) *})
+apply (tactic \<open> TRYALL (fast_tac @{context}) \<close>)
 apply (clarsimp, rule, erule contrapos_nn, simp, erule disjoint_search, rule accesses_remvars)+
 done
 
-subsection {* Basic properties of the semantics *}
+subsection \<open> Basic properties of the semantics \<close>
 
 lemma writes_accesses: "writes C s \<subseteq> accesses C s"
 by (induct C arbitrary: s, auto)
 
-text {* Proposition 4.1: Properties of basic properties of @{term red}. *}
+text \<open> Proposition 4.1: Properties of basic properties of @{term red}. \<close>
 
 lemma red_properties: 
   "red C \<sigma> C' \<sigma>' \<Longrightarrow> 
@@ -495,7 +495,7 @@ lemma red_properties:
    \<and> agrees (- wrC C) (fst \<sigma>') (fst \<sigma>)"
 by (erule red.induct, auto simp add: agrees_def)
 
-text {* Proposition 4.2: Semantics does not depend on variables not free in the term *}
+text \<open> Proposition 4.2: Semantics does not depend on variables not free in the term \<close>
 
 lemma exp_agrees: "agrees (fvE E) s s' \<Longrightarrow> edenot E s = edenot E s'"
   by (simp add: agrees_def, induct E, auto)
@@ -517,7 +517,7 @@ lemma red_agrees[rule_format]:
   "red C \<sigma> C' \<sigma>' \<Longrightarrow> \<forall>X s. agrees X (fst \<sigma>) s \<longrightarrow> snd \<sigma> = h \<longrightarrow> fvC C \<subseteq> X \<longrightarrow> 
    (\<exists>s' h'. red C (s, h) C' (s', h') \<and> agrees X (fst \<sigma>') s' \<and> snd \<sigma>' = h')"
 apply (erule red.induct, simp_all)
-apply (tactic {* TRYALL (fast_tac @{context}) *}, auto)
+apply (tactic \<open> TRYALL (fast_tac @{context}) \<close>, auto)
 apply (rule, rule conjI, rule red_If1, simp, subst bexp_agrees, fast+)
 apply (rule, rule conjI, rule red_If2, simp, subst bexp_agrees, fast+)
 apply (rule, rule conjI, rule, simp, subst exp_agrees, fast+)
@@ -543,7 +543,7 @@ lemma aborts_agrees[rule_format]:
 by (erule aborts.induct, simp_all, auto simp add: writes_agrees accesses_agrees exp_agrees, 
     auto simp add: agrees_def)
 
-text {* Corollaries of Proposition 4.2, useful for automation. *}
+text \<open> Corollaries of Proposition 4.2, useful for automation. \<close>
 
 corollary exp_agrees2[simp]:
   "x \<notin> fvE E \<Longrightarrow> edenot E (s(x := v)) = edenot E s"

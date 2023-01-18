@@ -370,7 +370,7 @@ lemma esaborts_agrees[rule_format] :
    apply (auto simp add: rewrites_agrees reaccesses_agrees exp_agrees, auto simp add: agrees_def)
    apply (simp add: aborts_EvtSeq agrees_def reaborts_agrees)
   apply (subgoal_tac "reaborts (a, b) (s', h')", simp add: aborts_EvtSys)
-  by (metis (mono_tags, hide_lams) agrees_def fst_conv fst_swap reaborts_agrees swap_simp)
+  by (metis (mono_tags, lifting) agrees_def fst_conv reaborts_agrees snd_conv)
 
 
 
@@ -608,7 +608,7 @@ lemma pesred_properties:
   apply (rule conjI, clarsimp)
    apply (metis (no_types, lifting) insertE nth_mem resred_properties 
         set_update_subset_insert subset_eq subset_iff, clarsimp)
-  by (metis (mono_tags, hide_lams) ComplI agrees_def fst_conv list_update_id 
+  by (metis (mono_tags, lifting) ComplI agrees_def fst_conv list_update_id 
             resred_properties set_update_memI)
 
 lemma pesaccesses_agrees:

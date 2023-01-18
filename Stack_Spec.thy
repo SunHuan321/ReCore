@@ -137,7 +137,6 @@ definition stack_push :: "tid  \<Rightarrow> nat \<Rightarrow> cmd"
         (t \<^enum> (t \<diamondop> RET) :=\<^sub>C [ENOMEM]\<^sub>n) ;;
         (t \<^enum> (t \<diamondop> END) :=\<^sub>C [1]\<^sub>n)
       ELSE
-        (* =========== z_unpend_first_thread ============= start*)
         (t \<^enum>  
            (
               (t \<diamondop> FIRST_PENDING_THREAD) :=\<^sub>C \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>swait\<rbrakk> ;;
@@ -149,12 +148,12 @@ definition stack_push :: "tid  \<Rightarrow> nat \<Rightarrow> cmd"
               FI
             )
         ) ;;
-        (* =========== z_unpend_first_thread ============= end*)
+        
         IF [t \<diamondop> FIRST_PENDING_THREAD]\<^sub>v =\<^sub>b [NULL]\<^sub>n THEN
           (t \<^enum> \<lbrakk>[t \<diamondop> NEXT]\<^sub>v\<rbrakk> :=\<^sub>C [data]\<^sub>n) ;;
           (t \<^enum>  \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>snext\<rbrakk> :=\<^sub>C [t \<diamondop> NEXT]\<^sub>v +\<^sub>e [1]\<^sub>n)
         ELSE
-        (* =========== z_ready_thread ============= start*)
+       
           (t \<^enum> 
             ( 
               \<lbrakk>[t \<diamondop> FIRST_PENDING_THREAD]\<^sub>v\<Down>\<^sub>tstate\<rbrakk> :=\<^sub>C [READY]\<^sub>n ;;
@@ -166,7 +165,7 @@ definition stack_push :: "tid  \<Rightarrow> nat \<Rightarrow> cmd"
               OD
             )
           ) 
-        (* =========== z_ready_thread ============= end*)
+        
         FI
        FI
     OD ;;
@@ -195,7 +194,7 @@ definition stack_pop :: "tid  \<Rightarrow> nat \<Rightarrow> cmd"
              (t \<^enum> (t \<diamondop> RET) :=\<^sub>C ([EBUSY]\<^sub>n)) ;;
              (t \<^enum> (t \<diamondop> END) :=\<^sub>C ([1]\<^sub>n)) 
            ELSE
-             (* ======= z_pend_curr ====== start*)
+            
              (t \<^enum> 
                 (
                   (t \<diamondop> FIRST_PENDING_THREAD) :=\<^sub>C \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>swait\<rbrakk> ;;                  
@@ -205,7 +204,7 @@ definition stack_pop :: "tid  \<Rightarrow> nat \<Rightarrow> cmd"
                   \<lbrakk>[A_Cur]\<^sub>v\<rbrakk> :=\<^sub>C [NULL]\<^sub>n 
                 )
               )
-             (* ======= z_pend_curr ====== end*) 
+            
            FI
         FI     
       OD;;

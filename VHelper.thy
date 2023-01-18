@@ -1,13 +1,12 @@
 theory VHelper imports Main begin
 
-section {* Viktor's basic lemmas *}
+section \<open> Viktor's basic lemmas \<close>
 
-text {* 
+text  \<open> 
   This section contains many trivial theorems mostly for doing
-  unification-based forward reasoning.
-*}
+  unification-based forward reasoning.\<close>
 
-text {* (Adapted to Isabelle 2016-1 by Qin Yu and James Brotherston) *}
+text  \<open>  (Adapted to Isabelle 2016-1 by Qin Yu and James Brotherston)\<close>
 
 lemma allD: " \<lbrakk> \<forall>a. P a \<rbrakk> \<Longrightarrow> P a" by (erule allE)+
 lemma all2D: " \<lbrakk> \<forall>a b. P a b \<rbrakk> \<Longrightarrow> P a b" by (erule allE)+
@@ -79,7 +78,7 @@ lemma all4_imp4D:  "\<lbrakk> \<forall>a b c d. P a b c d \<longrightarrow> Q a 
 lemma  mall5_imp4D: "\<lbrakk>\<And>a b c d e. PROP P a b c d e \<Longrightarrow> PROP Q a b c d e \<Longrightarrow> PROP R a b c d e 
                       \<Longrightarrow> PROP S a b c d e \<Longrightarrow> PROP T a b c d e;
                       PROP P a b c d e; PROP Q a b c d e; PROP R a b c d e; PROP S a b c d e \<rbrakk> \<Longrightarrow> PROP T a b c d e".
-text {* Every HOL type is inhabited. *}
+text \<open> Every HOL type is inhabited. \<close>
 
 definition 
   default_value :: "'a"
@@ -87,7 +86,7 @@ where
   "default_value \<equiv> \<some>x. True"
 
 
-subsubsection {* Formalization of disjointness *}
+subsubsection \<open> Formalization of disjointness \<close>
 
 definition disjoint :: "('a set) \<Rightarrow> ('a set) \<Rightarrow> bool" 
 where "disjoint h1 h2 = (h1 \<inter> h2 = {})"
@@ -140,7 +139,7 @@ by (rule ext, auto split: option.splits simp add: map_add_def)
 lemma disjoint_del[simp]: "disjoint {x} (dom f) \<Longrightarrow> f(x := None) = f"
 by (rule ext, auto simp add: disjoint_def)
 
-subsubsection {* Formalization of equality on subset of domain *}
+subsubsection \<open> Formalization of equality on subset of domain \<close>
 
 definition 
   agrees :: "'a set \<Rightarrow> ('a \<Rightarrow> 'b) \<Rightarrow> ('a \<Rightarrow> 'b) \<Rightarrow> bool" 
@@ -173,7 +172,7 @@ lemma agrees_minusD[elim]:
 by (auto simp add: agrees_def disjoint_def)
 
 
-subsubsection {* Formalization of list difference *}
+subsubsection \<open> Formalization of list difference \<close>
 
 primrec
   list_minus :: "'a list \<Rightarrow> 'a list \<Rightarrow> 'a list"
@@ -241,7 +240,7 @@ by (induct y, simp_all add: removeAllC, clarify)
 
 lemma distinct_list_minus: "distinct l \<Longrightarrow> distinct (list_minus l r)"
   by (induct r, auto simp add: list_minus_def distinct_removeAll)
-subsubsection {* Formalization of map Add by Sun*}
+subsubsection \<open> Formalization of map Add by Sun\<close>
 
 lemma map_set_property : " \<forall>re. re \<in> set l \<longrightarrow> P (\<Gamma> re) \<Longrightarrow> \<forall>r. r \<in> set (map \<Gamma> l) \<longrightarrow> P r "
   by auto
