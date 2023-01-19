@@ -276,7 +276,8 @@ lemma safe_scheduler : "fvAs \<Gamma> = {} \<Longrightarrow>
   apply (rule rule_inv_readyq, intro allI)
   apply (rule_tac Q = "s1_post r xs" in rule_seq, simp add: inv_readyq1_def s1_post_def)
    apply (rule rule_frame, rule rule_read)
-    apply (simp add: fvA_Gamma fvA_inv_cur fvA_inv_stack sched_local_def)
+    apply (simp add: fvA_Gamma fvA_inv_cur fvA_inv_stack)
+  using local_resource_distinct2 apply force
    apply (simp add: fvA_is_readyq)
   apply (rule rule_if)
 (* Readyq = NULL *)
@@ -288,10 +289,14 @@ lemma safe_scheduler : "fvAs \<Gamma> = {} \<Longrightarrow>
   apply (rule_tac Q = "s3_post r a list" in rule_seq)
    apply (rule_tac P = "s3_pre r a list" and Q = "s3_post r a list" in rule_conseq)
   apply (simp only: s3_pre_def s3_post_def, rule rule_frame, rule rule_frame1)
-       apply (rule thread_node_readnext, simp add: sched_local_def)
-        apply (simp add: fvA_Gamma fvA_inv_cur fvA_inv_stack sched_local_def)
-       apply (simp add: fvA_Gamma fvA_inv_cur fvA_inv_stack sched_local_def)
-      apply (simp add: disjoint_def sched_local_def, simp add: fvA_thread_ready_sl)
+       apply (rule thread_node_readnext, simp add: local_distinct2)
+        apply (simp add: fvA_Gamma fvA_inv_cur fvA_inv_stack)
+  using local_resource_distinct2 apply force
+       apply (simp add: fvA_Gamma fvA_inv_cur fvA_inv_stack)
+  using local_resource_distinct2 apply force
+      apply (simp add: disjoint_def)
+  using local_resource_distinct2 apply force
+  apply (simp add: fvA_thread_ready_sl)
     apply (simp add: s3_pre_implies, simp add: implies_def)
   apply (rule rule_with_true', simp)
     apply (rule_tac Pa = "(s4_pre1 r a list) \<or>\<^sub>S\<^sub>L (s4_pre2 r a list)" and Qa = "(inv_readyq ** inv_cur)
@@ -304,8 +309,10 @@ lemma safe_scheduler : "fvAs \<Gamma> = {} \<Longrightarrow>
     apply (rule_tac Q = "[A_Readyq]\<^sub>v \<longmapsto> [thd_next a]\<^sub>n ** s5_frame r a list " in rule_seq)
      apply (rule_tac Q = "s4_post1 r a list" in rule_seq, simp add: s4_post1_def s4_pre1_def)
       apply (rule rule_frame1, rule rule_read)
-       apply (simp add: fvA_Gamma1 fvA_inv_stack fvA_inv_cur sched_local_def)
-      apply (simp add: s3_post_def fvA_thread_ready_sl disjoint_def sched_local_def)
+       apply (simp add: fvA_Gamma1 fvA_inv_stack fvA_inv_cur)
+  using local_resource_distinct2 apply force
+      apply (simp add: s3_post_def fvA_thread_ready_sl disjoint_def)
+  using local_resource_distinct2 local_distinct2 apply force
   apply (rule rule_if)
       apply (rule_tac P = "s5_pre r a list" and Q = "s5_post r a list" in rule_conseq)
         apply (simp add: s5_pre_def s5_post_def, rule rule_frame)
@@ -328,9 +335,11 @@ lemma safe_scheduler : "fvAs \<Gamma> = {} \<Longrightarrow>
      apply (rule rule_frame1, simp add: inv_cur1_def is_cur_def)
   apply (rule_tac P = "[A_Cur]\<^sub>v \<longmapsto> [p]\<^sub>n **  (thread_node p t)" and Q = "([A_Cur]\<^sub>v \<longmapsto> [p]\<^sub>n \<and>\<^sub>S\<^sub>L 
   \<langle>[sched \<diamondop>CUR_RUNNING]\<^sub>v =\<^sub>b [p]\<^sub>n\<rangle>\<^sub>S\<^sub>L) ** thread_node p t" in rule_conseq)
-        apply (rule rule_frame, rule rule_read, simp add: fvA_Gamma1 fvA_inv_stack sched_local_def)
+        apply (rule rule_frame, rule rule_read, simp add: fvA_Gamma1 fvA_inv_stack)
+  using local_resource_distinct2 apply force
         apply (simp add: fvA_thread_node, simp add: implies_def) apply auto[1]
-      apply (simp add: implies_def, simp add: s3_post_def fvA_thread_ready_sl disjoint_def sched_local_def)
+      apply (simp add: implies_def, simp add: s3_post_def fvA_thread_ready_sl disjoint_def)
+  using local_resource_distinct2 local_distinct2 apply force
     apply (rule rule_if, simp add: s4_post2_def, case_tac p, simp add: CSL_def)
      apply (simp add: CSL_def) using stm_def apply linarith
   apply (rule_tac P = "s6_pre_noframe p t r a list ** s6_frame r a p" and Q = "inv_readyq1 p ((READY, 

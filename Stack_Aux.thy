@@ -633,8 +633,9 @@ lemma rule_stm : "\<lbrakk> disjoint ({t \<diamondop> FLAG}) (wrC C); t\<diamond
     apply (simp add: assn_equiv_reflex, simp add: assn_equiv_reflex)
   apply (rule rule_disj')
    apply (rule_tac Q = "stm2_post1 P t" in rule_seq, simp add: stm2_pre1_def stm2_post1_def)
-    apply (rule rule_frame1, rule rule_read, simp add: Thread_Local_def)
-    apply (simp add: stm1_post_def disjoint_def, simp add: Thread_Local_def)
+    apply (rule rule_frame1, rule rule_read, simp)
+  using local_resource_distinct1 apply auto[1]
+    apply (simp add: stm1_post_def disjoint_def local_distinct1)
    apply (rule rule_if, simp add: stm2_post1_def CSL_def) apply linarith
   apply (rule_tac P = "stm1_post P t ** ([A_Cur]\<^sub>v \<longmapsto> [K_NO_WAIT]\<^sub>n)" and Q = "stm1_post P t ** 
   ([A_Cur]\<^sub>v \<longmapsto> [K_NO_WAIT]\<^sub>n)" in rule_conseq, simp add: rule_skip)
@@ -644,13 +645,15 @@ lemma rule_stm : "\<lbrakk> disjoint ({t \<diamondop> FLAG}) (wrC C); t\<diamond
   apply (simp add: stm2_pre2_def, rule rule_inv_cur, intro allI)
   apply (rule_tac Q = "stm2_post2 P t p ta" in rule_seq, simp add: inv_cur1_def stm2_post2_def)
    apply (rule rule_frame1, rule rule_frame, rule rule_read)
-     apply (simp add: Thread_Local_def, simp add: fvA_is_cur, simp add: stm1_post_def)
-   apply (simp add: disjoint_def, simp add: Thread_Local_def)
+  using local_resource_distinct1 apply auto[1]
+    apply (simp add: disjoint_def is_cur_def inv_is_running_def fvA_thread_node)
+   apply (simp add: stm1_post_def, simp add: disjoint_def local_distinct1)
   apply (rule rule_if, rule_tac Q = "stm3_post P t p ta" in rule_seq)
     apply (rule_tac P = "stm3_pre P t p ta" and Q = "stm3_post P t p ta" in rule_conseq)
       apply (simp add: stm3_pre_def stm3_post_def, rule rule_frame)
        apply (rule rule_assign_num1, simp, simp add: inv_cur1_def fvA_is_cur disjoint_def)
-      apply (simp add: Thread_Local_def, simp add: stm3_pre_implies, simp add: implies_def)
+  using local_resource_distinct1 apply auto[1]
+      apply ( simp add: stm3_pre_implies, simp add: implies_def)
    apply (rule_tac P = "stm4_pre P t p ta" and Q = "stm4_post Q t" in rule_conseq)
      apply (simp add: stm4_pre_def stm4_post_def, rule rule_frame) apply auto[1]
      apply (simp) using equiv_implies stm3_post_equiv apply blast
@@ -677,13 +680,13 @@ lemma rule_stm_stack : "\<lbrakk>fvAs \<Gamma> = {}; disjoint ({t \<diamondop> F
     \<turnstile> { P ** inv_cur1 t ta} C { Q ** inv_cur}\<rbrakk>  \<Longrightarrow> 
     \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) \<turnstile> {P} t \<^enum> C {Q}"
   apply (rule rule_stm, simp_all, simp_all add: fvA_Gamma2 fvA_inv_stack fvA_inv_cur fvA_inv_readyq)
-  by (simp_all add: Thread_Local_def)
+  using local_resource_distinct1 by auto
 
 lemma rule_stm_stack' : "\<lbrakk>fvAs \<Gamma> = {}; disjoint ({t \<diamondop> FLAG}) (wrC C); t\<diamondop>FLAG \<notin> fvA P; t \<noteq> NULL; 
     t\<diamondop>CUR_RUNNING \<notin> fvA P;  \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) 
     \<turnstile> { P} C { Q} ; A_Cur \<notin> wrC C\<rbrakk>  \<Longrightarrow> 
     \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) \<turnstile> {P} t \<^enum> C {Q}"
   apply (rule rule_stm', simp_all, simp_all add: fvA_Gamma2 fvA_inv_stack fvA_inv_cur fvA_inv_readyq)
-  by (simp_all add: Thread_Local_def)
+  using local_resource_distinct1 by auto
 
 end

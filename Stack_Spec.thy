@@ -10,29 +10,6 @@ definition Empty_Env :: "rname \<Rightarrow> assn" ("\<Gamma>\<^sub>e\<^sub>m\<^
 lemma "fvAs \<Gamma>\<^sub>e\<^sub>m\<^sub>p = {}"
   by (simp add: fvAs_def Empty_Env_def)
 
-fun string_of_digit :: "nat \<Rightarrow> string"
-where
-  "string_of_digit n =
-    (if n = 0 then ''0''
-    else if n = 1 then ''1''
-    else if n = 2 then ''2''
-    else if n = 3 then ''3''
-    else if n = 4 then ''4''
-    else if n = 5 then ''5''
-    else if n = 6 then ''6''
-    else if n = 7 then ''7''
-    else if n = 8 then ''8''
-    else ''9'')"
-
-fun string_of_nat :: "nat \<Rightarrow> string"
-  where
-    "string_of_nat n = 
-      (if n < 10 then (string_of_digit n) else
-      string_of_nat (n div 10) @ (string_of_digit (n mod 10)))"
-
-lemma "n1 \<noteq> n2 \<Longrightarrow> string_of_nat n1 \<noteq> string_of_nat n2"
-  sorry
-
 (* constant definition *)
 abbreviation "NULL \<equiv> 0"
 
@@ -88,7 +65,7 @@ abbreviation "READY_LIST \<equiv> ''ready_list''"
 (* local variable definition *)
 
 definition Thread_Local :: "tid \<Rightarrow> var \<Rightarrow> var" ("(_\<diamondop>_)")
-  where "Thread_Local t v = ((string_of_nat) t @ v)"
+  where "Thread_Local t v = undefined"
 
 abbreviation "ADDR \<equiv> ''addr''"
 abbreviation "BASE \<equiv> ''base''"
@@ -106,7 +83,15 @@ abbreviation "CUR_RUNNING \<equiv> ''cur_running''"
 abbreviation "FLAG \<equiv> ''flag''"
 
 definition sched_local :: "var \<Rightarrow> var" ("sched \<diamondop>_")
-  where "sched_local v = ''sched'' @ v"
+  where "sched_local v = undefined"
+
+axiomatization where
+  local_distinct1 : "v1 \<noteq> v2 \<Longrightarrow> Thread_Local t v1 \<noteq> Thread_Local t v2" and
+  local_distinct2 : "v1 \<noteq> v2 \<Longrightarrow> sched_local v1 \<noteq> sched_local v2" and 
+  local_among_distinct1 : "t1 \<noteq> t2 \<Longrightarrow> Thread_Local t1 v1  \<noteq> Thread_Local t2 v2" and 
+  local_among_distinct2 : "Thread_Local t1 v1  \<noteq> sched_local v2" and
+  local_resource_distinct1 : "Thread_Local t v \<notin> {A_Stack, A_Readyq, A_Cur}" and
+  local_resource_distinct2 : "sched_local v \<notin> {A_Stack, A_Readyq, A_Cur}"
 
 (* expression name *)
 definition stm :: "tid \<Rightarrow> cmd \<Rightarrow> cmd"  ("_ \<^enum> _" [0,0] 61)

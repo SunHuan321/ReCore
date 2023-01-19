@@ -23,25 +23,34 @@ lemma safe_p24_noframe : "fvAs \<Gamma> = {} \<Longrightarrow> t \<noteq> NULL \
   \<langle>[t \<diamondop> ADDR]\<^sub>v =\<^sub>b [s]\<^sub>n\<rangle>\<^sub>S\<^sub>L) ** stack_node s st" in safe_assn_equiv, simp add: assn_equiv_reflex)
      apply (simp add: assn_equiv_def) apply auto[1]
     apply (rule rule_frame, rule rule_stm_stack', simp_all)
-  apply (simp add: disjoint_def Thread_Local_def)
-        apply (simp add: Thread_Local_def, simp add: Thread_Local_def)
+         apply (simp add: disjoint_def local_distinct1)
+  using local_resource_distinct1 apply auto[1]
+  using local_resource_distinct1 apply auto[1]
       apply (rule rule_read,  simp add: fvA_Gamma2 fvA_inv_cur fvA_inv_readyq fvA_inv_stack)
-      apply (simp add: Thread_Local_def, simp add: Thread_Local_def)
+  using local_resource_distinct1 apply auto[1]
+  using local_resource_distinct1 apply fastforce
     apply (simp add: stack_node_def) apply (rule rule_frame1)
     apply (rule rule_stm_stack' , simp_all)
-        apply (simp add: disjoint_def Thread_Local_def)
-        apply (simp add: stack_node_def Thread_Local_def, simp add: stack_node_def Thread_Local_def)
-    apply (rule stack_node_read_next, simp add: Thread_Local_def)
-     apply (simp_all add: fvA_Gamma2 fvA_inv_cur fvA_inv_readyq fvA_inv_stack)
-     apply (simp add: Thread_Local_def, simp add: Thread_Local_def)
-    apply (simp add: disjoint_def stm_def Thread_Local_def)
-  apply (simp add: stm_def disjoint_def Thread_Local_def)
+        apply (simp add: disjoint_def local_distinct1)
+       apply (simp add: stack_node_def local_distinct1)
+  apply (simp add: stack_node_def local_distinct1)
+    apply (rule stack_node_read_next, simp add: local_distinct1)
+      apply (simp_all add: fvA_Gamma2 fvA_inv_cur fvA_inv_readyq fvA_inv_stack)
+  using local_resource_distinct1 apply auto[1]
+  using local_resource_distinct1 apply auto[1]
+  using local_resource_distinct1 apply fastforce
+   apply (simp add: stm_def disjoint_def)
+  using local_resource_distinct1 apply auto[1]
   apply (simp add: p4_post_noframe_def, rule rule_frame1, rule rule_stm_stack', simp_all)
-       apply (simp add: disjoint_def Thread_Local_def)
-      apply (simp add: stack_node_def Thread_Local_def, simp add: stack_node_def Thread_Local_def)
-    apply (rule stack_node_read_base1, simp add: Thread_Local_def, simp add: Thread_Local_def)
-     apply (simp_all add: fvA_Gamma2 fvA_inv_cur fvA_inv_readyq fvA_inv_stack disjoint_def stm_def Thread_Local_def)
-  done
+       apply (simp add: disjoint_def local_distinct1)
+      apply (simp add: stack_node_def local_distinct1)
+  apply (simp add: stack_node_def local_distinct1)
+    apply (rule stack_node_read_base1, simp add: local_distinct1, simp add: local_distinct1)
+     apply (simp_all add: fvA_Gamma2 fvA_inv_cur fvA_inv_readyq fvA_inv_stack disjoint_def stm_def)
+  using local_resource_distinct1 apply auto[1]
+  using local_resource_distinct1 apply auto[1]
+  using local_resource_distinct1 apply fastforce
+  using local_resource_distinct1 by auto
 
 definition p4_frame :: " stack_mem \<Rightarrow> assn"
   where "p4_frame s = ((is_waitq (stack_wait s) (stack_tcbs s) **
@@ -74,7 +83,9 @@ lemma safe_p24 : "fvAs \<Gamma> = {} \<Longrightarrow> t \<noteq> NULL \<Longrig
      apply (simp add: assn_equiv_symmetry safe_p24_pre_equiv, simp add: assn_equiv_reflex)
    apply (rule rule_frame, simp add: safe_p24_noframe, simp_all add: disjoint_def)
    apply (simp add: p4_frame_def fvA_is_waitq fvA_buf inv_stack_pt_def inv_stack_buf_waitq_def)
-  by (simp add: p1_post_def stm_def Thread_Local_def)   
+  apply (simp add: p1_post_def stm_def)
+  using local_distinct1 apply force
+  done
 
 definition p5_pre_noframe :: "nat \<Rightarrow> nat \<Rightarrow> stack_mem \<Rightarrow> assn"
   where "p5_pre_noframe t s st = (stack_node s st \<and>\<^sub>S\<^sub>L \<langle>[t \<diamondop> ADDR]\<^sub>v =\<^sub>b [s]\<^sub>n\<rangle>\<^sub>S\<^sub>L \<and>\<^sub>S\<^sub>L \<langle>[t \<diamondop> NEXT]\<^sub>v =\<^sub>b 
@@ -150,49 +161,57 @@ lemma safe_p59_noframe : "fvAs \<Gamma> = {} \<Longrightarrow> p5_cond st \<Long
      apply (rule_tac Q = "p5_post t s st" in rule_seq)
   apply (simp only: p5_pre_noframe_def p5_post_def, rule rule_frame)
        apply (rule rule_stm_stack', simp, simp, simp)
-           apply (simp add: stack_node_def Thread_Local_def, simp add: Thread_Local_def)
-         apply (simp add: stack_node_def Thread_Local_def)
-       apply (rule stack_node_write_next_minus1, simp add: Thread_Local_def)
+           apply (simp add: stack_node_def local_distinct1, simp)
+         apply (simp add: stack_node_def local_distinct1)
+       apply (rule stack_node_write_next_minus1, simp add: local_distinct1)
         apply (simp_all add: fvA_Gamma2 fvA_inv_cur fvA_inv_readyq fvA_buf fvA_inv_stack)
-       apply (simp add: Thread_Local_def, simp add: Thread_Local_def)
+  using local_resource_distinct1 apply force
+  using local_resource_distinct1 apply force
      apply (rule_tac P = "p6_pre t s st" and Q = "p6_post t s st" in rule_conseq)
   apply (simp only: p6_pre_def p6_post_def, rule rule_frame)
         apply (rule rule_stm_stack', simp_all)
-            apply (simp add: disjoint_def Thread_Local_def)
-           apply (simp add: stack_node_def Thread_Local_def, simp add: stack_node_def Thread_Local_def)
-         apply (rule stack_node_read_next, simp add: Thread_Local_def)
-         apply (simp_all add: fvA_Gamma2 fvA_buf fvA_inv_cur fvA_inv_readyq fvA_inv_stack)
-        apply (simp add: Thread_Local_def, simp add: Thread_Local_def, simp add: Thread_Local_def)
+            apply (simp add: disjoint_def local_distinct1)
+           apply (simp add: stack_node_def local_distinct1, simp add: stack_node_def local_distinct1)
+         apply (rule stack_node_read_next, simp add: local_distinct1)
+          apply (simp_all add: fvA_Gamma2 fvA_buf fvA_inv_cur fvA_inv_readyq fvA_inv_stack)
+  using local_resource_distinct1 apply force
+  using local_resource_distinct1 apply force
+  using local_resource_distinct1 apply force
       apply (simp add: p5_post_implies, simp add: implies_def)
     apply (rule_tac P = "p7_pre t s st" and Q = "p7_post t s st" in rule_conseq)
       apply (simp only: p7_pre_def p7_post_def, rule rule_frame1, rule rule_stm_stack', simp)
-            apply (simp add: disjoint_def Thread_Local_def)
-           apply (simp add: fvA_buf Thread_Local_def, simp)
-  apply (simp add: fvA_buf Thread_Local_def)
-        apply (rule read_buf_with_var, simp add: fvA_Gamma2 fvA_inv_readyq fvA_inv_cur fvA_inv_stack Thread_Local_def)
+            apply (simp add: disjoint_def local_distinct1)
+           apply (simp add: fvA_buf local_distinct1, simp)
+  apply (simp add: fvA_buf local_distinct1)
+        apply (rule read_buf_with_var, simp add: fvA_Gamma2 fvA_inv_readyq fvA_inv_cur fvA_inv_stack)
+  using local_distinct1 local_resource_distinct1 apply auto[1]
         apply (simp add: p5_cond_def) apply linarith 
-        apply (simp add: Thread_Local_def)
+        apply (simp add: local_distinct1)
+  using local_resource_distinct1 apply fastforce
       apply (simp add: stack_node_def, simp add: p6_post_implies, simp add: implies_def)
    apply (rule_tac P = "p8_pre t s st" and Q = "p8_post t s st" in rule_conseq)
      apply (rule rule_stm_stack', simp_all)
-         apply (simp add: disjoint_def Thread_Local_def)
-        apply (simp add: p8_pre_def fvA_buf stack_node_def Thread_Local_def)
-  apply (simp add: p8_pre_def fvA_buf stack_node_def Thread_Local_def)
+         apply (simp add: disjoint_def local_distinct1)
+        apply (simp add: p8_pre_def fvA_buf stack_node_def local_distinct1)
+  apply (simp add: p8_pre_def fvA_buf stack_node_def local_distinct1)
   apply (simp add: p8_post_def, rule rule_assign_num1)
       apply ( simp add: fvA_Gamma2 fvA_inv_readyq fvA_inv_cur fvA_inv_stack p8_pre_def stack_node_def 
-      fvA_buf Thread_Local_def, simp add: Thread_Local_def)
+      fvA_buf local_distinct1)
+  using local_resource_distinct1 apply force
+  using local_resource_distinct1 apply force
     apply (simp add: p7_post_implies, simp add: implies_def)
   apply (rule rule_stm_stack', simp_all) 
-      apply (simp add: disjoint_def Thread_Local_def)
-     apply (simp add: p8_post_def p8_pre_def fvA_buf stack_node_def Thread_Local_def)
-  apply (simp add: p8_post_def p8_pre_def fvA_buf stack_node_def Thread_Local_def)
+      apply (simp add: disjoint_def local_distinct1)
+     apply (simp add: p8_post_def p8_pre_def fvA_buf stack_node_def local_distinct1)
+  apply (simp add: p8_post_def p8_pre_def fvA_buf stack_node_def local_distinct1)
   apply (rule_tac P = "p8_post t s st" and Q = "p9_post t s st" in rule_conseq)
   apply (simp add: p9_post_def, rule rule_assign_num1)
      apply (simp add: fvA_Gamma2 fvA_inv_readyq fvA_inv_cur fvA_inv_stack p8_post_def p8_pre_def 
-      stack_node_def fvA_buf Thread_Local_def)
+      stack_node_def fvA_buf local_distinct1)
+  using local_resource_distinct1 apply force
    apply (simp_all add: implies_def, simp add: p9_post_def p8_post_def p8_pre_def p9_post_noframe_def)
-   apply blast apply (simp add: Thread_Local_def)
-  done
+   apply blast 
+  using local_resource_distinct1 by force
 
 definition p5_cond_if :: "stack_mem \<Rightarrow> bool"
   where "p5_cond_if st = ((stack_next st > stack_base st) \<and> (stack_next st \<le> stack_top st) 
@@ -258,7 +277,8 @@ lemma safe_p59 : "fvAs \<Gamma> = {} \<Longrightarrow> p5_cond_if st \<Longright
   using p9_post_equiv apply auto[1] apply (rule rule_frame, rule safe_p59_noframe, simp)
     apply (simp add: p5_cond_if_def p5_cond_def, simp)
   apply (simp add: p5_frame_def fvA_is_waitq stm_def)
-  by (simp add:  inv_stack_buf_waitq_def inv_stack_pt_def  disjoint_def Thread_Local_def)
+  apply (simp add:  inv_stack_buf_waitq_def inv_stack_pt_def disjoint_def)
+  using local_resource_distinct1 by force
 
 lemma safe_p1011_noframe : "fvAs \<Gamma> = {} \<Longrightarrow> t \<noteq> NULL \<Longrightarrow>
                           \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) \<turnstile> 
@@ -267,19 +287,25 @@ lemma safe_p1011_noframe : "fvAs \<Gamma> = {} \<Longrightarrow> t \<noteq> NULL
                          (t \<^enum> (t \<diamondop> END) :=\<^sub>C ([1]\<^sub>n)) 
                           {inv_stack1 s st}"
   apply (rule_tac Q = "inv_stack1 s st \<and>\<^sub>S\<^sub>L \<langle>[t \<diamondop> RET]\<^sub>v =\<^sub>b [EBUSY]\<^sub>n\<rangle>\<^sub>S\<^sub>L" in rule_seq)
-   apply (rule rule_stm_stack', simp, simp add: disjoint_def Thread_Local_def)
-       apply (simp add: inv_stack1_def fvA_is_stack Thread_Local_def, simp)
-  apply (simp add: inv_stack1_def fvA_is_stack Thread_Local_def)
+   apply (rule rule_stm_stack', simp, simp add: disjoint_def local_distinct1)
+       apply (simp add: inv_stack1_def fvA_is_stack)
+  using local_resource_distinct1 apply auto[1] apply simp
+     apply (simp add: inv_stack1_def fvA_is_stack)
+  using local_resource_distinct1 apply force
     apply (rule rule_assign_num1, simp add: fvA_Gamma2 fvA_inv_cur fvA_inv_readyq)
-    apply (simp add: inv_stack1_def fvA_is_stack fvA_inv_stack Thread_Local_def)
-   apply (simp add: Thread_Local_def)
+    apply (simp add: inv_stack1_def fvA_is_stack fvA_inv_stack)
+  using local_resource_distinct1 apply force
+  using local_resource_distinct1 apply force
   apply (rule_tac P = "inv_stack1 s st" and Q = "inv_stack1 s st \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>END]\<^sub>v =\<^sub>b [1]\<^sub>n\<rangle>\<^sub>S\<^sub>L" in rule_conseq)
-    apply (rule rule_stm_stack', simp, simp add: disjoint_def Thread_Local_def)
-        apply (simp add: inv_stack1_def fvA_is_stack Thread_Local_def, simp)
-      apply (simp add: inv_stack1_def fvA_is_stack Thread_Local_def)
+    apply (rule rule_stm_stack', simp, simp add: disjoint_def local_distinct1)
+        apply (simp add: inv_stack1_def fvA_is_stack)
+  using local_resource_distinct1 apply force
+       apply (simp, simp add: inv_stack1_def fvA_is_stack)
+  using local_resource_distinct1 apply force
     apply (rule rule_assign_num1, simp add: fvA_Gamma2 fvA_inv_cur fvA_inv_readyq)
-     apply (simp add: inv_stack1_def fvA_is_stack fvA_inv_stack Thread_Local_def)
-  apply (simp add: Thread_Local_def)
+     apply (simp add: inv_stack1_def fvA_is_stack fvA_inv_stack)
+  using local_resource_distinct1 apply force
+  using local_resource_distinct1 apply force
   by (simp_all add: implies_def)
 
 lemma p10_pre_implies : "p4_post_noframe t s st ** p4_frame st \<sqsubseteq> inv_stack1 s st"
@@ -375,10 +401,12 @@ lemma safe_p1216_noframe : "fvAs \<Gamma> = {} \<Longrightarrow>
      apply (rule_tac Q = "p13_post t x s st" in rule_seq)
       apply (rule_tac Q = "p12_post t x s st" in rule_seq)
         apply (simp add: p12_pre_noframe_def p12_post_def, rule rule_frame2)
-         apply (rule stack_node_read_wait, simp add: Thread_Local_def)
-          apply (simp_all add: fvA_Gamma2 fvA_inv_readyq fvA_is_cur fvA_thread_wait_sl fvA_inv_stack fvA_inv_cur)
-         apply (simp add: Thread_Local_def, simp add: Thread_Local_def)
-       apply (simp add: inv_cur1_def fvA_is_cur disjoint_def Thread_Local_def)
+         apply (rule stack_node_read_wait, simp add: local_distinct1)
+         apply (simp_all add: fvA_Gamma2 fvA_inv_readyq fvA_is_cur fvA_thread_wait_sl fvA_inv_stack fvA_inv_cur)
+  using local_resource_distinct1 apply force
+  using local_resource_distinct1 apply force
+      apply (simp add: inv_cur1_def fvA_is_cur disjoint_def)
+  using local_resource_distinct1 apply force
       apply (rule_tac P = "p13_pre t x s st" and Q = "p13_post t x s st" in rule_conseq)
         apply (simp add: p13_pre_def p13_post_def, rule rule_frame, rule rule_frame, rule rule_frame1)
            apply (rule thread_node_write_next_var, simp_all, simp add: p12_post_implies, simp add: implies_def)
@@ -386,7 +414,8 @@ lemma safe_p1216_noframe : "fvAs \<Gamma> = {} \<Longrightarrow>
        apply (simp add: p14_pre_def p14_post_def, rule rule_frame, rule rule_frame, rule rule_frame1)
           apply (simp add: thread_node_write_st, simp_all, simp add: p13_post_implies, simp add: implies_def)
     apply (simp add: p14_post_def p15_post_def, rule rule_frame, rule rule_frame1, rule stack_node_write_wait)
-      apply (simp_all, simp add: fvA_Gamma2 fvA_inv_readyq fvA_inv_stack fvA_inv_cur Thread_Local_def)
+     apply (simp_all, simp add: fvA_Gamma2 fvA_inv_readyq fvA_inv_stack fvA_inv_cur)
+  using local_resource_distinct1 apply force
    apply (rule_tac P = "p16_pre t x s st" and Q = "p16_post t x s st" in rule_conseq)
      apply (simp add: p16_pre_def p16_post_def, intro rule_frame)
        apply (rule rule_write, simp_all, simp add: p15_post_implies)
@@ -435,7 +464,9 @@ lemma safe_p1216 : "stack_base st = stack_next st \<Longrightarrow> fvAs \<Gamma
   apply (rule_tac Pa = "p12_pre_noframe t x s st ** p12_frame s st" and Qa = "p16_post_noframe t x s st 
   ** p12_frame s st" in safe_assn_equiv, simp add: assn_equiv_reflex, simp add: p16_post_frame_equiv)
   apply (rule rule_frame, simp add: safe_p1216_noframe, simp add: p12_frame_def fvA_buf)
-  by (simp add: disjoint_def inv_stack_buf_waitq_def inv_stack_pt_def Thread_Local_def)
+  apply (simp add: disjoint_def inv_stack_buf_waitq_def inv_stack_pt_def)
+  using local_resource_distinct1 apply force
+  done
 
 lemma p12_pre_frame_aux : "P1 ** P2 ** (P3 ** P4 \<and>\<^sub>S\<^sub>L \<langle>P5\<rangle>\<^sub>S\<^sub>L \<and>\<^sub>S\<^sub>L \<langle>P6\<rangle>\<^sub>S\<^sub>L) ** P7 \<equiv>\<^sub>S\<^sub>L
                           P7 ** P2 ** P3 ** (P1 ** P4 \<and>\<^sub>S\<^sub>L \<langle>P5\<rangle>\<^sub>S\<^sub>L \<and>\<^sub>S\<^sub>L \<langle>P6\<rangle>\<^sub>S\<^sub>L)"
@@ -490,8 +521,8 @@ lemma safe_p1819 : "t \<noteq> NULL \<Longrightarrow> fvAs \<Gamma> = {} \<Longr
                       (t \<^enum> t\<diamondop>RET :=\<^sub>C [K_NO_WAIT]\<^sub>n) 
                          { Aemp }"
   apply (rule_tac Q = Aemp in rule_seq, rule rule_stm_stack, simp)
-  apply (simp add: disjoint_def Thread_Local_def)
-      apply ( simp add: Thread_Local_def, simp, simp add: Thread_Local_def, intro allI)
+       apply (simp add: disjoint_def local_distinct1)
+  apply (simp add: local_distinct1, simp, simp add: local_distinct1, intro allI)
   apply (rule_tac P = "inv_cur1 t ta" and Q = "inv_cur1 t ta \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>DATA]\<^sub>v =\<^sub>b [thd_data ta]\<^sub>n\<rangle>\<^sub>S\<^sub>L"
   in rule_conseq, simp add: inv_cur1_def is_cur_def)
      apply (rule_tac Pa = "([A_Cur]\<^sub>v \<longmapsto> [t]\<^sub>n \<and>\<^sub>S\<^sub>L inv_is_running ta) ** thread_node t ta" and Qa = "
@@ -500,18 +531,22 @@ lemma safe_p1819 : "t \<noteq> NULL \<Longrightarrow> fvAs \<Gamma> = {} \<Longr
        apply (simp add: inv_is_running_def assn_equiv_def) apply auto[1]
       apply (simp add: inv_is_running_def assn_equiv_def) apply auto[1]
      apply (rule rule_frame1, rule thread_node_read_data, simp add: fvA_Gamma2)
-      apply (simp add: fvA_inv_cur fvA_inv_readyq fvA_inv_stack Thread_Local_def, simp)
-     apply (simp add: inv_is_running_def disjoint_def Thread_Local_def)
+      apply (simp add: fvA_inv_cur fvA_inv_readyq fvA_inv_stack)
+  using local_resource_distinct1 apply force
+     apply (simp add: inv_is_running_def disjoint_def local_distinct1)
+  using local_resource_distinct1 apply force
       apply (simp add: implies_def) apply (rule_tac Q = "inv_cur1 t ta" in implies_trans)
     apply (simp add: implies_def)
   apply (rule_tac Q = "inv_cur" in implies_trans, simp add: inv_cur_implies2)
    apply (simp add: implies_def, simp add: implies_def)
   apply (rule rule_stm_stack', simp_all)
-    apply (simp add: disjoint_def Thread_Local_def)
+    apply (simp add: disjoint_def local_distinct1)
    apply (rule_tac P = Aemp and Q = "Aemp \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>RET]\<^sub>v =\<^sub>b [0]\<^sub>n\<rangle>\<^sub>S\<^sub>L" in rule_conseq)
      apply (rule rule_assign_num1, simp add: fvA_Gamma2 fvA_inv_stack fvA_inv_cur fvA_inv_readyq)
-     apply (simp add: Thread_Local_def, simp add: implies_def, simp add: implies_def)
-  by (simp add: Thread_Local_def)
+  using local_resource_distinct1 apply force
+  apply (simp add: implies_def, simp add: implies_def)
+  using local_resource_distinct1 apply force
+  done
   
 lemma safe_pop : "fvAs \<Gamma> = {} \<Longrightarrow> 
                    \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) \<turnstile>
@@ -519,11 +554,12 @@ lemma safe_pop : "fvAs \<Gamma> = {} \<Longrightarrow>
   apply (simp add: stack_pop_def) apply (case_tac t, simp add: CSL_def stm_def)
   apply (rule_tac Q = Aemp in rule_seq)
    apply (rule_tac Q = "p1_post t" in rule_seq, simp add: p1_post_def)
-    apply (rule rule_stm_stack', simp, simp add: disjoint_def Thread_Local_def, simp, simp, simp)
+    apply (rule rule_stm_stack', simp, simp add: disjoint_def local_distinct1, simp, simp, simp)
     apply (rule_tac Pa = " Aemp" and Qa = "Aemp \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>END]\<^sub>v =\<^sub>b [0]\<^sub>n\<rangle>\<^sub>S\<^sub>L"
     in safe_assn_equiv, simp add: assn_equiv_def, simp add: assn_equiv_def) apply auto[1]
      apply (simp, rule rule_assign_num1, simp add: fvA_Gamma2 fvA_inv_cur fvA_inv_stack fvA_inv_readyq)
-  apply (simp add: Thread_Local_def, simp add: Thread_Local_def)
+  using local_resource_distinct1 apply force
+  using local_resource_distinct1 apply force
    apply (rule rule_with_true, simp, rule rule_inv_stack, intro allI)
    apply (rule_tac Q = "p1_post t ** (p4_post_noframe t s st ** p4_frame st)" in rule_seq, simp add: safe_p24)
    apply (rule rule_if, rule_tac P = "(p4_post_noframe t s st \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>NEXT]\<^sub>v >\<^sub>b [t\<diamondop>BASE]\<^sub>v\<rangle>\<^sub>S\<^sub>L) 
@@ -540,11 +576,13 @@ lemma safe_pop : "fvAs \<Gamma> = {} \<Longrightarrow>
       apply (simp add: implies_def p1_post_def) apply auto[1]
   apply (simp add: p10_pre_implies) 
   using Aemp_equiv assn_equiv_symmetry equiv_implies implies_trans inv_stack_implies apply blast
-   apply (rule rule_stm_stack, simp, simp add: disjoint_def Thread_Local_def)
+   apply (rule rule_stm_stack, simp, simp add: disjoint_def local_distinct1)
       apply (simp add: p4_frame_def fvA_buf fvA_is_waitq inv_stack_buf_waitq_def inv_stack_pt_def)
-      apply (simp add: p1_post_def p4_post_noframe_def stack_node_def Thread_Local_def, simp)
+      apply (simp add: p1_post_def p4_post_noframe_def stack_node_def)
+  using local_resource_distinct1 local_distinct1 apply force apply simp
     apply (simp add: p4_frame_def fvA_buf fvA_is_waitq inv_stack_buf_waitq_def inv_stack_pt_def)
-    apply (simp add: p1_post_def p4_post_noframe_def stack_node_def Thread_Local_def, intro allI)
+    apply (simp add: p1_post_def p4_post_noframe_def stack_node_def)
+  using local_distinct1 local_resource_distinct1 apply force apply (intro allI)
    apply (rule_tac P = "((p4_post_noframe t s st ** p4_frame st) \<and>\<^sub>S\<^sub>L \<langle>\<not>\<^sub>b [t\<diamondop>NEXT]\<^sub>v >\<^sub>b [t\<diamondop>BASE]\<^sub>v\<rangle>\<^sub>S\<^sub>L) 
    ** inv_cur1 t ta" and Q = "inv_cur ** inv_stack" in rule_conseq)
      apply (rule p12_cond_aux1, simp add: stm_def, rule impI)

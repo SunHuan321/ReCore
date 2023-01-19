@@ -49,34 +49,60 @@ lemma safe_stack_rpes_aux :
 
 lemma disjoint_Scheduler_Env : " disjoint {A_Cur, A_Readyq, A_Stack} (wrREsv Scheduler_Sys)"
   apply (simp add: fvA_Gamma2 fvA_inv_stack fvA_inv_cur fvA_inv_readyq disjoint_def)
-  by (simp add: Scheduler_Sys_def stm_def wrREsv_def wrREv_def sched_local_def)
+  apply (simp add: Scheduler_Sys_def stm_def wrREsv_def wrREv_def)
+  using local_distinct2 sched_local_def by auto
 
 lemma disjoint_Scheduler_Env1 : "A_Cur \<notin> wrREsv Scheduler_Sys \<and> A_Readyq \<notin> wrREsv Scheduler_Sys \<and> 
                                  A_Stack \<notin> wrREsv Scheduler_Sys"
   by (meson disjoint_Scheduler_Env disjoint_def disjoint_insert(1) disjoint_search(1))
+
 lemma disjoint_Thread_Env : "disjoint {A_Cur, A_Readyq, A_Stack} (wrREsv (Thread_Sys t d time))"
   apply (simp add: fvA_Gamma2 fvA_inv_stack fvA_inv_cur fvA_inv_readyq disjoint_def)
   apply (simp add: Thread_Sys_def stack_pop_def stack_push_def stm_def)
-  sorry
+  apply (simp add: wrREsv_def wrREv_def)
+  using Thread_Local_def list.distinct(1) local_distinct1 by auto
+
+lemma disjoint_Thread_Env1 : "A_Cur \<notin> wrREsv (Thread_Sys t d time) \<and> A_Readyq \<notin> wrREsv 
+                              (Thread_Sys t d time) \<and> A_Stack \<notin> wrREsv (Thread_Sys t d time)"
+  by (meson disjoint_Thread_Env disjoint_def disjoint_insert(1) disjoint_search(1))
 
 lemma disjoint_Thread_Scheduler : "disjoint (fvREsv Scheduler_Sys) (wrREsv (Thread_Sys t d time))"
   apply (simp add: Scheduler_Sys_def stm_def fvREsv_def fvREv_def tcb_p_next_def tcb_p_state_def)
   apply (simp add: Thread_Sys_def stack_pop_def stack_push_def stm_def)
-  apply (simp add:  wrREsv_def wrREv_def disjoint_def)
-  sorry
-
+  apply (simp add:  wrREsv_def wrREv_def)
+  using Thread_Local_def local_among_distinct2 sched_local_def by auto
 
 lemma disjoint_Scheduler_Thread : "disjoint (fvREsv (Thread_Sys t d time)) (wrREsv Scheduler_Sys)"
-  sorry
+    apply (simp add: Scheduler_Sys_def stm_def fvREsv_def fvREv_def tcb_p_next_def tcb_p_state_def)
+  apply (simp add: Thread_Sys_def stack_pop_def stack_push_def stm_def)
+  apply (simp add:  wrREsv_def wrREv_def)
+  using Thread_Local_def local_among_distinct2 sched_local_def by auto
 
-lemma disjoint_Thread_Thread : "t1 \<noteq> t2 \<Longrightarrow> disjoint (fvREsv (Thread_Sys t1 d1 time1)) 
+lemma disjoint_Thread_Thread : "t1 \<noteq> t2 \<Longrightarrow> disjoint (fvREsv (Thread_Sys t1 d1 time1))
                                                       (wrREsv (Thread_Sys t2 d2 time2))"
-  sorry
-
+    apply (simp add: Thread_Sys_def stack_pop_def stack_push_def stm_def)
+  apply (simp add:  wrREsv_def wrREv_def fvREsv_def fvREv_def)
+  using Thread_Local_def local_among_distinct2 sched_local_def by auto
 
 lemma distinct_pes_aux : "\<forall>x \<in> set pes. {A_Cur, A_Readyq, A_Stack} \<inter> wrREsv x = {} \<Longrightarrow> 
                         {A_Cur, A_Readyq, A_Stack} \<inter> wrPEsv pes = {}"
   by (induct pes, simp, simp add: wrPEsv.cases)
+
+lemma disjoint_Stack_Pes_Env_aux1 : " \<forall>res \<in> set pes. {A_Cur, A_Readyq, A_Stack} \<inter> wrREsv res = {} 
+      \<Longrightarrow>  {A_Cur, A_Readyq, A_Stack} \<inter> wrPEsv pes = {}"
+  by (induct pes, simp, simp)
+
+lemma disjoint_Stack_Pes_Env_aux2 : "res \<in> set (Stack_Pes l) \<Longrightarrow> (res = Scheduler_Sys) 
+                                           \<or> (\<exists>t d time. res = Thread_Sys t d time)"
+  apply (simp add: Stack_Pes_def Thread_Sys_List_def)
+  apply (case_tac l, simp, simp add: mk_Thread_Sys_def)
+  by auto
+
+lemma disjoint_Stack_Pes_Env : "{A_Cur, A_Readyq, A_Stack} \<inter> wrPEsv (Stack_Pes l) = {}"
+  apply (rule disjoint_Stack_Pes_Env_aux1, clarsimp)
+  apply (case_tac "(a, b) = Scheduler_Sys", simp add: disjoint_Scheduler_Env1)
+  apply (drule disjoint_Stack_Pes_Env_aux2, clarsimp)
+  by (simp add: disjoint_Thread_Env1)
 
 lemma "\<lbrakk>distinct (map fst l); fvAs \<Gamma> = {}; pes = Stack_Pes l \<rbrakk> \<Longrightarrow>
         \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {inv_cur ** inv_readyq ** inv_stack} ([Cur, Readyq, Stack], pes) 
@@ -89,12 +115,15 @@ lemma "\<lbrakk>distinct (map fst l); fvAs \<Gamma> = {}; pes = Stack_Pes l \<rb
      apply (simp add: Thread_Sys_List_def mk_Thread_Sys_def disjoint_Thread_Scheduler)
     apply (case_tac k2, simp add: Stack_Pes_def)
      apply (simp add: Thread_Sys_List_def mk_Thread_Sys_def disjoint_Scheduler_Thread)
-    apply (simp add: Stack_Pes_def  Thread_Sys_List_def mk_Thread_Sys_def)
+    apply (simp add: Stack_Pes_def Thread_Sys_List_def mk_Thread_Sys_def)
   apply (rule disjoint_Thread_Thread)
   using nth_eq_iff_index_eq apply fastforce
    apply (case_tac k2, simp add: Stack_Pes_def fvA_Gamma2 fvA_inv_stack fvA_inv_readyq)
     apply (simp add: fvA_inv_cur)  using disjoint_Scheduler_Env apply auto[1]
    apply (simp add: Stack_Pes_def Thread_Sys_List_def mk_Thread_Sys_def)
    apply (simp add: fvA_Gamma2 fvA_inv_stack fvA_inv_readyq fvA_inv_cur)
-  using disjoint_Thread_Env apply fastforce
-  sorry
+  using disjoint_Thread_Env apply fastforce 
+  apply (simp add: disjoint_Stack_Pes_Env)
+  done
+
+end
