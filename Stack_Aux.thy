@@ -562,10 +562,10 @@ lemma update_buf_with_var : " n \<ge> b \<and> n < t \<Longrightarrow>
 
 (* ======================  rule for stm ======================== *)
 definition stm_while_inv :: "assn \<Rightarrow> assn \<Rightarrow> nat \<Rightarrow> assn"
-  where "stm_while_inv P Q t = ((P \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>FLAG]\<^sub>v =\<^sub>b [0]\<^sub>n\<rangle>\<^sub>S\<^sub>L) \<or>\<^sub>S\<^sub>L (Q \<and>\<^sub>S\<^sub>L \<langle>\<not>\<^sub>b [t\<diamondop>FLAG]\<^sub>v =\<^sub>b [0]\<^sub>n\<rangle>\<^sub>S\<^sub>L))"
+  where "stm_while_inv P Q t = ((P \<and>\<^sub>S\<^sub>L \<langle>[FLAG]\<^sub>v =\<^sub>b [0]\<^sub>n\<rangle>\<^sub>S\<^sub>L) \<or>\<^sub>S\<^sub>L (Q \<and>\<^sub>S\<^sub>L \<langle>\<not>\<^sub>b [FLAG]\<^sub>v =\<^sub>b [0]\<^sub>n\<rangle>\<^sub>S\<^sub>L))"
 
 definition stm1_post :: "assn \<Rightarrow> nat \<Rightarrow> assn"
-  where "stm1_post P t = (P \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>FLAG]\<^sub>v =\<^sub>b [0]\<^sub>n\<rangle>\<^sub>S\<^sub>L)"
+  where "stm1_post P t = (P \<and>\<^sub>S\<^sub>L \<langle>[FLAG]\<^sub>v =\<^sub>b [0]\<^sub>n\<rangle>\<^sub>S\<^sub>L)"
 
 definition stm2_pre1 :: " assn \<Rightarrow> nat \<Rightarrow> assn"
   where "stm2_pre1 P t = stm1_post P t ** ([A_Cur]\<^sub>v \<longmapsto> [NULL]\<^sub>n)"
@@ -574,36 +574,36 @@ definition stm2_pre2 :: "assn \<Rightarrow> nat \<Rightarrow> assn"
   where "stm2_pre2 P t = stm1_post P t ** (Aexcur inv_cur1)"
 
 definition stm2_post1 :: " assn \<Rightarrow> nat \<Rightarrow> assn"
-  where "stm2_post1 P t = stm1_post P t ** ([A_Cur]\<^sub>v \<longmapsto> [NULL]\<^sub>n \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>CUR_RUNNING]\<^sub>v =\<^sub>b [NULL]\<^sub>n\<rangle>\<^sub>S\<^sub>L)"
+  where "stm2_post1 P t = stm1_post P t ** ([A_Cur]\<^sub>v \<longmapsto> [NULL]\<^sub>n \<and>\<^sub>S\<^sub>L \<langle>[CUR_RUNNING]\<^sub>v =\<^sub>b [NULL]\<^sub>n\<rangle>\<^sub>S\<^sub>L)"
 
 definition stm2_post2 :: " assn \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> tcb \<Rightarrow> assn"
-  where "stm2_post2 P t p ta = stm1_post P t ** (([A_Cur]\<^sub>v \<longmapsto> [p]\<^sub>n \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>CUR_RUNNING]\<^sub>v =\<^sub>b [p]\<^sub>n\<rangle>\<^sub>S\<^sub>L)
+  where "stm2_post2 P t p ta = stm1_post P t ** (([A_Cur]\<^sub>v \<longmapsto> [p]\<^sub>n \<and>\<^sub>S\<^sub>L \<langle>[CUR_RUNNING]\<^sub>v =\<^sub>b [p]\<^sub>n\<rangle>\<^sub>S\<^sub>L)
         ** is_cur p ta)"
 
 definition stm3_pre :: " assn \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> tcb \<Rightarrow> assn"
   where "stm3_pre P t p ta = P ** (inv_cur1 t ta)"
 
-lemma stm3_pre_implies : "(stm2_post2 P t p ta \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>CUR_RUNNING]\<^sub>v =\<^sub>b [t]\<^sub>n\<rangle>\<^sub>S\<^sub>L) \<sqsubseteq> stm3_pre P t p ta"
-  apply (rule_tac Q = "(P ** (([A_Cur]\<^sub>v \<longmapsto> [p]\<^sub>n \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>CUR_RUNNING]\<^sub>v =\<^sub>b [p]\<^sub>n\<rangle>\<^sub>S\<^sub>L) ** is_cur p ta))
-  \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>CUR_RUNNING]\<^sub>v =\<^sub>b [t]\<^sub>n\<rangle>\<^sub>S\<^sub>L" in implies_trans)
+lemma stm3_pre_implies : "(stm2_post2 P t p ta \<and>\<^sub>S\<^sub>L \<langle>[CUR_RUNNING]\<^sub>v =\<^sub>b [t]\<^sub>n\<rangle>\<^sub>S\<^sub>L) \<sqsubseteq> stm3_pre P t p ta"
+  apply (rule_tac Q = "(P ** (([A_Cur]\<^sub>v \<longmapsto> [p]\<^sub>n \<and>\<^sub>S\<^sub>L \<langle>[CUR_RUNNING]\<^sub>v =\<^sub>b [p]\<^sub>n\<rangle>\<^sub>S\<^sub>L) ** is_cur p ta))
+  \<and>\<^sub>S\<^sub>L \<langle>[CUR_RUNNING]\<^sub>v =\<^sub>b [t]\<^sub>n\<rangle>\<^sub>S\<^sub>L" in implies_trans)
    apply (simp add: stm2_post2_def stm1_post_def implies_def) apply metis
   apply (case_tac "p = t", simp add: stm3_pre_def inv_cur1_def implies_def) apply auto[1]
   apply (simp add: implies_def) by auto
 
 definition stm3_post :: " assn \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> tcb \<Rightarrow> assn"
-  where "stm3_post P t p ta = (P \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>FLAG]\<^sub>v =\<^sub>b [1]\<^sub>n\<rangle>\<^sub>S\<^sub>L) ** (inv_cur1 t ta)"
+  where "stm3_post P t p ta = (P \<and>\<^sub>S\<^sub>L \<langle>[FLAG]\<^sub>v =\<^sub>b [1]\<^sub>n\<rangle>\<^sub>S\<^sub>L) ** (inv_cur1 t ta)"
 
 definition stm4_pre :: " assn \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> tcb \<Rightarrow> assn"
-  where "stm4_pre P t p ta = P ** (inv_cur1 t ta) ** (\<langle>[t\<diamondop>FLAG]\<^sub>v =\<^sub>b [1]\<^sub>n\<rangle>\<^sub>S\<^sub>L \<and>\<^sub>S\<^sub>L Aemp)"
+  where "stm4_pre P t p ta = P ** (inv_cur1 t ta) ** (\<langle>[FLAG]\<^sub>v =\<^sub>b [1]\<^sub>n\<rangle>\<^sub>S\<^sub>L \<and>\<^sub>S\<^sub>L Aemp)"
 
 definition stm4_post :: " assn \<Rightarrow> nat  \<Rightarrow> assn"
-  where "stm4_post Q t  = Q ** inv_cur ** (\<langle>[t\<diamondop>FLAG]\<^sub>v =\<^sub>b [1]\<^sub>n\<rangle>\<^sub>S\<^sub>L \<and>\<^sub>S\<^sub>L Aemp)"
+  where "stm4_post Q t  = Q ** inv_cur ** (\<langle>[FLAG]\<^sub>v =\<^sub>b [1]\<^sub>n\<rangle>\<^sub>S\<^sub>L \<and>\<^sub>S\<^sub>L Aemp)"
 
 lemma stm3_post_equiv : "stm3_post P t p ta \<equiv>\<^sub>S\<^sub>L stm4_pre P t p ta"
   apply (simp add: stm3_post_def stm4_pre_def assn_equiv_def) by auto
 
 lemma stm4_post_implies : "stm4_post Q t  \<sqsubseteq> stm_while_inv P Q t ** inv_cur"
-  apply (rule_tac Q = "(Q \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>FLAG]\<^sub>v =\<^sub>b [1]\<^sub>n\<rangle>\<^sub>S\<^sub>L) ** inv_cur" in implies_trans)
+  apply (rule_tac Q = "(Q \<and>\<^sub>S\<^sub>L \<langle>[FLAG]\<^sub>v =\<^sub>b [1]\<^sub>n\<rangle>\<^sub>S\<^sub>L) ** inv_cur" in implies_trans)
    apply (simp add: stm4_post_def implies_def)
   apply (rule implies_star, simp add: stm_while_inv_def implies_def)
   by (simp add: implies_def)
@@ -611,14 +611,14 @@ lemma stm4_post_implies : "stm4_post Q t  \<sqsubseteq> stm_while_inv P Q t ** i
 lemma rule_inv_cur: "\<forall>p t. \<Gamma> \<turnstile> {P ** inv_cur1 p t} C {Q} \<Longrightarrow> \<Gamma> \<turnstile> {P ** (Aexcur inv_cur1)} C {Q}"
   apply (simp add: CSL_def) by blast
 
-lemma rule_stm : "\<lbrakk> disjoint ({t \<diamondop> FLAG}) (wrC C); t\<diamondop>FLAG \<notin> fvAs \<Gamma> \<union> fvA P; t \<noteq> NULL;
-                    t\<diamondop>CUR_RUNNING \<notin> fvAs \<Gamma>;   t\<diamondop>CUR_RUNNING \<notin> fvA P; \<Gamma> Cur = inv_cur; 
+lemma rule_stm : "\<lbrakk> disjoint ({ FLAG}) (wrC C); FLAG \<notin> fvAs \<Gamma> \<union> fvA P; t \<noteq> NULL;
+                    CUR_RUNNING \<notin> fvAs \<Gamma>;   CUR_RUNNING \<notin> fvA P; \<Gamma> Cur = inv_cur; 
                     \<forall>ta. \<Gamma> \<turnstile> { P ** inv_cur1 t ta} C { Q ** inv_cur}  \<rbrakk> \<Longrightarrow> 
                     \<Gamma> \<turnstile> {P} t \<^enum> C {Q}"
   apply (simp add: stm_def)
-  apply (rule_tac Q = "P \<and>\<^sub>S\<^sub>L \<langle>[t\<diamondop>FLAG]\<^sub>v =\<^sub>b [0]\<^sub>n\<rangle>\<^sub>S\<^sub>L" in rule_seq)
+  apply (rule_tac Q = "P \<and>\<^sub>S\<^sub>L \<langle>[FLAG]\<^sub>v =\<^sub>b [0]\<^sub>n\<rangle>\<^sub>S\<^sub>L" in rule_seq)
    apply (rule rule_assign_num1, simp)
-  apply (rule_tac P = "stm_while_inv P Q t" and Q = "(stm_while_inv P Q t) \<and>\<^sub>S\<^sub>L \<langle>\<not>\<^sub>b [t\<diamondop>FLAG]\<^sub>v =\<^sub>b [0]\<^sub>n\<rangle>\<^sub>S\<^sub>L"
+  apply (rule_tac P = "stm_while_inv P Q t" and Q = "(stm_while_inv P Q t) \<and>\<^sub>S\<^sub>L \<langle>\<not>\<^sub>b [FLAG]\<^sub>v =\<^sub>b [0]\<^sub>n\<rangle>\<^sub>S\<^sub>L"
   in rule_conseq)
     apply (rule rule_while, rule rule_with_true, simp)
     defer
@@ -633,8 +633,8 @@ lemma rule_stm : "\<lbrakk> disjoint ({t \<diamondop> FLAG}) (wrC C); t\<diamond
     apply (simp add: assn_equiv_reflex, simp add: assn_equiv_reflex)
   apply (rule rule_disj')
    apply (rule_tac Q = "stm2_post1 P t" in rule_seq, simp add: stm2_pre1_def stm2_post1_def)
-    apply (rule rule_frame1, rule rule_read, simp add: Thread_Local_def)
-    apply (simp add: stm1_post_def disjoint_def, simp add: Thread_Local_def)
+    apply (rule rule_frame1, rule rule_read, simp)
+    apply (simp add: stm1_post_def disjoint_def)
    apply (rule rule_if, simp add: stm2_post1_def CSL_def) apply linarith
   apply (rule_tac P = "stm1_post P t ** ([A_Cur]\<^sub>v \<longmapsto> [K_NO_WAIT]\<^sub>n)" and Q = "stm1_post P t ** 
   ([A_Cur]\<^sub>v \<longmapsto> [K_NO_WAIT]\<^sub>n)" in rule_conseq, simp add: rule_skip)
@@ -643,14 +643,14 @@ lemma rule_stm : "\<lbrakk> disjoint ({t \<diamondop> FLAG}) (wrC C); t\<diamond
    apply (simp add: implies_def inv_cur_def)
   apply (simp add: stm2_pre2_def, rule rule_inv_cur, intro allI)
   apply (rule_tac Q = "stm2_post2 P t p ta" in rule_seq, simp add: inv_cur1_def stm2_post2_def)
-   apply (rule rule_frame1, rule rule_frame, rule rule_read)
-     apply (simp add: Thread_Local_def, simp add: fvA_is_cur, simp add: stm1_post_def)
-   apply (simp add: disjoint_def, simp add: Thread_Local_def)
+   apply (rule rule_frame1, rule rule_frame, rule rule_read, simp)
+     apply ( simp add: fvA_is_cur, simp add: stm1_post_def)
+   apply (simp add: disjoint_def)
   apply (rule rule_if, rule_tac Q = "stm3_post P t p ta" in rule_seq)
     apply (rule_tac P = "stm3_pre P t p ta" and Q = "stm3_post P t p ta" in rule_conseq)
       apply (simp add: stm3_pre_def stm3_post_def, rule rule_frame)
        apply (rule rule_assign_num1, simp, simp add: inv_cur1_def fvA_is_cur disjoint_def)
-      apply (simp add: Thread_Local_def, simp add: stm3_pre_implies, simp add: implies_def)
+      apply ( simp add: stm3_pre_implies, simp add: implies_def)
    apply (rule_tac P = "stm4_pre P t p ta" and Q = "stm4_post Q t" in rule_conseq)
      apply (simp add: stm4_pre_def stm4_post_def, rule rule_frame) apply auto[1]
      apply (simp) using equiv_implies stm3_post_equiv apply blast
@@ -661,8 +661,8 @@ lemma rule_stm : "\<lbrakk> disjoint ({t \<diamondop> FLAG}) (wrC C); t\<diamond
   apply (rule implies_star, simp add: stm1_post_def stm_while_inv_def implies_def)
   using inv_cur_implies2 by blast
 
-lemma rule_stm' : "\<lbrakk> disjoint ({t \<diamondop> FLAG}) (wrC C); t\<diamondop>FLAG \<notin> fvAs \<Gamma> \<union> fvA P; t \<noteq> NULL;
-                    t\<diamondop>CUR_RUNNING \<notin> fvAs \<Gamma>;   t\<diamondop>CUR_RUNNING \<notin> fvA P; \<Gamma> Cur = inv_cur; 
+lemma rule_stm' : "\<lbrakk> disjoint ({ FLAG}) (wrC C); FLAG \<notin> fvAs \<Gamma> \<union> fvA P; t \<noteq> NULL;
+                    CUR_RUNNING \<notin> fvAs \<Gamma>;   CUR_RUNNING \<notin> fvA P; \<Gamma> Cur = inv_cur; 
                      \<Gamma> \<turnstile> { P } C { Q}; A_Cur \<notin> wrC C  \<rbrakk> \<Longrightarrow>  \<Gamma> \<turnstile> {P} t \<^enum> C {Q}"
   apply (rule rule_stm, simp_all, clarsimp)
   apply (rule_tac P = "P ** inv_cur1 t (a, aa, b)" and Q = "Q ** inv_cur1 t (a, aa, b)" in rule_conseq)
@@ -672,18 +672,18 @@ lemma rule_stm' : "\<lbrakk> disjoint ({t \<diamondop> FLAG}) (wrC C); t\<diamon
   using inv_cur_implies2 by blast
 
 
-lemma rule_stm_stack : "\<lbrakk>fvAs \<Gamma> = {}; disjoint ({t \<diamondop> FLAG}) (wrC C); t\<diamondop>FLAG \<notin> fvA P; t \<noteq> NULL; 
-    t\<diamondop>CUR_RUNNING \<notin> fvA P; \<forall>ta. \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) 
+lemma rule_stm_stack : "\<lbrakk>fvAs \<Gamma> = {}; disjoint ({ FLAG}) (wrC C); FLAG \<notin> fvA P; t \<noteq> NULL; 
+    CUR_RUNNING \<notin> fvA P; \<forall>ta. \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) 
     \<turnstile> { P ** inv_cur1 t ta} C { Q ** inv_cur}\<rbrakk>  \<Longrightarrow> 
     \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) \<turnstile> {P} t \<^enum> C {Q}"
   apply (rule rule_stm, simp_all, simp_all add: fvA_Gamma2 fvA_inv_stack fvA_inv_cur fvA_inv_readyq)
-  by (simp_all add: Thread_Local_def)
+  done
 
-lemma rule_stm_stack' : "\<lbrakk>fvAs \<Gamma> = {}; disjoint ({t \<diamondop> FLAG}) (wrC C); t\<diamondop>FLAG \<notin> fvA P; t \<noteq> NULL; 
-    t\<diamondop>CUR_RUNNING \<notin> fvA P;  \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) 
+lemma rule_stm_stack' : "\<lbrakk>fvAs \<Gamma> = {}; disjoint ({ FLAG}) (wrC C); FLAG \<notin> fvA P; t \<noteq> NULL; 
+    CUR_RUNNING \<notin> fvA P;  \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) 
     \<turnstile> { P} C { Q} ; A_Cur \<notin> wrC C\<rbrakk>  \<Longrightarrow> 
     \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) \<turnstile> {P} t \<^enum> C {Q}"
   apply (rule rule_stm', simp_all, simp_all add: fvA_Gamma2 fvA_inv_stack fvA_inv_cur fvA_inv_readyq)
-  by (simp_all add: Thread_Local_def)
+  done
 
 end

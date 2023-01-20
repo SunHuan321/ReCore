@@ -10,28 +10,6 @@ definition Empty_Env :: "rname \<Rightarrow> assn" ("\<Gamma>\<^sub>e\<^sub>m\<^
 lemma "fvAs \<Gamma>\<^sub>e\<^sub>m\<^sub>p = {}"
   by (simp add: fvAs_def Empty_Env_def)
 
-fun string_of_digit :: "nat \<Rightarrow> string"
-where
-  "string_of_digit n =
-    (if n = 0 then ''0''
-    else if n = 1 then ''1''
-    else if n = 2 then ''2''
-    else if n = 3 then ''3''
-    else if n = 4 then ''4''
-    else if n = 5 then ''5''
-    else if n = 6 then ''6''
-    else if n = 7 then ''7''
-    else if n = 8 then ''8''
-    else ''9'')"
-
-fun string_of_nat :: "nat \<Rightarrow> string"
-  where
-    "string_of_nat n = 
-      (if n < 10 then (string_of_digit n) else
-      string_of_nat (n div 10) @ (string_of_digit (n mod 10)))"
-
-lemma "n1 \<noteq> n2 \<Longrightarrow> string_of_nat n1 \<noteq> string_of_nat n2"
-  sorry
 
 (* constant definition *)
 abbreviation "NULL \<equiv> 0"
@@ -87,8 +65,7 @@ abbreviation "CUR_THREAD \<equiv> ''cur_thread''"
 abbreviation "READY_LIST \<equiv> ''ready_list''"
 (* local variable definition *)
 
-definition Thread_Local :: "tid \<Rightarrow> var \<Rightarrow> var" ("(_\<diamondop>_)")
-  where "Thread_Local t v = ((string_of_nat) t @ v)"
+
 
 abbreviation "ADDR \<equiv> ''addr''"
 abbreviation "BASE \<equiv> ''base''"
@@ -105,18 +82,16 @@ abbreviation "SECOND_READY \<equiv> ''second_ready''"
 abbreviation "CUR_RUNNING \<equiv> ''cur_running''"
 abbreviation "FLAG \<equiv> ''flag''"
 
-definition sched_local :: "var \<Rightarrow> var" ("sched \<diamondop>_")
-  where "sched_local v = ''sched'' @ v"
 
 (* expression name *)
 definition stm :: "tid \<Rightarrow> cmd \<Rightarrow> cmd"  ("_ \<^enum> _" [0,0] 61)
   where "stm t c = 
-        (t \<diamondop> FLAG) :=\<^sub>C [0]\<^sub>n ;;
-        WHILE [t \<diamondop> FLAG]\<^sub>v =\<^sub>b [0]\<^sub>n DO
+        FLAG :=\<^sub>C [0]\<^sub>n ;;
+        WHILE [FLAG]\<^sub>v =\<^sub>b [0]\<^sub>n DO
           WITH Cur WHEN [True]\<^sub>b DO
-            (t \<diamondop> CUR_RUNNING) :=\<^sub>C \<lbrakk>[A_Cur]\<^sub>v\<rbrakk> ;;
-            IF [t \<diamondop> CUR_RUNNING]\<^sub>v =\<^sub>b [t]\<^sub>n THEN
-              (t \<diamondop> FLAG) :=\<^sub>C [1]\<^sub>n ;;
+            CUR_RUNNING :=\<^sub>C \<lbrakk>[A_Cur]\<^sub>v\<rbrakk> ;;
+            IF [CUR_RUNNING]\<^sub>v =\<^sub>b [t]\<^sub>n THEN
+              FLAG :=\<^sub>C [1]\<^sub>n ;;
               c
             ELSE
               Cskip
@@ -128,79 +103,78 @@ definition stm :: "tid \<Rightarrow> cmd \<Rightarrow> cmd"  ("_ \<^enum> _" [0,
 definition stack_push :: "tid  \<Rightarrow> nat \<Rightarrow> cmd"
   where
     "stack_push t  data \<equiv> 
-    (t \<^enum> (t \<diamondop> END) :=\<^sub>C [0]\<^sub>n) ;;                  
+    Locals\<^sub>d [FLAG, CUR_RUNNING, END, ADDR, NEXT, TOP, RET, FIRST_PENDING_THREAD, WAITQ, FIRST_READY](
+    (t \<^enum> END :=\<^sub>C [0]\<^sub>n) ;;                  
     WITH Stack WHEN [True]\<^sub>b DO 
-      (t \<^enum> (t \<diamondop> ADDR) :=\<^sub>C \<lbrakk>[A_Stack]\<^sub>v\<rbrakk>) ;;
-      (t \<^enum> (t \<diamondop> NEXT) :=\<^sub>C \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>snext\<rbrakk>) ;;
-      (t \<^enum> (t \<diamondop> TOP) :=\<^sub>C \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>stop\<rbrakk>) ;;
-      IF [t \<diamondop> NEXT]\<^sub>v =\<^sub>b [t \<diamondop> TOP]\<^sub>v THEN
-        (t \<^enum> (t \<diamondop> RET) :=\<^sub>C [ENOMEM]\<^sub>n) ;;
-        (t \<^enum> (t \<diamondop> END) :=\<^sub>C [1]\<^sub>n)
+      (t \<^enum> ADDR :=\<^sub>C \<lbrakk>[A_Stack]\<^sub>v\<rbrakk>) ;;
+      (t \<^enum> NEXT :=\<^sub>C \<lbrakk>[ADDR]\<^sub>v\<Down>\<^sub>snext\<rbrakk>) ;;
+      (t \<^enum> TOP :=\<^sub>C \<lbrakk>[ADDR]\<^sub>v\<Down>\<^sub>stop\<rbrakk>) ;;
+      IF [NEXT]\<^sub>v =\<^sub>b [TOP]\<^sub>v THEN
+        (t \<^enum> RET :=\<^sub>C [ENOMEM]\<^sub>n) ;;
+        (t \<^enum> END :=\<^sub>C [1]\<^sub>n)
       ELSE
         (t \<^enum>  
            (
-              (t \<diamondop> FIRST_PENDING_THREAD) :=\<^sub>C \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>swait\<rbrakk> ;;
-              IF [t \<diamondop> FIRST_PENDING_THREAD]\<^sub>v =\<^sub>b [NULL]\<^sub>n THEN
+              FIRST_PENDING_THREAD :=\<^sub>C \<lbrakk>[ADDR]\<^sub>v\<Down>\<^sub>swait\<rbrakk> ;;
+              IF [FIRST_PENDING_THREAD]\<^sub>v =\<^sub>b [NULL]\<^sub>n THEN
                 Cskip
               ELSE
-                (t \<diamondop> WAITQ) :=\<^sub>C \<lbrakk>[t \<diamondop> FIRST_PENDING_THREAD]\<^sub>v\<Down>\<^sub>tnext\<rbrakk> ;;
-                \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>swait\<rbrakk> :=\<^sub>C [t \<diamondop> WAITQ]\<^sub>v
+                (WAITQ) :=\<^sub>C \<lbrakk>[FIRST_PENDING_THREAD]\<^sub>v\<Down>\<^sub>tnext\<rbrakk> ;;
+                \<lbrakk>[ADDR]\<^sub>v\<Down>\<^sub>swait\<rbrakk> :=\<^sub>C [WAITQ]\<^sub>v
               FI
             )
-        ) ;;
-        
-        IF [t \<diamondop> FIRST_PENDING_THREAD]\<^sub>v =\<^sub>b [NULL]\<^sub>n THEN
-          (t \<^enum> \<lbrakk>[t \<diamondop> NEXT]\<^sub>v\<rbrakk> :=\<^sub>C [data]\<^sub>n) ;;
-          (t \<^enum>  \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>snext\<rbrakk> :=\<^sub>C [t \<diamondop> NEXT]\<^sub>v +\<^sub>e [1]\<^sub>n)
-        ELSE
-       
+        ) ;;       
+        IF [FIRST_PENDING_THREAD]\<^sub>v =\<^sub>b [NULL]\<^sub>n THEN
+          (t \<^enum> \<lbrakk>[NEXT]\<^sub>v\<rbrakk> :=\<^sub>C [data]\<^sub>n) ;;
+          (t \<^enum>  \<lbrakk>[ADDR]\<^sub>v\<Down>\<^sub>snext\<rbrakk> :=\<^sub>C [NEXT]\<^sub>v +\<^sub>e [1]\<^sub>n)
+        ELSE       
           (t \<^enum> 
             ( 
-              \<lbrakk>[t \<diamondop> FIRST_PENDING_THREAD]\<^sub>v\<Down>\<^sub>tstate\<rbrakk> :=\<^sub>C [READY]\<^sub>n ;;
-              \<lbrakk>[t \<diamondop> FIRST_PENDING_THREAD]\<^sub>v\<Down>\<^sub>tdata\<rbrakk> :=\<^sub>C [data]\<^sub>n ;;
+              \<lbrakk>[FIRST_PENDING_THREAD]\<^sub>v\<Down>\<^sub>tstate\<rbrakk> :=\<^sub>C [READY]\<^sub>n ;;
+              \<lbrakk>[FIRST_PENDING_THREAD]\<^sub>v\<Down>\<^sub>tdata\<rbrakk> :=\<^sub>C [data]\<^sub>n ;;
               WITH Readyq WHEN [True]\<^sub>b DO
-                 (t \<diamondop> FIRST_READY) :=\<^sub>C \<lbrakk>[A_Readyq]\<^sub>v\<rbrakk> ;; 
-                 \<lbrakk>[t \<diamondop> FIRST_PENDING_THREAD]\<^sub>v\<Down>\<^sub>tnext\<rbrakk> :=\<^sub>C [t \<diamondop> FIRST_READY]\<^sub>v ;; 
-                 \<lbrakk>[A_Readyq]\<^sub>v\<rbrakk> :=\<^sub>C [t \<diamondop> FIRST_PENDING_THREAD]\<^sub>v 
+                 FIRST_READY :=\<^sub>C \<lbrakk>[A_Readyq]\<^sub>v\<rbrakk> ;; 
+                 \<lbrakk>[FIRST_PENDING_THREAD]\<^sub>v\<Down>\<^sub>tnext\<rbrakk> :=\<^sub>C [FIRST_READY]\<^sub>v ;; 
+                 \<lbrakk>[A_Readyq]\<^sub>v\<rbrakk> :=\<^sub>C [FIRST_PENDING_THREAD]\<^sub>v 
               OD
             )
-          ) 
-        
+          )       
         FI
        FI
     OD ;;
-    IF [t \<diamondop> END]\<^sub>v =\<^sub>b [0]\<^sub>n THEN
-      (t \<^enum> (t \<diamondop> RET) :=\<^sub>C [0]\<^sub>n)
+    IF [END]\<^sub>v =\<^sub>b [0]\<^sub>n THEN
+      (t \<^enum> RET :=\<^sub>C [0]\<^sub>n)
     ELSE
       Cskip
-    FI"
+    FI)"
 
 definition stack_pop :: "tid  \<Rightarrow> nat \<Rightarrow> cmd"
   where
     "stack_pop t timeout \<equiv> 
-      (t \<^enum> (t \<diamondop> END) :=\<^sub>C [0]\<^sub>n) ;;
+     Locals\<^sub>d [FLAG, CUR_RUNNING, END, ADDR, NEXT, BASE, DATA, RET, FIRST_PENDING_THREAD] (
+      (t \<^enum> END :=\<^sub>C [0]\<^sub>n) ;;
       WITH Stack WHEN [True]\<^sub>b DO 
-         (t \<^enum> (t \<diamondop> ADDR) :=\<^sub>C \<lbrakk>[A_Stack]\<^sub>v\<rbrakk>) ;;
-         (t \<^enum> (t \<diamondop> NEXT) :=\<^sub>C \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>snext\<rbrakk>) ;;
-         (t \<^enum> (t \<diamondop> BASE) :=\<^sub>C \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>sbase\<rbrakk>) ;;
-         IF [(t \<diamondop> NEXT)]\<^sub>v >\<^sub>b ([t \<diamondop> BASE]\<^sub>v) THEN
-            (t \<^enum> \<lbrakk>([t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>snext)\<rbrakk> :=\<^sub>C [t \<diamondop> NEXT]\<^sub>v -\<^sub>e [1]\<^sub>n);;
-            (t \<^enum> (t \<diamondop> NEXT) :=\<^sub>C \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>snext\<rbrakk>) ;;
-            (t \<^enum> (t \<diamondop> DATA) :=\<^sub>C \<lbrakk>[t \<diamondop> NEXT]\<^sub>v\<rbrakk>) ;;
-            (t \<^enum> (t \<diamondop> RET) :=\<^sub>C [0]\<^sub>n) ;;
-            (t \<^enum> (t \<diamondop> END) :=\<^sub>C [1]\<^sub>n) 
+         (t \<^enum> ADDR :=\<^sub>C \<lbrakk>[A_Stack]\<^sub>v\<rbrakk>) ;;
+         (t \<^enum> NEXT :=\<^sub>C \<lbrakk>[ADDR]\<^sub>v\<Down>\<^sub>snext\<rbrakk>) ;;
+         (t \<^enum> BASE :=\<^sub>C \<lbrakk>[ADDR]\<^sub>v\<Down>\<^sub>sbase\<rbrakk>) ;;
+         IF [NEXT]\<^sub>v >\<^sub>b ([BASE]\<^sub>v) THEN
+            (t \<^enum> \<lbrakk>[ADDR]\<^sub>v\<Down>\<^sub>snext\<rbrakk> :=\<^sub>C [NEXT]\<^sub>v -\<^sub>e [1]\<^sub>n);;
+            (t \<^enum> NEXT :=\<^sub>C \<lbrakk>[ADDR]\<^sub>v\<Down>\<^sub>snext\<rbrakk>) ;;
+            (t \<^enum> DATA :=\<^sub>C \<lbrakk>[NEXT]\<^sub>v\<rbrakk>) ;;
+            (t \<^enum> RET :=\<^sub>C [0]\<^sub>n) ;;
+            (t \<^enum> END :=\<^sub>C [1]\<^sub>n) 
         ELSE
            IF [timeout = K_NO_WAIT ]\<^sub>b THEN
-             (t \<^enum> (t \<diamondop> RET) :=\<^sub>C ([EBUSY]\<^sub>n)) ;;
-             (t \<^enum> (t \<diamondop> END) :=\<^sub>C ([1]\<^sub>n)) 
+             (t \<^enum> RET :=\<^sub>C [EBUSY]\<^sub>n) ;;
+             (t \<^enum> END :=\<^sub>C [1]\<^sub>n) 
            ELSE
             
              (t \<^enum> 
                 (
-                  (t \<diamondop> FIRST_PENDING_THREAD) :=\<^sub>C \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>swait\<rbrakk> ;;                  
-                  \<lbrakk>[t]\<^sub>n\<Down>\<^sub>tnext\<rbrakk> :=\<^sub>C [t \<diamondop> FIRST_PENDING_THREAD]\<^sub>v ;;
+                  (FIRST_PENDING_THREAD) :=\<^sub>C \<lbrakk>[ADDR]\<^sub>v\<Down>\<^sub>swait\<rbrakk> ;;                  
+                  \<lbrakk>[t]\<^sub>n\<Down>\<^sub>tnext\<rbrakk> :=\<^sub>C [FIRST_PENDING_THREAD]\<^sub>v ;;
                   \<lbrakk>[t]\<^sub>n\<Down>\<^sub>tstate\<rbrakk> :=\<^sub>C [BLOCKED]\<^sub>n ;;
-                  \<lbrakk>[t \<diamondop> ADDR]\<^sub>v\<Down>\<^sub>swait\<rbrakk> :=\<^sub>C [t]\<^sub>n ;;
+                  \<lbrakk>[ADDR]\<^sub>v\<Down>\<^sub>swait\<rbrakk> :=\<^sub>C [t]\<^sub>n ;;
                   \<lbrakk>[A_Cur]\<^sub>v\<rbrakk> :=\<^sub>C [NULL]\<^sub>n 
                 )
               )
@@ -208,39 +182,41 @@ definition stack_pop :: "tid  \<Rightarrow> nat \<Rightarrow> cmd"
            FI
         FI     
       OD;;
-      IF [t \<diamondop> END]\<^sub>v =\<^sub>b [0]\<^sub>n  THEN
-        IF [t \<diamondop> RET]\<^sub>v =\<^sub>b [EAGAIN]\<^sub>n THEN
+      IF [END]\<^sub>v =\<^sub>b [0]\<^sub>n  THEN
+        IF [RET]\<^sub>v =\<^sub>b [EAGAIN]\<^sub>n THEN
           Cskip
          ELSE
-            (t \<^enum> (t \<diamondop> DATA) :=\<^sub>C \<lbrakk>[t]\<^sub>n\<Down>\<^sub>tdata\<rbrakk>) ;;
-            (t \<^enum> (t \<diamondop> RET) :=\<^sub>C [0]\<^sub>n)
+            (t \<^enum> DATA :=\<^sub>C \<lbrakk>[t]\<^sub>n\<Down>\<^sub>tdata\<rbrakk>) ;;
+            (t \<^enum> RET :=\<^sub>C [0]\<^sub>n)
          FI
       ELSE  
         Cskip
-      FI
+      FI)
 "
 
 abbreviation "scheduler \<equiv>
+    Locals\<^sub>d [FIRST_READY, SECOND_READY, CUR_RUNNING]
     WITH Readyq  WHEN [True]\<^sub>b DO 
-        sched \<diamondop> FIRST_READY :=\<^sub>C \<lbrakk>[A_Readyq]\<^sub>v\<rbrakk> ;; 
-        IF [sched \<diamondop> FIRST_READY]\<^sub>v =\<^sub>b [NULL]\<^sub>n  THEN
+        FIRST_READY :=\<^sub>C \<lbrakk>[A_Readyq]\<^sub>v\<rbrakk> ;; 
+        IF [FIRST_READY]\<^sub>v =\<^sub>b [NULL]\<^sub>n  THEN
           Cskip
         ELSE
-          sched \<diamondop> SECOND_READY :=\<^sub>C \<lbrakk>[sched \<diamondop> FIRST_READY]\<^sub>v\<Down>\<^sub>tnext\<rbrakk> ;;
+          SECOND_READY :=\<^sub>C \<lbrakk>[FIRST_READY]\<^sub>v\<Down>\<^sub>tnext\<rbrakk> ;;
           WITH Cur WHEN [True]\<^sub>b DO
-            sched \<diamondop> CUR_RUNNING :=\<^sub>C \<lbrakk>[A_Cur]\<^sub>v\<rbrakk> ;;
-            IF [sched \<diamondop> CUR_RUNNING]\<^sub>v =\<^sub>b [NULL]\<^sub>n THEN
-               \<lbrakk>[A_Readyq]\<^sub>v\<rbrakk> :=\<^sub>C [sched \<diamondop> SECOND_READY]\<^sub>v          
+            CUR_RUNNING :=\<^sub>C \<lbrakk>[A_Cur]\<^sub>v\<rbrakk> ;;
+            IF [CUR_RUNNING]\<^sub>v =\<^sub>b [NULL]\<^sub>n THEN
+               \<lbrakk>[A_Readyq]\<^sub>v\<rbrakk> :=\<^sub>C [SECOND_READY]\<^sub>v          
             ELSE
-               \<lbrakk>[sched \<diamondop> CUR_RUNNING]\<^sub>v\<Down>\<^sub>tstate\<rbrakk> :=\<^sub>C [READY]\<^sub>n ;;
-               \<lbrakk>[sched \<diamondop> CUR_RUNNING]\<^sub>v\<Down>\<^sub>tnext\<rbrakk> :=\<^sub>C [sched \<diamondop> SECOND_READY]\<^sub>v;;
-               \<lbrakk>[A_Readyq]\<^sub>v\<rbrakk> :=\<^sub>C [sched \<diamondop> CUR_RUNNING]\<^sub>v 
+               \<lbrakk>[CUR_RUNNING]\<^sub>v\<Down>\<^sub>tstate\<rbrakk> :=\<^sub>C [READY]\<^sub>n ;;
+               \<lbrakk>[CUR_RUNNING]\<^sub>v\<Down>\<^sub>tnext\<rbrakk> :=\<^sub>C [SECOND_READY]\<^sub>v;;
+               \<lbrakk>[A_Readyq]\<^sub>v\<rbrakk> :=\<^sub>C [CUR_RUNNING]\<^sub>v 
             FI ;;
-            \<lbrakk>[sched \<diamondop> FIRST_READY]\<^sub>v\<Down>\<^sub>tstate\<rbrakk> :=\<^sub>C [RUNNING]\<^sub>n ;;
-            \<lbrakk>[A_Cur]\<^sub>v\<rbrakk> :=\<^sub>C [sched \<diamondop> FIRST_READY]\<^sub>v 
+            \<lbrakk>[FIRST_READY]\<^sub>v\<Down>\<^sub>tstate\<rbrakk> :=\<^sub>C [RUNNING]\<^sub>n ;;
+            \<lbrakk>[A_Cur]\<^sub>v\<rbrakk> :=\<^sub>C [FIRST_READY]\<^sub>v 
           OD
         FI
     OD"
+
 
 lemma fvA_Gamma : "\<lbrakk>fvAs \<Gamma> = {}; \<Gamma>' = (\<Gamma>(Cur := inv1,  Stack := inv3, Readyq := inv2))\<rbrakk> \<Longrightarrow>
       fvAs \<Gamma>' = fvA inv1 \<union> fvA inv2 \<union> fvA inv3"

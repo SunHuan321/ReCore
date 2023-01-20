@@ -262,5 +262,29 @@ theorem rule_disj':
   apply (rule_tac Pa = "P1 \<or>\<^sub>S\<^sub>L P2" and Qa = "Q \<or>\<^sub>S\<^sub>L Q" in safe_assn_equiv)
   by (simp_all add: assn_equiv_def, simp add: rule_disj)
 
+primrec Clocals_Default :: "var list \<Rightarrow> cmd \<Rightarrow> cmd" ("Locals\<^sub>d _  (_) ")
+  where "Clocals_Default [] C = C"
+  | "Clocals_Default (x # xs) C = Clocal x ([0]\<^sub>n) (Clocals_Default xs C)"
+
+lemma fvC_Locals : "fvC (Locals\<^sub>d l C) = fvC C - set l"
+  apply (induct l, simp, simp)
+  by blast
+
+lemma wrC_Locals : "wrC (Locals\<^sub>d l C) = wrC C - set l"
+  apply (induct l, simp, simp)
+  by blast
+
+lemma rule_local' : "\<lbrakk> \<Gamma> \<turnstile> {P} C {Q}; x \<notin> fvA P \<union> fvA Q \<union> fvAs \<Gamma> \<union> fvE E \<rbrakk> \<Longrightarrow>
+                      \<Gamma> \<turnstile> {P} Clocal x E C {Q}"
+  apply (rule rule_local, rule rule_conseq, simp_all)
+   apply (simp add: implies_def)
+  by (simp add: implies_def)
+
+theorem rule_Clocals : "\<lbrakk> \<Gamma> \<turnstile> {P} C {Q} ; set l \<inter> (fvA P \<union> fvA Q \<union> fvAs \<Gamma>) = {} \<rbrakk> \<Longrightarrow>
+                          \<Gamma> \<turnstile> {P} Locals\<^sub>d l C {Q}"
+  apply (induct l, simp, simp)
+  by (rule rule_local', simp, simp)
+
+
 
 end
