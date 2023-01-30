@@ -1,5 +1,5 @@
 theory stack_sys
-  imports func_cor_pop func_cor_push func_cor_scheduler Event_Safe
+  imports func_cor_pop func_cor_push func_cor_scheduler "../Event_Safe"
 begin
 
 type_synonym Thread_Sys_Param = "(tid \<times> nat \<times> nat)"

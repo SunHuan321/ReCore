@@ -1,5 +1,5 @@
 theory Stack_Spec
-  imports Aux_for_CSL 
+  imports "../Aux_for_CSL" 
 begin
 
 type_synonym Thread_Sys_Param = "(tid \<times> nat \<times> nat)"
