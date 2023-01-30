@@ -1,16 +1,17 @@
 theory RGSepSound
   imports CSLsound AuxillaryLemma
 begin
-subsection {* state definition *}
+
+subsection \<open> state definition \<close>
 type_synonym localVariable = "heap"
 type_synonym sharedVariable = "rname \<Rightarrow> heap"
 type_synonym RGstate = "stack \<times> localVariable \<times> sharedVariable"
-subsection {* rely guarantee definition *}
+subsection \<open> rely guarantee definition \<close>
 type_synonym rely = "rname \<Rightarrow> (heap \<times> heap) set"
 type_synonym guar = rely
 
 
-subsection {* RGsep assertions *}
+subsection \<open> RGsep assertions \<close>
 datatype rgsep_assn = 
     RGlocal assn 
     | RGshared rname assn
@@ -19,8 +20,8 @@ datatype rgsep_assn =
     | RGstar rgsep_assn rgsep_assn
     | RGex "(nat \<Rightarrow> rgsep_assn)"
 
-text {* Separating conjunction of a finite list of assertions is 
-  just a derived assertion. *}
+text \<open> Separating conjunction of a finite list of assertions is 
+  just a derived assertion. \<close>
 
 primrec 
   RGistar :: "rgsep_assn list \<Rightarrow> rgsep_assn"
@@ -29,8 +30,8 @@ where
 | "RGistar (P # Ps) = RGstar P (RGistar Ps)"
 
 value "snd (1::nat,2::nat,3::nat)"
-text {*The semantics of assertions is given by the following function
-  indicating whether a state [ss] satisfies an assertion [p]. *}
+text \<open>The semantics of assertions is given by the following function
+  indicating whether a state [ss] satisfies an assertion [p]. \<close>
 
 primrec
   RGsat :: "RGstate \<Rightarrow> rgsep_assn \<Rightarrow> bool" (infixl "\<^sup>\<Turnstile>rgsep" 60)
@@ -90,8 +91,8 @@ apply (induction l arbitrary: \<sigma>, auto)
 apply (intro exI conjI, (simp add: hsimps)+)+
   done
 
-subsection {* Meaning of RGSep judgments *}
-text{*
+subsection \<open> Meaning of RGSep judgments \<close>
+text\<open>
 First, we define configuration safety (cf. Definitions 3 and 4 in paper).
 Intuitively, any configuration is safe for zero steps. For n + 1 steps, it better 
 (i) satisfy the postcondition if it is a terminal configuration, (ii) not abort, 
@@ -100,7 +101,7 @@ Intuitively, any configuration is safe for zero steps. For n + 1 steps, it bette
 the resulting configuration remains safe for another n steps, and
 (v) after any step it does, re-establish the resource invariant and be safe for 
 another n steps.
-*}
+\<close>
 
 
 definition RGdef :: "rname list \<Rightarrow> (rname \<Rightarrow> heap) \<Rightarrow> bool" 
@@ -113,18 +114,17 @@ primrec
   where
   "rgsep_safe 0       C s h \<Gamma> R G Q = True"
 | "rgsep_safe (Suc n) C s h \<Gamma> R G Q = (
-(* Condition (i) *)
+
             (C = Cskip \<longrightarrow> (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Q)
-(* Conditon (ii) *)
+
           \<and> (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> aborts C (s, h ++ hF))
-(* Condition (iii) *)
+
           \<and> accesses C s \<subseteq> dom h
-(* Condition (iv) *)
+
           \<and> (\<forall>\<Gamma>'. (\<forall>r. \<Gamma> r \<noteq> \<Gamma>' r 
                     \<longrightarrow> (r \<notin> locked C) \<and> (\<Gamma> r, \<Gamma>' r) \<in> R r \<and> disjoint (dom h) (dom (\<Gamma>' r)))
                     \<longrightarrow> rgsep_safe n C s h \<Gamma>' R G Q)
 
-(* Condition (v) *)
           \<and> (\<forall>hJ hF C' \<sigma>'.
                 red C (s,h ++ hJ ++ hF) C' \<sigma>'
               \<longrightarrow> hJ = hplus_list (map \<Gamma> (list_minus (llocked C') (llocked C)))
@@ -142,7 +142,7 @@ primrec
 
 )))"
 
-text {*  The meaning of RGSep judgements. *}
+text \<open>  The meaning of RGSep judgements. \<close>
 
 definition
     RGSep :: "rely \<Rightarrow> guar \<Rightarrow> rgsep_assn \<Rightarrow> cmd \<Rightarrow> rgsep_assn \<Rightarrow> bool"
@@ -150,9 +150,9 @@ definition
 where
   "R,G  \<^sup>\<turnstile>rgsep {P} C {Q} \<equiv> (user_cmd C \<and> (\<forall>n s h \<Gamma>. (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep P \<longrightarrow> rgsep_safe n C s h \<Gamma> R G Q))" 
 
-text{* Free variables and substitutions *}
+text\<open> Free variables and substitutions \<close>
 
-text{** The free variables of an assertion [p] are given as a predicate [fvA p]. *}
+text\<open>* The free variables of an assertion [p] are given as a predicate [fvA p]. \<close>
 
 primrec fvAA :: "rgsep_assn \<Rightarrow> var set"
   where
@@ -163,7 +163,7 @@ primrec fvAA :: "rgsep_assn \<Rightarrow> var set"
   | "fvAA (RGdisj P Q) = (fvAA P \<union> fvAA Q)"
   | "fvAA (RGex P) = (\<Union>x. fvAA (P x))"
 
-text{** The free region names in an assertion [p]. *}
+text\<open>* The free region names in an assertion [p]. \<close>
 primrec frgnA :: "rgsep_assn \<Rightarrow> rname \<Rightarrow> bool"
   where
     "frgnA (RGlocal P) _ = False"
@@ -173,11 +173,11 @@ primrec frgnA :: "rgsep_assn \<Rightarrow> rname \<Rightarrow> bool"
   | "frgnA (RGdisj P Q) v = ((frgnA P v) \<or> (frgnA Q v))"
   | "frgnA (RGex P) v = (\<exists>x. frgnA (P x) v)"
 
-text {* Proposition 4.2 for assertions *}
+text \<open> Proposition 4.2 for assertions \<close>
 
 
 
-subsection{* soundness proof *}
+subsection\<open> soundness proof \<close>
 (** 1. Assertions depend only on the values of their free variables and regions. *)
 lemma RGassn_agrees: "agrees (fvAA P) s s' \<Longrightarrow> ((s, lh, sh) \<^sup>\<Turnstile>rgsep P \<equiv> (s', lh, sh) \<^sup>\<Turnstile>rgsep P)"
   apply (induct P arbitrary: lh sh, simp_all add: bexp_agrees)
@@ -415,7 +415,7 @@ theorem RGrule_par: "\<lbrakk>(RGUnion R G2), G1 \<^sup>\<turnstile>rgsep {P1} C
        \<Longrightarrow> R, (RGUnion G1 G2) \<^sup>\<turnstile>rgsep {RGstar P1 P2} (Cpar C1 C2) {RGstar Q1 Q2}"
   using RGSep_def RGsafe_par fst_conv user_cmdD by auto
 
-subsubsection {* Resource declaration *}
+subsubsection \<open> Resource declaration \<close>
 
 lemma map_upd_irr : "r \<notin> set l \<Longrightarrow> map (\<Gamma>(r := hK)) l = map \<Gamma> l"
   by simp
@@ -439,8 +439,8 @@ lemma resource_Skip : "\<lbrakk>rgsep_safe n Cskip s h \<Gamma> (R(r := Rr)) (G(
     \<Longrightarrow> rgsep_safe n Cskip s (h ++ \<Gamma> r) (\<Gamma>(r := hK)) R G (RGstar Q (RGlocal q)) "
   apply (induct n arbitrary: \<Gamma> hK, simp, clarsimp)
   apply (rule conjI) apply (rule_tac x = "h" in exI)
-  apply (rule conjI)
-    apply (metis RGassn_agrees_rgn fun_upd_other)
+   apply (rule conjI)
+  apply (metis (mono_tags, lifting) RGassn_agrees_rgn fun_upd_other)
    apply (rule_tac x= "\<Gamma> r" in exI, simp, clarsimp)
   apply (drule_tac a = "\<Gamma>'(r := \<Gamma> r)" in allD, simp)
   apply (drule impD, clarsimp)
@@ -568,15 +568,15 @@ theorem RGrule_resource :
       R, G \<^sup>\<turnstile>rgsep {RGstar P (RGlocal p)} (Cresource r C) {RGstar Q (RGlocal q)}"
   apply (simp add: RGSep_def, clarsimp)
   apply (drule_tac a = "n" and b = "s" and c = "h1" and d = "\<Gamma>(r := h2)" in all4_impD, simp)
-   apply (metis RGassn_agrees_rgn fun_upd_other)
+  apply (metis (mono_tags, lifting) RGassn_agrees_rgn fun_upd_other)  
   apply (drule RGsafe_resource, simp_all add: user_cmd_wf user_cmdD)
   apply (drule_tac a = "\<Gamma> r" in allD, simp)
   done
 
-subsubsection {* Frame rule *}
+subsubsection \<open> Frame rule \<close>
 
-text {* The safety of the frame rule can be seen as a special case of the parallel composition
-  rule taking one thread to be the empty command. *}
+text \<open> The safety of the frame rule can be seen as a special case of the parallel composition
+  rule taking one thread to be the empty command. \<close>
 
 
 lemma RGsafe_frame:
@@ -612,7 +612,7 @@ apply (subgoal_tac "hR ++ (hplus_list (map \<Gamma> (list_minus (llocked C') (ll
    apply (metis DiffD1 DiffD2 disjoint_map_list disjoint_search(1) set_list_minus)
   apply (drule mall5_imp4D, simp_all)
    apply auto[1] 
-  apply (drule_tac a = s and b = hR and c = \<Gamma> in all3D, simp)
+  apply (drule_tac a = s and b = hR and c = \<Gamma> in all3D, simp)                                                                                             
   apply (drule_tac a = "\<Gamma>'" in all_imp2D, simp_all add: RGUnion_def)
     apply blast apply blast
   by (meson RGassn_agrees agrees_minusD disjoint_search(1))
@@ -624,7 +624,7 @@ theorem RGrule_frame:
   \<Longrightarrow> Rely ,Guar \<^sup>\<turnstile>rgsep {RGstar P R} C {RGstar Q R}"
   using RGSep_def RGsafe_frame by auto
 
-subsubsection {* Conditional critical regions *}
+subsubsection \<open> Conditional critical regions \<close>
 
 lemma RGsafe_inwith_rely_irr: 
   "\<lbrakk>rgsep_safe n (Cinwith r C) s h \<Gamma> (R(r :={})) G Q; stable Q [] R\<rbrakk>
@@ -748,7 +748,7 @@ proof(simp add: RGSep_def, clarsimp)
     by (metis rule_with_skip)
 qed
 
-subsubsection {* Sequential composition *}  
+subsubsection \<open> Sequential composition \<close>  
 
 lemma RGsafe_seq :
 "\<lbrakk>rgsep_safe n C s h \<Gamma> Rely Guar Q; user_cmd C2;
@@ -806,7 +806,7 @@ theorem RGrule_seq:
 "
   by (auto simp add: RGSep_def intro!: RGsafe_seq)
 
-subsubsection {* Conditionals (if-then-else) *}
+subsubsection \<open> Conditionals (if-then-else) \<close>
 
 lemma red_det_tau: " \<lbrakk>rgsep_safe n C' s' h \<Gamma> R G Q;
           \<forall>h. red C (s,h) C' (s', h);
@@ -849,7 +849,7 @@ theorem "\<lbrakk>R,G \<^sup>\<turnstile>rgsep {RGconj P (RGlocal (Apure B))} C1
   apply (simp add: user_cmdD)
   done
 
-subsubsection {* While *}
+subsubsection \<open> While \<close>
 
 lemma stable_local: "stable (RGlocal P) exn R"
   by (simp add: stable_def)
@@ -878,7 +878,6 @@ lemma RGsafe_while:
     apply (erule red_det_tau)
         apply (simp add: red_If1)
        apply (intro allI impI, erule red.cases, simp_all, clarsimp)
-      apply auto[1]
      apply(intro allI notI, erule aborts.cases, simp_all)
   using RGSep_def user_cmdD apply blast
    apply (rule_tac Q = "P" in RGsafe_seq)
@@ -901,7 +900,7 @@ theorem RGrule_while:
     \<Longrightarrow> R,G \<^sup>\<turnstile>rgsep {RGconj P (RGlocal (Apure B))} (Cwhile B C) {RGconj P (RGlocal (Apure (Bnot B)))}"
   by (simp add: RGSep_def RGsafe_while)
 
-subsubsection {* Simple structural rules (Conseq, Disj, Ex) *}
+subsubsection \<open> Simple structural rules (Conseq, Disj, Ex) \<close>
 
 definition RGsubset :: "rely \<Rightarrow> rely \<Rightarrow> bool" (infixl "\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p" 60)
   where

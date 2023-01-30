@@ -1,10 +1,11 @@
-session RePiCore = "HOL" +
+session ReCore = "HOL" +
 	theories
 	   Lang
 	   VHelper
 	   CSLsound
                    Aux_for_CSL
-	   CSL_Syntax
+	   Aux_for_RGSep
+	   CSL_syntax
 	   AuxillaryLemma
 	   RGSepSound
 	   Event_Lang

@@ -1,4 +1,4 @@
-theory CSL_Syntax
+theory CSL_syntax
   imports CSLsound
 begin
 

@@ -1,5 +1,5 @@
 theory Event_RGsafe
-  imports RGSepSound Event_Helper
+  imports RGSepSound Event_Helper Aux_for_RGSep
 begin
 
 primrec RGstar_shared :: "(rname \<Rightarrow> assn) \<Rightarrow> rnames \<Rightarrow> rgsep_assn"
@@ -18,17 +18,17 @@ primrec
 where
   "rgsep_esafe 0 e s h \<Gamma> R G Q = True"
 | "rgsep_esafe (Suc n) e s h \<Gamma> R G Q = (
-(* Condition (i) *)
+
             (e = AnonyEvent Cskip \<longrightarrow> (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Q)
-(* Conditon (ii) *)
+
           \<and> (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> eaborts e (s, h ++ hF))
-(* Condition (iii) *)
+
           \<and> eaccesses e s \<subseteq> dom h
-(* Condition (iv) *)
+
           \<and> (\<forall>\<Gamma>'. (\<forall>r. \<Gamma> r \<noteq> \<Gamma>' r 
                     \<longrightarrow> (r \<notin> elocked e) \<and> (\<Gamma> r, \<Gamma>' r) \<in> R r \<and> disjoint (dom h) (dom (\<Gamma>' r)))
                     \<longrightarrow> rgsep_esafe n e s h \<Gamma>' R G Q)
-(* Condition (v) *)
+
           \<and> (\<forall>hJ hF e' \<sigma>'.
                 ered e (s,h ++ hJ ++ hF) e' \<sigma>'
               \<longrightarrow> hJ = hplus_list (map \<Gamma> (list_minus (ellocked e') (ellocked e)))
@@ -86,67 +86,22 @@ lemma RGesafe_conseq: " \<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<
   apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp)
   by (meson RGsubset_def contra_subsetD)
 
-lemma RGesafe_post_Aemp : "rgsep_esafe n e s h \<Gamma> R G Q \<longleftrightarrow> 
-                            rgsep_esafe n e s h \<Gamma> R G (RGstar Q (RGlocal Aemp))"
-  by (induct n arbitrary: e s h \<Gamma>, simp_all)
+theorem RGrule_EvtConseq : "
+  \<lbrakk> R,G \<^sup>\<turnstile>ergsep {P} e {Q};
+   P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
+   R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
+    \<Longrightarrow> R',G' \<^sup>\<turnstile>ergsep {P'} e {Q'}"
+  by (simp add: eRGSep_def rgsep_implies_def RGesafe_conseq)
 
-lemma RGesafe_post_commute : "rgsep_esafe n e s h \<Gamma> R G (RGstar Q1 Q2) \<longleftrightarrow> 
-                               rgsep_esafe n e s h \<Gamma> R G (RGstar Q2 Q1)"
-  by (induct n arbitrary: e s h \<Gamma>, simp, simp only: rgsep_esafe.simps RGstar_commute)
+theorem RGrule_Evtequiv: "
+  \<lbrakk> R,G \<^sup>\<turnstile>ergsep {P} e {Q};
+   P' \<equiv>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p P; Q \<equiv>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Q'\<rbrakk>
+    \<Longrightarrow> R,G \<^sup>\<turnstile>ergsep {P'} e {Q'}"
+  apply (drule RGrule_EvtConseq, simp_all)
+     apply (simp add: RGequiv_implies, simp add: RGequiv_implies)
+   apply (simp_all add: RGsubset_def)
+  done
 
-lemma RGesafe_post_assoc : "rgsep_esafe n e s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
-                     \<longleftrightarrow> rgsep_esafe n e s h \<Gamma> R G (RGstar Q1 (RGstar Q2 Q3))"
-  by (induct n arbitrary: e s h \<Gamma>, simp, simp only: rgsep_esafe.simps RGstar_assoc)
-
-lemma RGesafe_post_comassoc : "rgsep_esafe n e s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
-                        \<longleftrightarrow> rgsep_esafe n e s h \<Gamma> R G (RGstar Q1 (RGstar Q3 Q2))"
-  by (induct n arbitrary: e s h \<Gamma>, simp, simp only: rgsep_esafe.simps RGstar_comassoc)
-
-
-theorem RGrule_e_pre_commute: 
-  " R, G \<^sup>\<turnstile>ergsep {RGstar P1 P2} e{Q} \<longleftrightarrow> 
-    R, G \<^sup>\<turnstile>ergsep {RGstar P2 P1} e{Q}"
-  using RGstar_commute eRGSep_def by auto
-
-theorem RGrule_e_post_commute:
-  " R, G \<^sup>\<turnstile>ergsep {P} e{RGstar Q1 Q2}  \<longleftrightarrow> 
-    R, G \<^sup>\<turnstile>ergsep {P} e{RGstar Q2 Q1} "
-  by (simp add: eRGSep_def RGesafe_post_commute)
-
-theorem RGrule_e_pre_post_commute:
-  "R, G \<^sup>\<turnstile>ergsep {RGstar P1 P2} e{RGstar Q1 Q2}  \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>ergsep {RGstar P2 P1} e{RGstar Q2 Q1} "
-  by (simp add: RGrule_e_post_commute RGrule_e_pre_commute)
-
-theorem RGrule_e_pre_associate :
-  "R, G \<^sup>\<turnstile>ergsep {RGstar (RGstar P1 P2) P3} e{Q}  \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>ergsep {RGstar P1 (RGstar P2 P3)} e{Q} "
-  using RGstar_assoc eRGSep_def by auto
-
-theorem RGrule_e_post_associate :
-  "R, G \<^sup>\<turnstile>ergsep {P} e{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-  R, G \<^sup>\<turnstile>ergsep {P} e{RGstar Q1 (RGstar Q2 Q3)}"
-  by (simp add: eRGSep_def RGesafe_post_assoc)
-
-theorem RGrule_e_pre_post_associate :
-  "R, G \<^sup>\<turnstile>ergsep {RGstar (RGstar P1 P2) P3} e{(RGstar (RGstar Q1 Q2) Q3)} \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>ergsep {RGstar P1 (RGstar P2 P3)} e{RGstar Q1 (RGstar Q2 Q3)}"
-  using RGrule_e_post_associate RGrule_e_pre_associate RGrule_e_pre_commute by auto
-
-theorem RGrule_e_pre_comassoc :   "R, G \<^sup>\<turnstile>ergsep {RGstar (RGstar P1 P2) P3} e{Q}  \<longleftrightarrow> 
-                                  R, G \<^sup>\<turnstile>ergsep {RGstar P1 (RGstar P3 P2)} e{Q} "
-  using RGstar_comassoc eRGSep_def by auto
-
-theorem RGrule_e_post_comassoc :
-  "R, G \<^sup>\<turnstile>ergsep {P} e{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-   R, G \<^sup>\<turnstile>ergsep {P} e{RGstar Q1 (RGstar Q3 Q2)}"
-  by (simp add: eRGSep_def RGesafe_post_comassoc)
-
-theorem RGrule_e_pre_post_comassoc :
-   "R, G \<^sup>\<turnstile>ergsep {RGstar (RGstar P1 P2) P3} e{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-    R, G \<^sup>\<turnstile>ergsep {RGstar P1 (RGstar P3 P2)} e{RGstar Q1 (RGstar Q3 Q2)}"
-  by (simp add: RGrule_e_post_comassoc RGrule_e_pre_comassoc)
- 
 lemma RGesafe_AnonyEvt: "rgsep_safe n C s h \<Gamma> R G Q \<Longrightarrow> rgsep_esafe n (AnonyEvent C) s h \<Gamma> R G Q"
   apply (induct n arbitrary: C s h \<Gamma>, simp_all, clarify)
   apply (rule conjI)
@@ -185,12 +140,7 @@ proof-
     by (simp add: RGesafe_AnonyEvt)
 qed
 
-theorem RGrule_EvtConseq : "
-  \<lbrakk> R,G \<^sup>\<turnstile>ergsep {P} e {Q};
-   P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
-   R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
-    \<Longrightarrow> R',G' \<^sup>\<turnstile>ergsep {P'} e {Q'}"
-  by (simp add: eRGSep_def rgsep_implies_def RGesafe_conseq)
+
 
 lemma RGesafe_frame:
  "\<lbrakk> rgsep_esafe n e s h \<Gamma> Rely Guar Q; 
@@ -243,17 +193,17 @@ primrec
 where
   "rgsep_resafe 0 re s h \<Gamma> R G Q = True"
 | "rgsep_resafe (Suc n) re s h \<Gamma> R G Q = (
-(* Condition (i) *)
+
             (snd re = AnonyEvent Cskip \<longrightarrow> (s, h, \<Gamma>) \<^sup>\<Turnstile>rgsep Q)
-(* Conditon (ii) *)
+
           \<and> (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> reaborts re (s, h ++ hF))
-(* Condition (iii) *)
+
           \<and> reaccesses re s \<subseteq> dom h
-(* Condition (iv) *)
+
           \<and> (\<forall>\<Gamma>'. (\<forall>r. \<Gamma> r \<noteq> \<Gamma>' r 
                     \<longrightarrow> (r \<notin> relocked re) \<and> (\<Gamma> r, \<Gamma>' r) \<in> R r \<and> disjoint (dom h) (dom (\<Gamma>' r)))
                     \<longrightarrow> rgsep_resafe n re s h \<Gamma>' R G Q)
-(* Condition (v) *)
+
           \<and> (\<forall>hJ hF re' \<sigma>'.
                 rered re (s,h ++ hJ ++ hF) re' \<sigma>'
               \<longrightarrow> hJ = hplus_list (map \<Gamma> (list_minus (rellocked re') (rellocked re)))
@@ -312,70 +262,21 @@ lemma RGresafe_conseq: " \<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\
   apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp add: relocked_def)
   by (meson RGsubset_def contra_subsetD)
 
-lemma RGresafe_post_Aemp : "rgsep_resafe n re s h \<Gamma> R G Q \<longleftrightarrow> 
-                            rgsep_resafe n re s h \<Gamma> R G (RGstar Q (RGlocal Aemp))"
-  by (induct n arbitrary: re s h \<Gamma>, simp_all)
+theorem RGrule_rEvtConseq : "
+  \<lbrakk> R,G \<^sup>\<turnstile>rergsep {P} re {Q};
+   P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
+   R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
+    \<Longrightarrow> R',G' \<^sup>\<turnstile>rergsep {P'} re {Q'}"
+  by (simp add: reRGSep_def rgsep_implies_def RGresafe_conseq)
 
-lemma RGresafe_post_commute : "rgsep_resafe n re s h \<Gamma> R G (RGstar Q1 Q2) \<longleftrightarrow> 
-                               rgsep_resafe n re s h \<Gamma> R G (RGstar Q2 Q1)"
-  by (induct n arbitrary: re s h \<Gamma>, simp, simp only: rgsep_resafe.simps RGstar_commute)
-
-lemma RGresafe_post_assoc : "rgsep_resafe n re s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
-                     \<longleftrightarrow> rgsep_resafe n re s h \<Gamma> R G (RGstar Q1 (RGstar Q2 Q3))"
-  by (induct n arbitrary: re s h \<Gamma>, simp, simp only: rgsep_resafe.simps RGstar_assoc)
-
-lemma RGresafe_post_comassoc : "rgsep_resafe n re s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
-                        \<longleftrightarrow> rgsep_resafe n re s h \<Gamma> R G (RGstar Q1 (RGstar Q3 Q2))"
-  by (induct n arbitrary: re s h \<Gamma>, simp, simp only: rgsep_resafe.simps RGstar_comassoc)               
-
-theorem RGrule_re_pre_commute: 
-  " R, G \<^sup>\<turnstile>rergsep {RGstar P1 P2} re {Q} \<longleftrightarrow> 
-    R, G \<^sup>\<turnstile>rergsep {RGstar P2 P1} re {Q}"
-  using RGstar_commute reRGSep_def by auto
-
-theorem RGrule_re_post_commute:
-  " R, G \<^sup>\<turnstile>rergsep {P} re {RGstar Q1 Q2}  \<longleftrightarrow> 
-    R, G \<^sup>\<turnstile>rergsep {P} re {RGstar Q2 Q1} "
-  by (simp add: reRGSep_def RGresafe_post_commute)
-
-theorem RGrule_re_pre_post_commute:
-  "R, G \<^sup>\<turnstile>rergsep {RGstar P1 P2} re {RGstar Q1 Q2}  \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>rergsep {RGstar P2 P1} re {RGstar Q2 Q1} "
-  by (simp add: RGrule_re_post_commute RGrule_re_pre_commute)
-
-theorem RGrule_re_pre_associate :
-  "R, G \<^sup>\<turnstile>rergsep {RGstar (RGstar P1 P2) P3} re {Q}  \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>rergsep {RGstar P1 (RGstar P2 P3)} re {Q} "
-  using RGstar_assoc reRGSep_def by auto
-
-theorem RGrule_re_post_associate :
-  "R, G \<^sup>\<turnstile>rergsep {P} re {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-  R, G \<^sup>\<turnstile>rergsep {P} re {RGstar Q1 (RGstar Q2 Q3)}"
-  by (simp add: reRGSep_def RGresafe_post_assoc)
-
-theorem RGrule_re_pre_post_associate :
-  "R, G \<^sup>\<turnstile>rergsep {RGstar (RGstar P1 P2) P3} re {(RGstar (RGstar Q1 Q2) Q3)} \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>rergsep {RGstar P1 (RGstar P2 P3)} re {RGstar Q1 (RGstar Q2 Q3)}"
-  using RGrule_re_post_associate RGrule_re_pre_associate RGrule_re_pre_commute by auto
-
-theorem RGrule_re_pre_comassoc :   "R, G \<^sup>\<turnstile>rergsep {RGstar (RGstar P1 P2) P3} re {Q}  \<longleftrightarrow> 
-                                  R, G \<^sup>\<turnstile>rergsep {RGstar P1 (RGstar P3 P2)} re {Q} "
-  using RGstar_comassoc reRGSep_def by auto
-
-theorem RGrule_re_post_comassoc :
-  "R, G \<^sup>\<turnstile>rergsep {P} re {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-   R, G \<^sup>\<turnstile>rergsep {P} re {RGstar Q1 (RGstar Q3 Q2)}"
-  by (simp add: reRGSep_def RGresafe_post_comassoc)
-
-theorem RGrule_re_pre_post_comassoc :
-   "R, G \<^sup>\<turnstile>rergsep {RGstar (RGstar P1 P2) P3} re {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-    R, G \<^sup>\<turnstile>rergsep {RGstar P1 (RGstar P3 P2)} re {RGstar Q1 (RGstar Q3 Q2)}"
-  by (simp add: RGrule_re_post_comassoc RGrule_re_pre_comassoc)
-
-theorem RGrule_re_pre_post_comassoc1 :
-   " R, G \<^sup>\<turnstile>rergsep {RGstar P1 (RGstar P2 P3)} re {RGstar Q1 (RGstar Q2 Q3)} \<longleftrightarrow> 
-     R, G \<^sup>\<turnstile>rergsep {RGstar (RGstar P1 P3) P2} re {RGstar (RGstar Q1 Q3) Q2}"
-  by (simp add: RGrule_re_pre_post_comassoc)
+theorem RGrule_rEvtequiv : "
+  \<lbrakk> R,G \<^sup>\<turnstile>rergsep {P} re {Q};
+   P' \<equiv>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p P; Q \<equiv>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Q'\<rbrakk>
+    \<Longrightarrow> R,G \<^sup>\<turnstile>rergsep {P'} re {Q'}"
+  apply (drule RGrule_rEvtConseq, simp_all)
+  apply (simp add: RGequiv_implies, simp add: RGequiv_implies)
+   apply (simp_all add: RGsubset_def)
+  done
 
 lemma RGresafe_res:
  "\<lbrakk> rgsep_resafe n (rs, e) s h \<Gamma> (R(r := Rr)) (G(r := Gr)) (RGstar Q (RGshared r q)); 
@@ -507,7 +408,7 @@ lemma RGrule_re1 :
   apply (simp add: reRGSep_def)
   apply (rule conjI, simp add: user_revent_def, clarsimp)
   apply (drule_tac a = "n" and b = "s" and c = "h1" and d = "\<Gamma>(r := h2)" in all4_impD, simp)
-   apply (metis RGassn_agrees_rgn fun_upd_other)
+  apply (metis (mono_tags, lifting) RGassn_agrees_rgn fun_upd_other)   
   apply (drule RGresafe_res, simp_all add: wf_revent_def user_revent_def user_event_wf)
   by (metis all_not_in_conv fun_upd_triv snd_conv user_reventD user_revent_def)
 
@@ -522,12 +423,23 @@ theorem RGrule_re :
       R, G \<^sup>\<turnstile>rergsep {RGstar P (RGstar_local \<G> rs)} (rs, e) {RGstar Q (RGstar_local \<GG> rs)}"
   apply (induct rs arbitrary: R G P Q, simp add: RGrule_re_empty, clarsimp)
   apply (drule_tac a = "R(a := \<R> a)" and b = "G(a := \<RR> a)" and c = "RGstar P (RGshared a (\<G> a))"
-        and d = "RGstar Q (RGshared a (\<GG> a))" in mall4_impD, simp add: RGrule_e_pre_post_associate)
-  apply (drule mimp2D, simp) apply auto[1]
-  apply auto[1]
-  apply (simp add: RGrule_re_pre_post_associate)
-  apply (simp add: RGrule_re_pre_post_comassoc1)
-  by (rule RGrule_re1, simp_all add: RGstar_local_frgnA)
+        and d = "RGstar Q (RGshared a (\<GG> a))" in mall4_impD)
+   apply (erule RGrule_Evtequiv)
+    apply (simp add: RGAstar_assoc_equiv)
+  using RGAstar_assoc_equiv RGassn_equiv_symmetry apply force
+  apply (drule mimpD) apply auto[1]
+  apply (rule_tac P = "RGstar (RGstar P (RGstar_local \<G> rs)) (RGlocal (\<G> a))" and Q = "RGstar 
+  (RGstar Q (RGstar_local \<GG> rs)) (RGlocal (\<GG> a))" in RGrule_rEvtequiv)
+    apply (drule mimpD) apply auto[1]
+  apply (rule_tac R = "R" and G = "G" and Rr = "\<R> a" and Gr = "\<RR> a" in RGrule_re1)
+     apply (rule RGrule_rEvtequiv, simp_all)
+  using RGAstar_assoc_equiv RGAstar_assoc_equiv2 RGassn_equiv_symmetry RGassn_equiv_trans apply blast
+  using RGAstar_assoc_equiv RGAstar_assoc_equiv2 RGassn_equiv_symmetry RGassn_equiv_trans apply blast
+  using RGstar_local_frgnA apply blast
+  using RGstar_local_frgnA apply blast
+  using RGAstar_assoc_equiv2 RGassn_equiv_symmetry apply blast
+  using RGAstar_assoc_equiv2 apply blast
+  done
 
 theorem RGrule_rInner: "\<lbrakk>(update_list R \<R> rs), (update_list G \<RR> rs)  
                          \<^sup>\<turnstile>rgsep {RGstar P (RGstar_shared \<G> rs)} C {RGstar Q (RGstar_shared \<GG> rs)};
@@ -544,13 +456,6 @@ theorem RGrule_rBasicEvt: "\<lbrakk>(update_list R \<R> rs), (update_list G \<RR
                       \<Longrightarrow> R,G  \<^sup>\<turnstile>rergsep {RGstar P (RGstar_local \<G> rs)} 
                           (rs, (BasicEvent (guard, C))) {RGstar Q (RGstar_local \<GG> rs)}"
   by (rule_tac \<R> = \<R> and \<RR> = \<RR> in RGrule_re, simp_all add: RGrule_BasicEvt)
-
-theorem RGrule_rEvtConseq : "
-  \<lbrakk> R,G \<^sup>\<turnstile>rergsep {P} re {Q};
-   P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
-   R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
-    \<Longrightarrow> R',G' \<^sup>\<turnstile>rergsep {P'} re {Q'}"
-  by (simp add: reRGSep_def rgsep_implies_def RGresafe_conseq)
 
 lemma RGresafe_frame:
  "\<lbrakk> rgsep_resafe n re s h \<Gamma> Rely Guar Q; 
@@ -607,15 +512,15 @@ primrec
 where
   "rgsep_essafe 0 es s h \<Gamma> R G Q = True"
 | "rgsep_essafe (Suc n) es s h \<Gamma> R G Q = (
-(* Conditon (ii) *)
+
            (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> esaborts es (s, h ++ hF))
-(* Condition (iii) *)
+
           \<and> esaccesses es s \<subseteq> dom h
-(* Condition (iv) *)
+
           \<and> (\<forall>\<Gamma>'. (\<forall>r. \<Gamma> r \<noteq> \<Gamma>' r 
                     \<longrightarrow> (r \<notin> eslocked es) \<and> (\<Gamma> r, \<Gamma>' r) \<in> R r \<and> disjoint (dom h) (dom (\<Gamma>' r)))
                     \<longrightarrow> rgsep_essafe n es s h \<Gamma>' R G Q)
-(* Condition (v) *)
+
           \<and> (\<forall>hJ hF es' \<sigma>'.
                 esred es (s,h ++ hJ ++ hF) es' \<sigma>'
               \<longrightarrow> hJ = hplus_list (map \<Gamma> (list_minus (esllocked es') (esllocked es)))
@@ -677,65 +582,21 @@ lemma RGessafe_conseq : "\<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\
   apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp)
   by (meson RGsubset_def contra_subsetD)
 
-lemma RGessafe_post_Aemp : "rgsep_essafe n es s h \<Gamma> R G Q \<longleftrightarrow> 
-                            rgsep_essafe n es s h \<Gamma> R G (RGstar Q (RGlocal Aemp))"
-  by (induct n arbitrary: es s h \<Gamma>, simp_all)
+theorem RGrule_esconseq : "
+  \<lbrakk> R,G \<^sup>\<turnstile>esrgsep {P} es {Q};
+   P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
+   R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
+    \<Longrightarrow> R',G' \<^sup>\<turnstile>esrgsep {P'} es {Q'}"
+  by (simp add: esRGSep_def rgsep_implies_def RGessafe_conseq)
 
-lemma RGessafe_post_commute : "rgsep_essafe n es s h \<Gamma> R G (RGstar Q1 Q2) \<longleftrightarrow> 
-                               rgsep_essafe n es s h \<Gamma> R G (RGstar Q2 Q1)"
-  by (induct n arbitrary: es s h \<Gamma>, simp, simp only: rgsep_essafe.simps RGstar_commute)
-
-lemma RGessafe_post_assoc : "rgsep_essafe n es s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
-                     \<longleftrightarrow> rgsep_essafe n es s h \<Gamma> R G (RGstar Q1 (RGstar Q2 Q3))"
-  by (induct n arbitrary: es s h \<Gamma>, simp, simp only: rgsep_essafe.simps RGstar_assoc)
-
-lemma RGessafe_post_comassoc : "rgsep_essafe n es s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
-                        \<longleftrightarrow> rgsep_essafe n es s h \<Gamma> R G (RGstar Q1 (RGstar Q3 Q2))"
-  by (induct n arbitrary: es s h \<Gamma>, simp, simp only: rgsep_essafe.simps RGstar_comassoc)
-
-theorem RGrule_es_pre_commute: 
-  " R, G \<^sup>\<turnstile>esrgsep {RGstar P1 P2} es{Q} \<longleftrightarrow> 
-    R, G \<^sup>\<turnstile>esrgsep {RGstar P2 P1} es{Q}"
-  using RGstar_commute  esRGSep_def by auto
-
-theorem RGrule_es_post_commute:
-  " R, G \<^sup>\<turnstile>esrgsep {P} es{RGstar Q1 Q2}  \<longleftrightarrow> 
-    R, G \<^sup>\<turnstile>esrgsep {P} es{RGstar Q2 Q1} "
-  by (simp add:  esRGSep_def RGessafe_post_commute)
-
-theorem RGrule_es_pre_post_commute:
-  "R, G \<^sup>\<turnstile>esrgsep {RGstar P1 P2} es{RGstar Q1 Q2}  \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>esrgsep {RGstar P2 P1} es{RGstar Q2 Q1} "
-  by (simp add: RGrule_es_post_commute RGrule_es_pre_commute)
-
-theorem RGrule_es_pre_associate :
-  "R, G \<^sup>\<turnstile>esrgsep {RGstar (RGstar P1 P2) P3} es{Q}  \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>esrgsep {RGstar P1 (RGstar P2 P3)} es{Q} "
-  using RGstar_assoc  esRGSep_def by auto
-
-theorem RGrule_es_post_associate :
-  "R, G \<^sup>\<turnstile>esrgsep {P} es{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-  R, G \<^sup>\<turnstile>esrgsep {P} es{RGstar Q1 (RGstar Q2 Q3)}"
-  by (simp add:  esRGSep_def RGessafe_post_assoc)
-
-theorem RGrule_es_pre_post_associate :
-  "R, G \<^sup>\<turnstile>esrgsep {RGstar (RGstar P1 P2) P3} es{(RGstar (RGstar Q1 Q2) Q3)} \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>esrgsep {RGstar P1 (RGstar P2 P3)} es{RGstar Q1 (RGstar Q2 Q3)}"
-  using RGrule_es_post_associate RGrule_es_pre_associate RGrule_es_pre_commute by auto
-
-theorem RGrule_es_pre_comassoc :   "R, G \<^sup>\<turnstile>esrgsep {RGstar (RGstar P1 P2) P3} es{Q}  \<longleftrightarrow> 
-                                  R, G \<^sup>\<turnstile>esrgsep {RGstar P1 (RGstar P3 P2)} es{Q} "
-  using RGstar_comassoc  esRGSep_def by auto
-
-theorem RGrule_es_post_comassoc :
-  "R, G \<^sup>\<turnstile>esrgsep {P} es{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-   R, G \<^sup>\<turnstile>esrgsep {P} es{RGstar Q1 (RGstar Q3 Q2)}"
-  by (simp add:  esRGSep_def RGessafe_post_comassoc)
-
-theorem RGrule_es_pre_post_comassoc :
-   "R, G \<^sup>\<turnstile>esrgsep {RGstar (RGstar P1 P2) P3} es{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-    R, G \<^sup>\<turnstile>esrgsep {RGstar P1 (RGstar P3 P2)} es{RGstar Q1 (RGstar Q3 Q2)}"
-  by (simp add: RGrule_es_post_comassoc RGrule_es_pre_comassoc)
+theorem RGrule_esequiv : "
+  \<lbrakk> R,G \<^sup>\<turnstile>esrgsep {P} es {Q};
+   P' \<equiv>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p P; Q \<equiv>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Q'\<rbrakk>
+    \<Longrightarrow> R,G \<^sup>\<turnstile>esrgsep {P'} es {Q'}"
+  apply (drule RGrule_esconseq, simp_all)
+     apply (simp add: RGequiv_implies, simp add: RGequiv_implies)
+   apply (simp_all add: RGsubset_def)
+  done
 
 lemma RGessafe_EvtSeq :"\<lbrakk>rgsep_resafe n re s h \<Gamma> Rely Guar Q; user_esys esys;
       \<forall>m s' h' \<Gamma>'. m \<le> n \<and> (s', h', \<Gamma>') \<^sup>\<Turnstile>rgsep Q \<longrightarrow> rgsep_essafe m esys s' h' \<Gamma>' Rely Guar R\<rbrakk> 
@@ -974,13 +835,6 @@ theorem RGrule_EvtSys' :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re) 
   by (rule rgessafe_EvtSys', simp_all)
 
 
-theorem RGrule_esconseq : "
-  \<lbrakk> R,G \<^sup>\<turnstile>esrgsep {P} es {Q};
-   P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
-   R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
-    \<Longrightarrow> R',G' \<^sup>\<turnstile>esrgsep {P'} es {Q'}"
-  by (simp add: esRGSep_def rgsep_implies_def RGessafe_conseq)
-
 lemma RGessafe_frame:
  "\<lbrakk> rgsep_essafe n es s h \<Gamma> Rely Guar Q; 
     disjoint (dom h) (dom hR);
@@ -1030,15 +884,15 @@ primrec
 where
   "rgsep_ressafe 0 res s h \<Gamma> R G Q = True"
 | "rgsep_ressafe (Suc n) res s h \<Gamma> R G Q = (
-(* Conditon (ii) *)
+
            (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> resaborts res (s, h ++ hF))
-(* Condition (iii) *)
+
           \<and> resaccesses res s \<subseteq> dom h
-(* Condition (iv) *)
+
           \<and> (\<forall>\<Gamma>'. (\<forall>r. \<Gamma> r \<noteq> \<Gamma>' r 
                     \<longrightarrow> (r \<notin> reslocked res) \<and> (\<Gamma> r, \<Gamma>' r) \<in> R r \<and> disjoint (dom h) (dom (\<Gamma>' r)))
                     \<longrightarrow> rgsep_ressafe n res s h \<Gamma>' R G Q)
-(* Condition (v) *)
+
           \<and> (\<forall>hJ hF res' \<sigma>'.
                 resred res (s,h ++ hJ ++ hF) res' \<sigma>'
               \<longrightarrow> hJ = hplus_list (map \<Gamma> (list_minus (resllocked res') (resllocked res)))
@@ -1100,70 +954,21 @@ lemma RGressafe_conseq : "\<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e
   apply (rule_tac x = "h'" and y = "\<Gamma>'" in ex2I, simp)
   by (meson RGsubset_def contra_subsetD)
 
-lemma RGressafe_post_Aemp : "rgsep_ressafe n res s h \<Gamma> R G Q \<longleftrightarrow> 
-                            rgsep_ressafe n res s h \<Gamma> R G (RGstar Q (RGlocal Aemp))"
-  by (induct n arbitrary: res s h \<Gamma>, simp_all)
+theorem RGrule_resconseq : "
+  \<lbrakk> R,G \<^sup>\<turnstile>resrgsep {P} res {Q};
+   P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
+   R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
+    \<Longrightarrow> R',G' \<^sup>\<turnstile>resrgsep {P'} res {Q'}"
+  by (simp add: resRGSep_def rgsep_implies_def RGressafe_conseq)
 
-lemma RGressafe_post_commute : "rgsep_ressafe n res s h \<Gamma> R G (RGstar Q1 Q2) \<longleftrightarrow> 
-                               rgsep_ressafe n res s h \<Gamma> R G (RGstar Q2 Q1)"
-  by (induct n arbitrary: res s h \<Gamma>, simp, simp only: rgsep_ressafe.simps RGstar_commute)
-
-lemma RGressafe_post_assoc : "rgsep_ressafe n res s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
-                     \<longleftrightarrow> rgsep_ressafe n res s h \<Gamma> R G (RGstar Q1 (RGstar Q2 Q3))"
-  by (induct n arbitrary: res s h \<Gamma>, simp, simp only: rgsep_ressafe.simps RGstar_assoc)
-
-lemma RGressafe_post_comassoc : "rgsep_ressafe n res s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
-                        \<longleftrightarrow> rgsep_ressafe n res s h \<Gamma> R G (RGstar Q1 (RGstar Q3 Q2))"
-  by (induct n arbitrary: res s h \<Gamma>, simp, simp only: rgsep_ressafe.simps RGstar_comassoc)     
-
-theorem RGrule_res_pre_commute: 
-  " R, G \<^sup>\<turnstile>resrgsep {RGstar P1 P2} res {Q} \<longleftrightarrow> 
-    R, G \<^sup>\<turnstile>resrgsep {RGstar P2 P1} res {Q}"
-  using RGstar_commute resRGSep_def by auto
-
-theorem RGrule_res_post_commute:
-  " R, G \<^sup>\<turnstile>resrgsep {P} res {RGstar Q1 Q2}  \<longleftrightarrow> 
-    R, G \<^sup>\<turnstile>resrgsep {P} res {RGstar Q2 Q1} "
-  by (simp add: resRGSep_def RGressafe_post_commute)
-
-theorem RGrule_res_pre_post_commute:
-  "R, G \<^sup>\<turnstile>resrgsep {RGstar P1 P2} res {RGstar Q1 Q2}  \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>resrgsep {RGstar P2 P1} res {RGstar Q2 Q1} "
-  by (simp add: RGrule_res_post_commute RGrule_res_pre_commute)
-
-theorem RGrule_res_pre_associate :
-  "R, G \<^sup>\<turnstile>resrgsep {RGstar (RGstar P1 P2) P3} res {Q}  \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>resrgsep {RGstar P1 (RGstar P2 P3)} res {Q} "
-  using RGstar_assoc resRGSep_def by auto
-
-theorem RGrule_res_post_associate :
-  "R, G \<^sup>\<turnstile>resrgsep {P} res {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-  R, G \<^sup>\<turnstile>resrgsep {P} res {RGstar Q1 (RGstar Q2 Q3)}"
-  by (simp add: resRGSep_def RGressafe_post_assoc)
-
-theorem RGrule_res_pre_post_associate :
-  "R, G \<^sup>\<turnstile>resrgsep {RGstar (RGstar P1 P2) P3} res {(RGstar (RGstar Q1 Q2) Q3)} \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>resrgsep {RGstar P1 (RGstar P2 P3)} res {RGstar Q1 (RGstar Q2 Q3)}"
-  using RGrule_res_post_associate RGrule_res_pre_associate RGrule_res_pre_commute by auto
-
-theorem RGrule_res_pre_comassoc :   "R, G \<^sup>\<turnstile>resrgsep {RGstar (RGstar P1 P2) P3} res {Q}  \<longleftrightarrow> 
-                                  R, G \<^sup>\<turnstile>resrgsep {RGstar P1 (RGstar P3 P2)} res {Q} "
-  using RGstar_comassoc resRGSep_def by auto
-
-theorem RGrule_res_post_comassoc :
-  "R, G \<^sup>\<turnstile>resrgsep {P} res {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-   R, G \<^sup>\<turnstile>resrgsep {P} res {RGstar Q1 (RGstar Q3 Q2)}"
-  by (simp add: resRGSep_def RGressafe_post_comassoc)
-
-theorem RGrule_res_pre_post_comassoc :
-   "R, G \<^sup>\<turnstile>resrgsep {RGstar (RGstar P1 P2) P3} res {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-    R, G \<^sup>\<turnstile>resrgsep {RGstar P1 (RGstar P3 P2)} res {RGstar Q1 (RGstar Q3 Q2)}"
-  by (simp add: RGrule_res_post_comassoc RGrule_res_pre_comassoc)
-
-theorem RGrule_res_pre_post_comassoc1 :
-   " R, G \<^sup>\<turnstile>resrgsep {RGstar P1 (RGstar P2 P3)} res {RGstar Q1 (RGstar Q2 Q3)} \<longleftrightarrow> 
-     R, G \<^sup>\<turnstile>resrgsep {RGstar (RGstar P1 P3) P2} res {RGstar (RGstar Q1 Q3) Q2}"
-  by (simp add: RGrule_res_pre_post_comassoc)          
+theorem RGrule_resequiv : "
+  \<lbrakk> R,G \<^sup>\<turnstile>resrgsep {P} res {Q};
+   P' \<equiv>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p P; Q \<equiv>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Q' \<rbrakk>
+    \<Longrightarrow> R,G \<^sup>\<turnstile>resrgsep {P'} res {Q'}"
+  apply (drule RGrule_resconseq, simp_all)
+     apply (simp add: RGequiv_implies, simp add: RGequiv_implies)
+   apply (simp_all add: RGsubset_def)
+  done
 
 lemma RGressafe_res:
  "\<lbrakk> rgsep_ressafe n (rs, es) s h \<Gamma> (R(r := Rr)) (G(r := Gr)) (RGstar Q (RGshared r q)); 
@@ -1295,7 +1100,7 @@ lemma RGrule_res1 :
   apply (simp add: resRGSep_def)
   apply (rule conjI, simp add: user_resys_def, clarsimp)
   apply (drule_tac a = "n" and b = "s" and c = "h1" and d = "\<Gamma>(r := h2)" in all4_impD, simp)
-   apply (metis RGassn_agrees_rgn fun_upd_other)
+  apply (metis (mono_tags, lifting) RGassn_agrees_rgn fun_upd_other)   
   apply (drule RGressafe_res, simp_all add: wf_revent_def user_revent_def user_event_wf)
    apply (simp add: user_resys_wf)
   by (metis List.insert_def empty_set fun_upd_triv insert_Nil list.distinct(1) user_resysD)
@@ -1311,13 +1116,23 @@ lemma RGrule_res :
       R, G \<^sup>\<turnstile>resrgsep {RGstar P (RGstar_local \<G> rs)} (rs, es) {RGstar Q (RGstar_local \<GG> rs)}"
   apply (induct rs arbitrary: R G P Q, simp add: RGrule_res_res_empty, clarsimp)
   apply (drule_tac a = "R(a := \<R> a)" and b = "G(a := \<RR> a)" and c = "RGstar P (RGshared a (\<G> a))"
-        and d = "RGstar Q (RGshared a (\<GG> a))" in mall4_impD, simp add: RGrule_es_pre_post_associate)
-  apply (drule mimp2D, simp) apply auto[1]
-  apply auto[1]
-  apply (simp add: RGrule_res_pre_post_associate)
-  apply (simp add: RGrule_res_pre_post_comassoc1)
-  by (rule RGrule_res1, simp_all add: RGstar_local_frgnA)
-
+        and d = "RGstar Q (RGshared a (\<GG> a))" in mall4_impD)
+     apply (erule RGrule_esequiv)
+    apply (simp add: RGAstar_assoc_equiv)
+  using RGAstar_assoc_equiv RGassn_equiv_symmetry apply force
+  apply (drule mimpD) apply auto[1]
+  apply (rule_tac P = "RGstar (RGstar P (RGstar_local \<G> rs)) (RGlocal (\<G> a))" and Q = "RGstar 
+  (RGstar Q (RGstar_local \<GG> rs)) (RGlocal (\<GG> a))" in RGrule_resequiv)
+    apply (drule mimpD) apply auto[1]
+  apply (rule_tac R = "R" and G = "G" and Rr = "\<R> a" and Gr = "\<RR> a" in RGrule_res1)
+     apply (rule RGrule_resequiv, simp_all)
+  using RGAstar_assoc_equiv RGAstar_assoc_equiv2 RGassn_equiv_symmetry RGassn_equiv_trans apply blast
+  using RGAstar_assoc_equiv RGAstar_assoc_equiv2 RGassn_equiv_symmetry RGassn_equiv_trans apply blast
+  using RGstar_local_frgnA apply blast
+  using RGstar_local_frgnA apply blast
+  using RGAstar_assoc_equiv2 RGassn_equiv_symmetry apply blast
+  using RGAstar_assoc_equiv2 apply blast
+  done
 
 theorem RGrule_rEvtSeq :"\<lbrakk>(update_list R \<R> rs), (update_list G \<RR> rs) 
                            \<^sup>\<turnstile>rergsep {RGstar P (RGstar_shared \<G> rs)} re {T};
@@ -1341,12 +1156,7 @@ theorem RGrule_rEvtSys :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re) 
                             (rs, (EvtSys es)) {RGstar Q (RGstar_local \<GG> rs)}" 
   by (rule_tac \<R> = \<R> and \<RR> = \<RR> in RGrule_res, simp_all add: RGrule_EvtSys)
 
-theorem RGrule_resconseq : "
-  \<lbrakk> R,G \<^sup>\<turnstile>resrgsep {P} res {Q};
-   P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
-   R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
-    \<Longrightarrow> R',G' \<^sup>\<turnstile>resrgsep {P'} res {Q'}"
-  by (simp add: resRGSep_def rgsep_implies_def RGressafe_conseq)
+
 
 lemma RGressafe_frame:
  "\<lbrakk> rgsep_ressafe n res s h \<Gamma> Rely Guar Q; 
@@ -1481,65 +1291,6 @@ lemma peslocked_diff : "\<lbrakk>disjoint_locked_list pes; k < length pes';
                          \<Longrightarrow> r \<notin> reslocked res \<or> r \<in> reslocked res'"
   by (metis RGpesllocked_cancel length_list_update list_minus_set peslocked_def reslocked_eq) 
 
-lemma RGpessafe_post_Aemp : "rgsep_pessafe n pes s h \<Gamma> R G Q \<longleftrightarrow> 
-                            rgsep_pessafe n pes s h \<Gamma> R G (RGstar Q (RGlocal Aemp))"
-  by (induct n arbitrary: pes s h \<Gamma>, simp_all)
-
-lemma RGpessafe_post_commute : "rgsep_pessafe n pes s h \<Gamma> R G (RGstar Q1 Q2) \<longleftrightarrow> 
-                               rgsep_pessafe n pes s h \<Gamma> R G (RGstar Q2 Q1)"
-  by (induct n arbitrary: pes s h \<Gamma>, simp, simp only: rgsep_pessafe.simps RGstar_commute)
-
-lemma RGpessafe_post_assoc : "rgsep_pessafe n pes s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
-                     \<longleftrightarrow> rgsep_pessafe n pes s h \<Gamma> R G (RGstar Q1 (RGstar Q2 Q3))"
-  by (induct n arbitrary: pes s h \<Gamma>, simp, simp only: rgsep_pessafe.simps RGstar_assoc)
-
-lemma RGpessafe_post_comassoc : "rgsep_pessafe n pes s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
-                        \<longleftrightarrow> rgsep_pessafe n pes s h \<Gamma> R G (RGstar Q1 (RGstar Q3 Q2))"
-  by (induct n arbitrary: pes s h \<Gamma>, simp, simp only: rgsep_pessafe.simps RGstar_comassoc)
-
-theorem RGrule_pes_pre_commute: 
-  " R, G \<^sup>\<turnstile>pesrgsep {RGstar P1 P2} pes{Q} \<longleftrightarrow> 
-    R, G \<^sup>\<turnstile>pesrgsep {RGstar P2 P1} pes{Q}"
-  using RGstar_commute  pesRGSep_def by auto
-
-theorem RGrule_pes_post_commute:
-  " R, G \<^sup>\<turnstile>pesrgsep {P} pes{RGstar Q1 Q2}  \<longleftrightarrow> 
-    R, G \<^sup>\<turnstile>pesrgsep {P} pes{RGstar Q2 Q1} "
-  by (simp add:  pesRGSep_def RGpessafe_post_commute)
-
-theorem RGrule_pes_pre_post_commute:
-  "R, G \<^sup>\<turnstile>pesrgsep {RGstar P1 P2} pes{RGstar Q1 Q2}  \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>pesrgsep {RGstar P2 P1} pes{RGstar Q2 Q1} "
-  by (simp add: RGrule_pes_post_commute RGrule_pes_pre_commute)
-
-theorem RGrule_pes_pre_associate :
-  "R, G \<^sup>\<turnstile>pesrgsep {RGstar (RGstar P1 P2) P3} pes{Q}  \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>pesrgsep {RGstar P1 (RGstar P2 P3)} pes{Q} "
-  using RGstar_assoc  pesRGSep_def by auto
-
-theorem RGrule_pes_post_associate :
-  "R, G \<^sup>\<turnstile>pesrgsep {P} pes{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-  R, G \<^sup>\<turnstile>pesrgsep {P} pes{RGstar Q1 (RGstar Q2 Q3)}"
-  by (simp add:  pesRGSep_def RGpessafe_post_assoc)
-
-theorem RGrule_pes_pre_post_associate :
-  "R, G \<^sup>\<turnstile>pesrgsep {RGstar (RGstar P1 P2) P3} pes{(RGstar (RGstar Q1 Q2) Q3)} \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>pesrgsep {RGstar P1 (RGstar P2 P3)} pes{RGstar Q1 (RGstar Q2 Q3)}"
-  using RGrule_pes_post_associate RGrule_pes_pre_associate RGrule_pes_pre_commute by auto
-
-theorem RGrule_pes_pre_comassoc :   "R, G \<^sup>\<turnstile>pesrgsep {RGstar (RGstar P1 P2) P3} pes{Q}  \<longleftrightarrow> 
-                                  R, G \<^sup>\<turnstile>pesrgsep {RGstar P1 (RGstar P3 P2)} pes{Q} "
-  using RGstar_comassoc  pesRGSep_def by auto
-
-theorem RGrule_pes_post_comassoc :
-  "R, G \<^sup>\<turnstile>pesrgsep {P} pes{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-   R, G \<^sup>\<turnstile>pesrgsep {P} pes{RGstar Q1 (RGstar Q3 Q2)}"
-  by (simp add:  pesRGSep_def RGpessafe_post_comassoc)
-
-theorem RGrule_pes_pre_post_comassoc :
-   "R, G \<^sup>\<turnstile>pesrgsep {RGstar (RGstar P1 P2) P3} pes{RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-    R, G \<^sup>\<turnstile>pesrgsep {RGstar P1 (RGstar P3 P2)} pes{RGstar Q1 (RGstar Q3 Q2)}"
-  by (simp add: RGrule_pes_post_comassoc RGrule_pes_pre_comassoc)  
 
 lemma rgsep_pessafe: 
 " \<lbrakk>\<forall>k. k < length pes \<longrightarrow> rgsep_ressafe n (pes ! k) s (hs ! k) \<Gamma> (Rs ! k) (Gs ! k) (Qs ! k);
@@ -1684,6 +1435,16 @@ theorem RGrule_pesconseq : "
     \<Longrightarrow> R',G' \<^sup>\<turnstile>pesrgsep {P'} pes {Q'}"
   by (simp add: pesRGSep_def RGpessafe_conseq rgsep_implies_def)
 
+theorem RGrule_pesequiv : "
+  \<lbrakk> R,G \<^sup>\<turnstile>pesrgsep {P} pes {Q};
+   P' \<equiv>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p P; Q \<equiv>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Q'\<rbrakk>
+    \<Longrightarrow> R,G \<^sup>\<turnstile>pesrgsep {P'} pes {Q'}"
+  apply (drule RGrule_pesconseq, simp_all)
+     apply (simp add: RGequiv_implies, simp add: RGequiv_implies)
+   apply (simp_all add: RGsubset_def)
+  done
+  
+
 lemma RGUnion_conj : "RGUnion G1 G2 \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G \<longleftrightarrow> G1 \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G \<and> G2 \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G"
   using RGUnion_def RGsubset_def by auto
 
@@ -1806,70 +1567,21 @@ lemma RGrpessafe_conseq : "\<lbrakk>R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>
   apply blast
   done
 
-lemma RGrpessafe_post_Aemp : "rgsep_rpessafe n rpes s h \<Gamma> R G Q \<longleftrightarrow> 
-                            rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar Q (RGlocal Aemp))"
-  by (induct n arbitrary: rpes s h \<Gamma>, simp_all)
+theorem RGrule_rpesconseq : "
+  \<lbrakk> R,G \<^sup>\<turnstile>rpesrgsep {P} (rs, pes) {Q};
+   P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
+   R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
+    \<Longrightarrow> R',G' \<^sup>\<turnstile>rpesrgsep {P'} (rs, pes) {Q'}"
+  by (simp add: rpesRGSep_def RGrpessafe_conseq rgsep_implies_def)
 
-lemma RGrpessafe_post_commute : "rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar Q1 Q2) \<longleftrightarrow> 
-                               rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar Q2 Q1)"
-  by (induct n arbitrary: rpes s h \<Gamma>, simp, simp only: rgsep_rpessafe.simps RGstar_commute)
-
-lemma RGrpessafe_post_assoc : "rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
-                     \<longleftrightarrow> rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar Q1 (RGstar Q2 Q3))"
-  by (induct n arbitrary: rpes s h \<Gamma>, simp, simp only: rgsep_rpessafe.simps RGstar_assoc)
-
-lemma RGrpessafe_post_comassoc : "rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar (RGstar Q1 Q2) Q3) 
-                        \<longleftrightarrow> rgsep_rpessafe n rpes s h \<Gamma> R G (RGstar Q1 (RGstar Q3 Q2))"
-  by (induct n arbitrary: rpes s h \<Gamma>, simp, simp only: rgsep_rpessafe.simps RGstar_comassoc)  
-
-theorem RGrule_rpes_pre_commute: 
-  " R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 P2} rpes {Q} \<longleftrightarrow> 
-    R, G \<^sup>\<turnstile>rpesrgsep {RGstar P2 P1} rpes {Q}"
-  using RGstar_commute rpesRGSep_def by auto
-
-theorem RGrule_rpes_post_commute:
-  " R, G \<^sup>\<turnstile>rpesrgsep {P} rpes {RGstar Q1 Q2}  \<longleftrightarrow> 
-    R, G \<^sup>\<turnstile>rpesrgsep {P} rpes {RGstar Q2 Q1} "
-  by (simp add: rpesRGSep_def RGrpessafe_post_commute)
-
-theorem RGrule_rpes_pre_post_commute:
-  "R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 P2} rpes {RGstar Q1 Q2}  \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>rpesrgsep {RGstar P2 P1} rpes {RGstar Q2 Q1} "
-  by (simp add: RGrule_rpes_post_commute RGrule_rpes_pre_commute)
-
-theorem RGrule_rpes_pre_associate :
-  "R, G \<^sup>\<turnstile>rpesrgsep {RGstar (RGstar P1 P2) P3} rpes {Q}  \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 (RGstar P2 P3)} rpes {Q} "
-  using RGstar_assoc rpesRGSep_def by auto
-
-theorem RGrule_rpes_post_associate :
-  "R, G \<^sup>\<turnstile>rpesrgsep {P} rpes {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-  R, G \<^sup>\<turnstile>rpesrgsep {P} rpes {RGstar Q1 (RGstar Q2 Q3)}"
-  by (simp add: rpesRGSep_def RGrpessafe_post_assoc)
-
-theorem RGrule_rpes_pre_post_associate :
-  "R, G \<^sup>\<turnstile>rpesrgsep {RGstar (RGstar P1 P2) P3} rpes {(RGstar (RGstar Q1 Q2) Q3)} \<longleftrightarrow> 
-   R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 (RGstar P2 P3)} rpes {RGstar Q1 (RGstar Q2 Q3)}"
-  using RGrule_rpes_post_associate RGrule_rpes_pre_associate RGrule_rpes_pre_commute by auto
-
-theorem RGrule_rpes_pre_comassoc :   "R, G \<^sup>\<turnstile>rpesrgsep {RGstar (RGstar P1 P2) P3} rpes {Q}  \<longleftrightarrow> 
-                                  R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 (RGstar P3 P2)} rpes {Q} "
-  using RGstar_comassoc rpesRGSep_def by auto
-
-theorem RGrule_rpes_post_comassoc :
-  "R, G \<^sup>\<turnstile>rpesrgsep {P} rpes {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-   R, G \<^sup>\<turnstile>rpesrgsep {P} rpes {RGstar Q1 (RGstar Q3 Q2)}"
-  by (simp add: rpesRGSep_def RGrpessafe_post_comassoc)
-
-theorem RGrule_rpes_pre_post_comassoc :
-   "R, G \<^sup>\<turnstile>rpesrgsep {RGstar (RGstar P1 P2) P3} rpes {RGstar (RGstar Q1 Q2) Q3} \<longleftrightarrow>
-    R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 (RGstar P3 P2)} rpes {RGstar Q1 (RGstar Q3 Q2)}"
-  by (simp add: RGrule_rpes_post_comassoc RGrule_rpes_pre_comassoc)
-
-theorem RGrule_rpes_pre_post_comassoc1 :
-   " R, G \<^sup>\<turnstile>rpesrgsep {RGstar P1 (RGstar P2 P3)} rpes {RGstar Q1 (RGstar Q2 Q3)} \<longleftrightarrow> 
-     R, G \<^sup>\<turnstile>rpesrgsep {RGstar (RGstar P1 P3) P2} rpes {RGstar (RGstar Q1 Q3) Q2}"
-  by (simp add: RGrule_rpes_pre_post_comassoc)
+theorem RGrule_rpesequiv : "
+  \<lbrakk> R,G \<^sup>\<turnstile>rpesrgsep {P} (rs, pes) {Q};
+   P' \<equiv>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p P; Q \<equiv>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p Q'\<rbrakk>
+    \<Longrightarrow> R,G \<^sup>\<turnstile>rpesrgsep {P'} (rs, pes) {Q'}"
+  apply (drule RGrule_rpesconseq, simp_all)
+     apply (simp add: RGequiv_implies, simp add: RGequiv_implies)
+  apply (simp_all add: RGsubset_def)
+  done
 
 lemma RGrpessafe_res:
  "\<lbrakk> rgsep_rpessafe n (rs, pes) s h \<Gamma> (R(r := Rr)) (G(r := Gr)) (RGstar Q (RGshared r q)); 
@@ -1997,7 +1709,7 @@ lemma RGrule_rpes1 :
   apply (simp add: rpesRGSep_def)
   apply (rule conjI, simp add: user_rpesys_def, clarsimp)
   apply (drule_tac a = "n" and b = "s" and c = "h1" and d = "\<Gamma>(r := h2)" in all4_impD, simp)
-   apply (metis RGassn_agrees_rgn fun_upd_other)
+  apply (metis (mono_tags, lifting) RGassn_agrees_rgn fun_upd_other)
   apply (drule RGrpessafe_res, simp_all add: wf_revent_def user_revent_def user_event_wf)
    apply (simp add: user_rpesys_wf)
   by (metis equals0D fun_upd_triv user_rpesysD)
@@ -2013,13 +1725,24 @@ theorem RGrule_rpes :
       R, G \<^sup>\<turnstile>rpesrgsep {RGstar P (RGstar_local \<G> rs)} (rs, pes) {RGstar Q (RGstar_local \<GG> rs)}"
   apply (induct rs arbitrary: R G P Q, simp add: RGrule_rpes_res_empty, clarsimp)
   apply (drule_tac a = "R(a := \<R> a)" and b = "G(a := \<RR> a)" and c = "RGstar P (RGshared a (\<G> a))"
-        and d = "RGstar Q (RGshared a (\<GG> a))" in mall4_impD, simp add: RGrule_pes_pre_post_associate)
-  apply (drule mimp2D, simp) apply auto[1]
-  apply auto[1]
-  apply (simp add: RGrule_rpes_pre_post_associate)
-  apply (simp add: RGrule_rpes_pre_post_comassoc1)
-  by (rule RGrule_rpes1, simp_all add: RGstar_local_frgnA)
-                
+        and d = "RGstar Q (RGshared a (\<GG> a))" in mall4_impD)
+     apply (erule RGrule_pesequiv)
+    apply (simp add: RGAstar_assoc_equiv)
+  using RGAstar_assoc_equiv RGassn_equiv_symmetry apply force
+  apply (drule mimpD) apply auto[1]
+  apply (rule_tac P = "RGstar (RGstar P (RGstar_local \<G> rs)) (RGlocal (\<G> a))" and Q = "RGstar 
+  (RGstar Q (RGstar_local \<GG> rs)) (RGlocal (\<GG> a))" in RGrule_rpesequiv)
+    apply (drule mimpD) apply auto[1]
+  apply (rule_tac R = "R" and G = "G" and Rr = "\<R> a" and Gr = "\<RR> a" in RGrule_rpes1)
+     apply (rule RGrule_rpesequiv, simp_all)
+  using RGAstar_assoc_equiv RGAstar_assoc_equiv2 RGassn_equiv_symmetry RGassn_equiv_trans apply blast
+  using RGAstar_assoc_equiv RGAstar_assoc_equiv2 RGassn_equiv_symmetry RGassn_equiv_trans apply blast
+  using RGstar_local_frgnA apply blast
+  using RGstar_local_frgnA apply blast
+  using RGAstar_assoc_equiv2 RGassn_equiv_symmetry apply blast
+  using RGAstar_assoc_equiv2 apply blast
+  done
+
 theorem RGrule_rpes' : " \<lbrakk>\<forall>k. k < length pes \<longrightarrow> (Rs ! k), (Gs ! k) 
                                \<^sup>\<turnstile>resrgsep { Ps ! k} (pes ! k) { Qs ! k};
    \<forall>k. k < length pes \<longrightarrow> (Gs ! k) \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p (update_list G \<RR> rs); 
@@ -2038,12 +1761,7 @@ theorem RGrule_rpes' : " \<lbrakk>\<forall>k. k < length pes \<longrightarrow> (
                 in RGrule_pesconseq, simp_all add: RGrule_pes RGsubset_def)
   done
 
-theorem RGrule_rpesconseq : "
-  \<lbrakk> R,G \<^sup>\<turnstile>rpesrgsep {P} (rs, pes) {Q};
-   P' \<^sup>\<sqsubseteq>rgsep P; Q \<^sup>\<sqsubseteq>rgsep Q';
-   R'\<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p R; G \<subseteq>\<^sub>r\<^sub>g\<^sub>s\<^sub>e\<^sub>p G' \<rbrakk>
-    \<Longrightarrow> R',G' \<^sup>\<turnstile>rpesrgsep {P'} (rs, pes) {Q'}"
-  by (simp add: rpesRGSep_def RGrpessafe_conseq rgsep_implies_def)
+
 
 lemma RGrpesafe_frame:
  "\<lbrakk> rgsep_rpessafe n rpes s h \<Gamma> Rely Guar Q; 
