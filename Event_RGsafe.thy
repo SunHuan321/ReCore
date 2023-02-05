@@ -1093,6 +1093,20 @@ lemma RGressafe_res_empty : "rgsep_essafe n es s h \<Gamma> R G Q
   apply (rule_tac x = h' and y = \<Gamma>' in ex2I, simp add: reslocked_def)
   using resred.simps by auto
 
+lemma RGressafe_res_empty' : "  rgsep_ressafe n ([], es) s h \<Gamma> R G Q \<Longrightarrow> 
+                                rgsep_essafe n es s h \<Gamma> R G Q"
+  apply (induct n arbitrary: es s h \<Gamma>, simp, clarsimp)
+  apply (rule conjI, simp add: resaborts_equiv)
+  apply (rule conjI, simp add: resaccesses_def)
+  apply (rule conjI, simp add: reslocked_def, clarsimp)
+  apply (drule_tac a = "hF" and b = "[]" and c = "es'" and d = "a" and e = "b" in all5_impD)
+  using res_equiv1 resllocked_def apply force
+  apply (drule imp3D, simp)
+  using resllocked_def apply auto[1]
+  apply (simp add: reslocked_def, clarsimp)
+  apply (rule_tac x = h' and y = \<Gamma>' in ex2I, simp add: reslocked_def)
+  by (metis fst_conv list_minus.simps(1) resllocked_def snd_conv)
+
 lemma RGrule_res1 : 
     "\<lbrakk> R(r := Rr), G(r:=Gr) \<^sup>\<turnstile>resrgsep {RGstar P (RGshared r p)} (rs, es) {RGstar Q (RGshared r q)};
      \<not> frgnA P r; \<not> frgnA Q r; r \<notin> set rs \<rbrakk> \<Longrightarrow> 
@@ -1106,8 +1120,9 @@ lemma RGrule_res1 :
   by (metis List.insert_def empty_set fun_upd_triv insert_Nil list.distinct(1) user_resysD)
 
 theorem RGrule_res_res_empty : 
-    " R, G \<^sup>\<turnstile>esrgsep {P} es {Q}  \<Longrightarrow> R, G \<^sup>\<turnstile>resrgsep {P} ([], es) {Q}"
-  by (simp add: esRGSep_def resRGSep_def user_resys_def RGressafe_res_empty)
+    " R, G \<^sup>\<turnstile>esrgsep {P} es {Q}  \<equiv> R, G \<^sup>\<turnstile>resrgsep {P} ([], es) {Q}"
+  apply (simp add: esRGSep_def resRGSep_def user_resys_def)
+  by (smt (verit, best) RGressafe_res_empty RGressafe_res_empty')
 
 lemma RGrule_res :
   "\<lbrakk> (update_list R \<R> rs), (update_list G \<RR> rs) 
@@ -1155,8 +1170,6 @@ theorem RGrule_rEvtSys :  "\<lbrakk> \<forall>re \<in> es. (Rely re), (Guar re) 
                         \<Longrightarrow> R, G \<^sup>\<turnstile>resrgsep {RGstar P (RGstar_local \<G> rs)} 
                             (rs, (EvtSys es)) {RGstar Q (RGstar_local \<GG> rs)}" 
   by (rule_tac \<R> = \<R> and \<RR> = \<RR> in RGrule_res, simp_all add: RGrule_EvtSys)
-
-
 
 lemma RGressafe_frame:
  "\<lbrakk> rgsep_ressafe n res s h \<Gamma> Rely Guar Q; 

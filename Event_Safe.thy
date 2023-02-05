@@ -738,6 +738,16 @@ lemma ressafe_res_empty : "essafe n es s h \<Gamma> Q \<Longrightarrow> ressafe 
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp add: resllocked_def)
   using resred.simps by auto
 
+lemma ressafe_res_empty' : "ressafe n ([], es) s h \<Gamma> Q \<Longrightarrow> essafe n es s h \<Gamma> Q"
+  apply (induct n arbitrary: es s h, simp, clarsimp)
+  apply (rule conjI, simp add: resaborts_equiv)
+  apply (rule conjI, simp add: resaccesses_def, clarsimp)
+  apply (drule_tac a = "hJ" and b = "hF" and c = "[]" and d = "es'" and e = "a" and f = "b" in all6_impD)
+   apply (simp add: res_equiv1, clarsimp)
+  apply (drule impD, simp add: resllocked_def, clarsimp)
+  apply (rule_tac x = "h'" and y = "hJ'" in ex2I, simp add: resllocked_def)
+  done
+
 lemma rule_res_empty : "\<Gamma> \<turnstile>\<^sub>e\<^sub>s { P } es { Q } \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s { P } ([], es) { Q}"
   by (simp add: esCSL_def resCSL_def user_resys_def ressafe_res_empty)
 
@@ -759,7 +769,6 @@ theorem rule_res :
    apply (meson Aistar_equiv assn_equiv_symmetry) apply (meson Aistar_equiv assn_equiv_symmetry)
   done
 
-(*
 theorem rule_rEvtSeq : "\<lbrakk>(update_list \<Gamma> \<G> rs) \<turnstile>\<^sub>r\<^sub>e {P} re {Q};
                          (update_list \<Gamma> \<G> rs) \<turnstile>\<^sub>e\<^sub>s {Q } esys {R};
                          disjoint (fvA (Aistar (map \<G> rs))) (wrEsv (EvtSeq re esys)); distinct rs\<rbrakk>
@@ -773,7 +782,7 @@ theorem rule_rEvtSys :  "\<lbrakk>\<forall> re \<in> es. (update_list \<Gamma> \
                         \<Longrightarrow>  \<Gamma> \<turnstile>\<^sub>r\<^sub>e\<^sub>s {P ** (Aistar (map \<G> rs))} (rs, (EvtSys es)) 
                                     {Q ** (Aistar (map \<G> rs))}"
   by (rule rule_res, simp_all add: rule_EvtSys)
-*)
+
 
 lemma ressafe_frame:
  "\<lbrakk> ressafe n res s h J Q; 
