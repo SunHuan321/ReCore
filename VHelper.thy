@@ -14,7 +14,7 @@ lemma all3D: " \<lbrakk> \<forall>a b c. P a b c \<rbrakk> \<Longrightarrow> P a
 lemma all4D: " \<lbrakk> \<forall>a b c d. P a b c d \<rbrakk> \<Longrightarrow> P a b c d" by (erule allE)+
 lemma all5D: " \<lbrakk> \<forall>a b c d e. P a b c d e \<rbrakk> \<Longrightarrow> P a b c d e" by (erule allE)+
 lemma all6D: " \<lbrakk> \<forall>a b c d e f. P a b c d e f\<rbrakk> \<Longrightarrow> P a b c d e f" by (erule allE)+
-(* added by Huan *)
+
 lemma all2DtoD : " \<lbrakk> \<forall>a b. P a b\<rbrakk> \<Longrightarrow> \<forall>b. P a b" by simp
 lemma all4Dto3D: " \<lbrakk> \<forall>a b c d. P a b c d \<rbrakk> \<Longrightarrow> \<forall>b c d. P a b c d" by simp
 lemmas impD = mp
