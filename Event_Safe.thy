@@ -15,8 +15,8 @@ where
   (e = AnonyEvent Cskip \<longrightarrow> (s, h) \<Turnstile> Q)
 \<and> (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> eaborts e (s, h ++ hF))
 \<and> (eaccesses e s \<subseteq> dom h)
-\<and> (\<forall>hJ hF e' \<sigma>'. 
-      ered e (s, h ++ hJ ++ hF) e' \<sigma>'
+\<and> (\<forall>hJ hF e' \<sigma>' x x' actk. 
+        (e, (s, h ++ hJ ++ hF), x) -et-actk\<rightarrow> (e', \<sigma>', x')
     \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (ellocked e') (ellocked e)
     \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
     \<longrightarrow> (\<exists> h' hJ'.
@@ -29,10 +29,12 @@ lemma esafe_mon:
   "\<lbrakk> esafe n e s h \<Gamma> Q; m \<le> n \<rbrakk> \<Longrightarrow> esafe m e s h \<Gamma> Q"
 apply (induct m arbitrary: e s n h, simp) 
 apply (case_tac n, clarify)
-apply (simp only: safe.simps, clarsimp)
-apply (drule all5D, drule (2) imp3D, simp, clarsimp)
-apply (rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
-done
+  apply (simp only: safe.simps, clarsimp)
+  apply (drule_tac a = hJ and b = hF and c = e' and d = a and e = b in all5D)
+  apply (drule imp3D, simp_all)
+   apply blast
+  apply (clarsimp, rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
+  done
 
 lemma esafe_agrees: 
     "\<lbrakk> esafe n e s h \<Gamma> Q ; 
@@ -45,13 +47,16 @@ lemma esafe_agrees:
   apply (rule conjI, subst(asm) eaccesses_agrees, simp_all)
   apply (clarify, drule_tac X="fvEv e \<union> fvAs \<Gamma> \<union> fvA Q" in ered_agrees, 
          simp (no_asm), fast, simp (no_asm), fast, clarify)
-  apply (drule (1) all5_impD, clarsimp)
-  apply (drule impD, erule assns_agreesE, simp add: agreesC, clarify)
-  apply (rule_tac x=h' and y=hJ' in ex2I, simp add: hsimps)
+  apply (drule_tac a = hJ and b = hF and c = e' and d = s'a and e = b in all5_impD)
+  apply auto[1]
+  apply (drule imp2D)
+  using assns_agrees apply blast
+  apply force
+  apply (clarsimp, rule_tac x=h' and y=hJ' in ex2I, simp add: hsimps)
   apply (rule conjI, erule assns_agreesE, subst agreesC, assumption)
   apply (erule (1) mall4_imp2D, simp add: agreesC)
   apply (drule ered_properties, auto)
-done
+  done
 
 definition 
   eCSL :: "(rname \<Rightarrow> assn) \<Rightarrow> assn \<Rightarrow> event \<Rightarrow> assn \<Rightarrow> bool" 
@@ -74,12 +79,12 @@ lemma esafe_conseq : "\<lbrakk> esafe n e s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rb
   apply (clarsimp, simp add : implies_def)
   apply (clarify, erule ered.cases, simp_all, clarsimp)
    apply (drule_tac a = "hJ" and b = "hF" and c = "AnonyEvent C'" 
-          and d = "ab" and e = "bb" in all5_impD)
-    apply (simp add: ered.red_AnonyEvt)
+          and d = "a" and e = "b" in all5_impD)
+    apply (metis ered.red_AnonyEvt)
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
   apply (drule_tac a = "hJ" and b = "hF" and c = "AnonyEvent C" 
-          and d = "a" and e = "b" in all5_impD)
-  using ered.red_BasicEvt apply blast
+          and d = "s" and e = "h ++ hJ ++ hF" in all5_impD)
+  apply (metis ered.red_BasicEvt fst_conv)
   apply (clarsimp, rule_tac x = "h'" in exI, simp)
   done
 
@@ -135,13 +140,18 @@ lemma esafe_frame:
   apply (rule conjI, erule order_trans, simp)
 (* step *)
   apply (clarify, frule ered_properties, clarsimp)
-  apply (drule_tac a="hJ" and b="hR ++ hF" in all3D, simp add: hsimps, drule (1) all2_impD, clarsimp)
-  apply (rule_tac y="hJ'" and x="h' ++ hR" in ex2I, clarsimp simp add: hsimps)
+  apply (drule_tac a="hJ" and b="hR ++ hF" and c = e' and d = a and e = b in all5D)
+  apply (drule imp3D)
+    apply (metis map_add_assoc map_add_commute)
+    apply force
+   apply force
+  apply (clarsimp, rule_tac y="hJ'" and x="h' ++ hR" in ex2I, clarsimp simp add: hsimps)
   apply (subst map_add_commute, simp add: hsimps)
   apply (drule mall4D, erule mimp4D, simp_all add: hsimps)
- apply (erule (1) disjoint_search)
+   apply (erule (1) disjoint_search)
   apply (subst assn_agrees, simp_all, fastforce)
-done
+  done
+
 
 theorem erule_frame:
  "\<lbrakk> \<Gamma> \<turnstile>\<^sub>e {P} e {Q} ; disjoint (fvA R) (wrEv e) \<rbrakk>
@@ -158,8 +168,8 @@ where
   (snd re = AnonyEvent Cskip \<longrightarrow> (s, h) \<Turnstile> Q)
 \<and> (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> reaborts re (s, h ++ hF))
 \<and> (reaccesses re s \<subseteq> dom h)
-\<and> (\<forall>hJ hF re' \<sigma>'. 
-      rered re (s, h ++ hJ ++ hF) re' \<sigma>'
+\<and> (\<forall>hJ hF re' \<sigma>' x x' actk. 
+      (re, (s, h ++ hJ ++ hF), x) -ret-actk\<rightarrow> (re', \<sigma>', x')
     \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (rellocked re') (rellocked re)
     \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
     \<longrightarrow> (\<exists>h' hJ'.
@@ -173,9 +183,10 @@ lemma resafe_mon:
 apply (induct m arbitrary: re s n h, simp) 
 apply (case_tac n, clarify)
 apply (simp only: safe.simps, clarsimp)
-apply (drule all6D, drule (2) imp3D, simp, clarsimp)
-apply (rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
-  done
+  apply (drule_tac a = hJ and b = hF and c = aa and d = ba and e = ab and f = bb in all6D, drule imp3D, simp_all)
+   apply blast
+  apply (clarsimp, rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
+  done 
 
 lemma resafe_agrees: 
     "\<lbrakk> resafe n re s h \<Gamma> Q ; 
@@ -188,9 +199,11 @@ lemma resafe_agrees:
   apply (rule conjI, subst (asm) reaccesses_agrees, simp_all)
   apply (clarify, drule_tac X = "fvREv (a, b) \<union> fvAs \<Gamma> \<union> fvA Q" in rered_agrees,
        simp (no_asm), fast, simp(no_asm), fast, clarify)
-  apply (drule (1) all6_impD, clarsimp)
-  apply (drule impD, erule assns_agreesE, simp add: agreesC, clarify)
-  apply (rule_tac x=h' and y=hJ' in ex2I, simp add: hsimps)
+  apply (drule_tac a = hJ and b = hF and c = aa and d = ba and e = s'a and f = bb in all6D, simp_all)
+  apply (drule imp2D)
+    apply blast
+   apply (metis assns_agrees)
+  apply (clarsimp, rule_tac x=h' and y=hJ' in ex2I, simp add: hsimps)
   apply (rule conjI, erule assns_agreesE, subst agreesC, assumption)
   apply (erule (1) mall5_imp2D, simp add: agreesC)
   apply (drule rered_properties, auto)
@@ -207,12 +220,12 @@ lemma resafe_conseq : "\<lbrakk> resafe n re s h \<Gamma> Q; Q \<sqsubseteq> Q'\
   apply (clarsimp, simp add : implies_def)
   apply (clarify, erule rered.cases, simp_all, clarsimp)
    apply (drule_tac a = "hJ" and b = "hF" and c = "a" and d = "AnonyEvent C'" 
-          and e = "ad" and f = "bc" in all6_impD)
-  apply (simp add: rered.red_AnonyEvt)
+          and e = "ab" and f = "bb" in all6_impD)
+    apply (metis rered.red_AnonyEvt)
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
   apply (drule_tac a = "hJ" and b = "hF" and c = "a" and d = "AnonyEvent C" 
          and e = "s" and f = "h ++ hJ ++ hF" in all6_impD)
-  using rered.red_BasicEvt apply blast
+   apply (metis fst_conv rered.red_BasicEvt)
   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
   done
 
@@ -238,7 +251,7 @@ lemma resafe_res:
     apply (case_tac "r \<in> set (rellocked (rs, b))", simp add: rellocked_def)
   apply (drule_tac a = "hJ ++ hR" and b = "hF" and c = rs and d = b and e = aa
           and f = "ba" in all6_impD, simp add: hsimps)
-  using re_equiv3 apply auto[1]
+  apply (meson re_equiv3)
      apply (drule imp2D, subst sat_envs_expand [where r=r], simp_all add: relocked_def elocked_eq)
        apply (subgoal_tac "wf_revent (r # rs, e)")
         apply (subgoal_tac "wf_revent (a, b)", simp add: wf_revent_def)
@@ -263,7 +276,8 @@ apply (clarsimp, rule_tac x = "h' ++ hR" and y = "hJ'" in ex2I, simp add: hsimps
     apply (simp add: rellocked_def elocked_def)
     apply (drule_tac a = "hR" in all_imp2D)
   using disjoint_commute apply blast
-     apply (metis agrees_minusD assn_agrees disjoint_search(1) fst_conv re_equiv3 rered_properties)
+     apply (metis agrees_minusD assn_agrees disjoint_commute snd_eqD wrREv_def)
+
     apply (simp add: map_add_commute)
   using rered.simps apply auto[1]
   apply (clarsimp, rule conjI) apply auto[1]
@@ -291,11 +305,12 @@ apply (clarsimp, rule_tac x = "h' ++ hR" and y = "hJ'" in ex2I, simp add: hsimps
 
 lemma resafe_res_empty : "esafe n e s h \<Gamma> Q \<Longrightarrow> resafe n ([], e) s h \<Gamma> Q"
   apply (induct n arbitrary: e s h, simp, clarsimp)
-  apply (rule conjI, simp add: reaborts_equiv snd_conv)
+  apply (rule conjI, simp add: reaborts_equiv)
   apply (rule conjI, simp add: reaccesses_def, clarsimp)
   apply (subgoal_tac "a = []", simp)
    apply (drule_tac a = "hJ" and b = "hF" and c = "b" and d = "aa" and e = "ba" in all5_impD)
-    apply (simp add: re_equiv2, drule imp2D, simp add: rellocked_def, simp, clarsimp)
+  apply (meson re_equiv2)
+    apply (drule imp2D, simp add: rellocked_def, simp, clarsimp)
    apply (rule_tac x = h' and y = hJ' in ex2I, simp add: rellocked_def)
   by (metis fst_conv re_invres)
 
@@ -320,13 +335,6 @@ theorem rule_re :
    apply (meson Aistar_equiv) apply (meson Aistar_equiv)
   done
 
-(*
-theorem rule_rBasicEvt : "\<lbrakk>(update_list \<Gamma> \<G> rs) \<turnstile> {Aconj P (Apure guard)} C {Q};
-                           disjoint (fvA (Aistar (map \<G> rs))) (wrC C); distinct rs\<rbrakk>
-   \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>e {P ** (Aistar (map \<G> rs))} (rs, BasicEvent (guard, C)) {Q ** (Aistar (map \<G> rs))}"
-  by (rule rule_re, simp_all add: rule_BasicEvt)
-*)
-
 lemma resafe_frame:
  "\<lbrakk> resafe n re s h J Q; 
     disjoint (dom h) (dom hR);
@@ -342,8 +350,11 @@ lemma resafe_frame:
   apply (rule conjI, erule order_trans, simp)
 (* step *)
   apply (clarify, frule rered_properties, clarsimp)
-  apply (drule_tac a="hJ" and b="hR ++ hF" in all4D, simp add: hsimps, drule (1) all2_impD, clarsimp)
-  apply (rule_tac y="hJ'" and x="h' ++ hR" in ex2I, clarsimp simp add: hsimps)
+  apply (drule_tac a="hJ" and b="hR ++ hF" and c = aa and d = ba and e = ab and f = bb in all6D)
+  apply (drule imp3D, simp_all)
+    apply (metis map_add_assoc map_add_commute)
+  apply force
+  apply (clarsimp, rule_tac y="hJ'" and x="h' ++ hR" in ex2I, clarsimp simp add: hsimps)
   apply (subst map_add_commute, simp add: hsimps)
   apply (drule mall5D, erule mimp4D, simp_all add: hsimps)
  apply (erule (1) disjoint_search)
@@ -365,8 +376,8 @@ where
 | "essafe (Suc n) es s h \<Gamma> Q = (
  (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> esaborts es (s, h ++ hF))
 \<and> (esaccesses es s \<subseteq> dom h)
-\<and> (\<forall>hJ hF es' \<sigma>'. 
-      esred es (s, h ++ hJ ++ hF) es' \<sigma>'
+\<and> (\<forall>hJ hF es' \<sigma>' x x' actk. 
+      (es, (s, h ++ hJ ++ hF), x) -es-actk\<rightarrow> (es', \<sigma>', x')
     \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (esllocked es') (esllocked es)
     \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
     \<longrightarrow> (\<exists>h' hJ'.
@@ -385,9 +396,10 @@ lemma essafe_agrees:
   apply (rule conjI, subst (asm) esaccesses_agrees, simp_all)
   apply (clarify, drule_tac X = "fvEsv esys \<union> fvAs \<Gamma> \<union> fvA Q" in esred_agrees,
        simp (no_asm), fast, simp(no_asm), fast, clarify)
-  apply (drule (1) all5_impD, clarsimp)
-  apply (drule impD, erule assns_agreesE, simp add: agreesC, clarify)
-  apply (rule_tac x=h' and y=hJ' in ex2I, simp add: hsimps)
+  apply (drule_tac a = hJ and b = hF and c = es' and d = s'a and e = b in all5_impD)
+  apply (metis snd_conv)
+  apply (drule imp2D, erule assns_agreesE, simp add: agreesC, clarify)
+  apply (clarsimp, rule_tac x=h' and y=hJ' in ex2I, simp add: hsimps)
   apply (rule conjI, erule assns_agreesE, subst agreesC, assumption)
   apply (erule (1) mall4_imp2D, simp add: agreesC)
   apply (drule esred_properties, auto)
@@ -404,24 +416,26 @@ lemma essafe_mon:
 apply (induct m arbitrary: es s n h, simp) 
 apply (case_tac n, clarify)
 apply (simp only: safe.simps, clarsimp)
-apply (drule all5D, drule (2) imp3D, simp, clarsimp)
-apply (rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
+  apply (drule_tac a = hJ and b = hF and c = es' and d = a and e = b in all5D)
+  apply (drule imp3D, simp_all)
+  apply blast
+  apply (clarsimp, rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
   done
 
 lemma essafe_conseq : "\<lbrakk> essafe n es s h \<Gamma> Q; Q \<sqsubseteq> Q'\<rbrakk> \<Longrightarrow> essafe n es s h \<Gamma> Q'"
   apply (induct n arbitrary: es s h, simp)
   apply (clarsimp, simp add : implies_def)
   apply (erule esred.cases, simp_all, clarify)
-    apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq (ac, bc) res" 
-          and d = "ad" and e = "bd" in all5_impD)
-     apply (simp add: esred.red_EvtSeq1)
+    apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq (ab, bb) res" 
+          and d = "a" and e = "b" in all5_impD)
+     apply (metis esred.red_EvtSeq1)
     apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-   apply (drule_tac a = "hJ" and b = "hF" and c = "res" and d = "a" and e = "b" in all5_impD)
-    apply (simp add: esred.red_EvtSeq2)
+   apply (drule_tac a = "hJ" and b = "hF" and c = "es'" and d = "a" and e = "b" in all5_impD)
+    apply (metis esred.red_EvtSeq2)
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
   apply (drule_tac a = "hJ" and b = "hF" and c = "EvtSeq re' (EvtSys revts)" and d = "a" 
         and e = "b" in all5_impD)
-   apply (simp add: esred.red_EvtSet)
+   apply (metis esred.red_EvtSet)
   apply (clarsimp, rule_tac x = "h'" in exI, simp)
   done
 
@@ -431,6 +445,7 @@ theorem rule_esconseq : "\<lbrakk>\<Gamma> \<turnstile>\<^sub>e\<^sub>s {P} es {
 theorem rule_es_equiv : "\<lbrakk>\<Gamma> \<turnstile>\<^sub>e\<^sub>s {P} es {Q};  P' \<equiv>\<^sub>S\<^sub>L P; Q \<equiv>\<^sub>S\<^sub>L Q' \<rbrakk> \<Longrightarrow> \<Gamma>  \<turnstile>\<^sub>e\<^sub>s {P'} es {Q'}"
   using equiv_implies rule_esconseq by blast
 
+(*
 lemma essafe_EvtSeq :"\<lbrakk>resafe n re s h \<Gamma> Q;
         \<forall>m s' h'. m \<le> n \<and> (s', h') \<Turnstile> (Q ** (Aistar (map \<Gamma> (esllocked esys)))) 
                 \<longrightarrow> essafe m esys s' h' \<Gamma> R\<rbrakk> 
@@ -439,19 +454,37 @@ lemma essafe_EvtSeq :"\<lbrakk>resafe n re s h \<Gamma> Q;
   apply (rule conjI, clarsimp)
    apply (erule esaborts.cases, simp_all, clarsimp)
   apply (clarsimp, erule esred.cases, simp_all)
-   apply (clarify, drule (1) all6_impD, clarsimp)
-   apply (rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
+   apply (clarify, drule_tac a = hJ and b = hF and c = ac and d = bc and e = aa and f= ba in all6_impD)
+    apply blast
+   apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
   apply (clarify, simp add: rellocked_def)
-  apply (rule_tac x = "h ++ hJ" in exI, simp)
-  apply (drule_tac a = "n" and b = "ac" and c = "h ++ hJ" in all3_impD, simp_all)
-  apply (rule_tac x = "h" in exI, simp)
-  apply (rule_tac x = "hJ" in exI, simp)
+  apply (drule_tac a = Map.empty and b = "hJ ++hF" and c = ac and d = "AnonyEvent Cskip" and e = aa and f= ba in all6_impD)
+   apply (metis empty_map_add map_add_assoc, simp, clarsimp)
+  apply (rule_tac x = "h' ++ hJ" and y = "hJ'" in ex2I, simp)
+  apply (rule conjI)
+  apply (metis map_add_assoc map_add_commute)
+  apply (rule conjI)
+   apply (metis disjoint_commute)
+  apply (rule conjI, simp add: esllocked_def)
   done
+*)
 
-lemma essafe_EvtSeq' :"\<lbrakk>resafe n re s h \<Gamma> Q; user_esys esys;
+lemma essafe_EvtSeq :"\<lbrakk>resafe n re s h \<Gamma> Q; user_esys esys;
         \<forall>m s' h'. m \<le> n \<and> (s', h') \<Turnstile> Q  \<longrightarrow> essafe m esys s' h' \<Gamma> R\<rbrakk> 
       \<Longrightarrow>  essafe n (EvtSeq re esys) s h \<Gamma> R"
-  by (rule essafe_EvtSeq, simp_all)
+  apply (induct n arbitrary: re s h, simp, clarsimp)
+  apply (rule conjI, clarsimp)
+  using esaborts.simps apply auto[1]
+  apply (clarsimp, erule esred.cases, simp_all)
+   apply (metis prod.collapse)
+  apply (drule_tac a = Map.empty and b = "hJ ++hF" and c = "fst re'" and d = "AnonyEvent Cskip" 
+        and e = aa and f= ba in all6_impD)
+   apply force
+  apply (simp add: rellocked_def, clarsimp)
+  apply (rule_tac x = h' and y = hJ' in ex2I, simp)
+  by (smt (verit) bot_nat_0.extremum_unique essafe.simps(1) le_SucE le_boolD 
+      lift_Suc_antimono_le linorder_linear not_less_eq_eq resafe.simps(2) snd_conv)
+
 
 theorem rule_EvtSeq :"\<lbrakk>\<Gamma> \<turnstile>\<^sub>r\<^sub>e {P} re {Q};
                  \<Gamma> \<turnstile>\<^sub>e\<^sub>s {Q } esys {R}\<rbrakk> 
@@ -471,7 +504,7 @@ lemma post_dconj : "\<lbrakk>\<forall>re\<in>es. (Post re) \<sqsubseteq> Q; get_
   using get_union_post_def implies_def by blast
 
 lemma essafe_EvtSys : "\<lbrakk> \<forall> re \<in> es. user_revent re \<and> (\<forall>s h. (s, h) \<Turnstile> (Pre re) 
-                        \<longrightarrow> resafe n re s h \<Gamma> (Post re));
+                        \<longrightarrow> resafe n re s h \<Gamma> (Post re)); 
                          \<forall> re \<in> es. (Post re) \<sqsubseteq> Q; get_int_pre (s, h) es Pre;
                          \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<sqsubseteq> Pre re2\<rbrakk>
                         \<Longrightarrow>  essafe n (EvtSys es) s h \<Gamma> Q"
@@ -479,60 +512,24 @@ lemma essafe_EvtSys : "\<lbrakk> \<forall> re \<in> es. user_revent re \<and> (\
   apply (rule conjI, clarsimp)
    apply (erule esaborts.cases, simp_all)
    apply (drule_tac x = "re" in Set.bspec, simp) apply auto
-  apply (drule_tac a = "aa" and b = "h" in all2_impD)
+   apply (drule_tac a = "aa" and b = "h" in all2_impD)
   using get_int_pre_def apply blast apply blast
   apply (erule esred.cases, simp_all)
   apply (frule_tac x = "re" in Set.bspec, simp) apply auto
-  apply (drule_tac a = "ab" and b = "h" in all2_impD)
+  apply (drule_tac a = "s" and b = "h" in all2_impD)
    apply (simp add: get_int_pre_def)
-     apply ( drule_tac a = "hJ" and b = "hF" and c = "ac" and d = "bc" 
-            and e = "ad" and f = "bd" in all6_impD, simp)
-  apply (drule imp2D, simp, simp, clarify)
-     apply (rule_tac x = "h'" in exI, simp)
-  apply (rule_tac Q = "Post (aa, ba)" in essafe_EvtSeq', simp, simp)
+  apply ( drule_tac a = "hJ" and b = "hF" and c = "ab" and d = "bb" and e = "a" and f = "b" in all6_impD)
+   apply blast
+  apply (drule imp2D, simp, simp, clarsimp)
+  apply (rule_tac x = h' in exI, simp)
+  apply (rule_tac Q = "Post (aa, ba)" in essafe_EvtSeq, simp, simp)
   apply (clarsimp, drule_tac a = "s'" and b = "h'a" in mall2_impD, clarsimp)
-   apply (drule_tac x = "(a, b)" in Set.bspec, simp) apply auto[1]
-   apply (drule_tac a = "s" and b = "ha" in all2_impD, simp)
+   apply (drule_tac x = "(ac, b)" in Set.bspec, simp) apply auto[1]
+  apply (drule_tac a = "sa" and b = "ha" in all2_impD, simp)
    apply (rule_tac n = "Suc n" in resafe_mon, simp, simp)
   apply (drule mimpD)
-  apply (metis pre_conj prod.collapse)
+  apply (metis pre_conj prod.collapse) 
   using essafe_mon by auto
-
-(*
-lemma essafe_EvtSys : "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re)} re {Post re};
-                         \<forall> re \<in> es. (Post re) \<sqsubseteq> Q; 
-                         \<forall> re1 re2. re1 \<in> es \<and> re2 \<in> es \<longrightarrow> Post re1 \<sqsubseteq> Pre re2\<rbrakk>
-                        \<Longrightarrow> \<forall>n s h. get_int_pre (s, h) es Pre \<longrightarrow> essafe n (EvtSys es) s h \<Gamma> Q"
-  apply (simp add: reCSL_def)
-proof(intro allI impI)
-  fix n s h
-  assume a0 : "\<forall>re\<in>es. user_revent re \<and> (\<forall>n s h. (s, h) \<Turnstile> Pre re \<longrightarrow> resafe n re s h \<Gamma> (Post re))"
-  and    a1 : "\<forall>re\<in>es. Post re \<sqsubseteq> Q"
-  and    a2 : "\<forall>a b aa ba. (a, b) \<in> es \<and> (aa, ba) \<in> es \<longrightarrow> Post (a, b) \<sqsubseteq> Pre (aa, ba)"
-  and    a3 : "get_int_pre (s, h) es Pre"
-  then show "essafe n (EvtSys es) s h \<Gamma> Q"
-    apply (induct n arbitrary: s h, simp_all)
-    apply (rule conjI, clarsimp)
-     apply (erule esaborts.cases, simp_all)
-     apply (drule_tac x = "re" in Set.bspec, simp) apply auto
-     apply (drule_tac a = "Suc 0" and b = "aa" and c = "ha" in all3_impD)
-    using get_int_pre_def apply blast 
-     apply (simp, erule esred.cases, simp_all)
-    apply (drule_tac x = "re" in Set.bspec) apply auto
-    apply (drule_tac a = "Suc n" and b = "ab" and c = "ha" in all3_impD)
-    using get_int_pre_def apply blast
-     apply (clarsimp, drule_tac a = "hJ" and b = "hF" and c = "ac" and d = "bc" 
-            and e = "ad" and f = "bd" in all6_impD, simp)
-     apply (drule imp2D, simp, simp, clarify)
-     apply (rule_tac x = "h'" in exI, simp)
-    apply (rule_tac Q = "Post (aa, ba)" in essafe_EvtSeq)
-    apply blast apply (simp add: get_int_pre_def)
-      apply (clarsimp, drule_tac a = "s'" and b = "h'a" in mall2_impD)
-    using get_int_pre_def implies_def apply auto[1]
-    using essafe_mon apply auto[1]
-    done
-qed
-*)
 
 theorem rule_EvtSys :  "\<lbrakk> \<forall> re \<in> es. \<Gamma> \<turnstile>\<^sub>r\<^sub>e {(Pre re)} re {Post re};
                          \<forall> re \<in> es. P \<sqsubseteq> Pre re;
@@ -565,8 +562,11 @@ lemma essafe_frame:
   apply (rule conjI, erule order_trans, simp)
 (* step *)
   apply (clarify, frule esred_properties, clarsimp)
-  apply (drule_tac a="hJ" and b="hR ++ hF" in all3D, simp add: hsimps, drule (1) all2_impD, clarsimp)
-  apply (rule_tac y="hJ'" and x="h' ++ hR" in ex2I, clarsimp simp add: hsimps)
+  apply (drule_tac a="hJ" and b="hR ++ hF" and c = es' and d = a and e = b in all5_impD)
+   apply (metis map_add_assoc map_add_commute)
+  apply (drule imp2D, simp)
+  apply auto[1]
+  apply (clarsimp, rule_tac y="hJ'" and x="h' ++ hR" in ex2I, clarsimp simp add: hsimps)
   apply (subst map_add_commute, simp add: hsimps)
   apply (drule mall4D, erule mimp4D, simp_all add: hsimps)
  apply (erule (1) disjoint_search)
@@ -587,8 +587,8 @@ where
 | "ressafe (Suc n) res s h \<Gamma> Q = (
  (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> resaborts res (s, h ++ hF))
 \<and> (resaccesses res s \<subseteq> dom h)
-\<and> (\<forall>hJ hF res' \<sigma>'. 
-      resred res (s, h ++ hJ ++ hF) res' \<sigma>'
+\<and> (\<forall>hJ hF res' \<sigma>' x x' actk. 
+      (res, (s, h ++ hJ ++ hF), x) -res-actk\<rightarrow> (res', \<sigma>', x')
     \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (resllocked res') (resllocked res)
     \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
     \<longrightarrow> (\<exists>h' hJ'.
@@ -599,11 +599,13 @@ where
 
 lemma ressafe_mon:
   "\<lbrakk> ressafe n res s h \<Gamma> Q; m \<le> n \<rbrakk> \<Longrightarrow> ressafe m res s h \<Gamma> Q"
-apply (induct m arbitrary: res s n h, simp) 
-apply (case_tac n, clarify)
-apply (simp only: safe.simps, clarsimp)
-apply (drule all6D, drule (2) imp3D, simp, clarsimp)
-apply (rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
+  apply (induct m arbitrary: res s n h, simp)
+  apply (case_tac n, clarify)
+  apply (simp only: safe.simps, clarsimp)
+  apply (drule_tac a = "hJ" and b = hF and c = aa and d = ba and e = ab and f = bb in all6_impD)
+   apply blast
+  apply (drule imp2D, simp, simp)
+  apply (clarsimp, rule_tac x="h'" in exI, rule_tac x="hJ'" in exI, simp)
   done
 
 lemma ressafe_agrees: 
@@ -616,9 +618,12 @@ lemma ressafe_agrees:
   apply (rule conjI, subst (asm) resaccesses_agrees, simp_all)
   apply (clarify, drule_tac X = "fvREsv (a,b) \<union> fvAs \<Gamma> \<union> fvA Q" in resred_agrees,
        simp (no_asm), fast, simp(no_asm), fast, clarify)
-  apply (drule (1) all6_impD, clarsimp)
-  apply (drule impD, erule assns_agreesE, simp add: agreesC, clarify)
-  apply (rule_tac x=h' and y=hJ' in ex2I, simp add: hsimps)
+  apply (drule_tac a = "hJ" and b = hF and c = aa and d = ba and e = s'a and f = bb in all6_impD)
+   apply auto[1]
+  apply (drule imp2D)
+  using assns_agrees apply blast
+  apply blast
+  apply (clarsimp, rule_tac x=h' and y=hJ' in ex2I, simp add: hsimps)
   apply (rule conjI, erule assns_agreesE, subst agreesC, assumption)
   apply (erule (1) mall5_imp2D, simp add: agreesC)
   apply (drule resred_properties, auto)
@@ -634,17 +639,18 @@ lemma ressafe_conseq : "\<lbrakk> ressafe n res s h \<Gamma> Q; Q \<sqsubseteq> 
   apply (induct n arbitrary: res s h, simp)
   apply (clarsimp, simp add : implies_def)
   apply (erule resred.cases, simp_all, clarify)
-    apply (drule_tac a = "hJ" and b = "hF" and c = "a" and d = "EvtSeq (ae, bd) res" 
-          and e = "af" and f = "be" in all6_impD)
-     apply (simp add: resred.red_EvtSeq1)
+    apply (drule_tac a = "hJ" and b = "hF" and c = "a" and d = "EvtSeq (ad, bc) res" 
+          and e = "ab" and f = "bb" in all6_impD)
+     apply (meson resred.red_EvtSeq1)
+    apply (drule imp2D, simp, simp)
     apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
-   apply (clarsimp, drule_tac a = "hJ" and b = "hF" and c = "a" 
-         and d = "ba"  and e = "ad" and f = "h ++ hJ ++ hF" in all6_impD)
-    apply (simp add: resred.red_EvtSeq2)
+   apply (drule_tac a = "hJ" and b = "hF" and c = "a" 
+         and d = "ba"  and e = "ab" and f = "bb" in all6_impD)
+  apply (meson resred.red_EvtSeq2)
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp, clarsimp)
-  apply ( drule_tac a = "hJ" and b = "hF" and c = "a" and d = "EvtSeq (ae, bd) (EvtSys revts)" and  
-          e = "af" and f = "be" in all6_impD)
-   apply (simp add: resred.red_EvtSet)
+  apply ( drule_tac a = "hJ" and b = "hF" and c = "a" and d = "EvtSeq (ad, bc) (EvtSys revts)" and  
+          e = "ab" and f = "bb" in all6_impD)
+   apply (meson resred.red_EvtSet)
   apply (simp add: resllocked_def, clarify, rule_tac x = "h'" in exI, simp)
   done
 
@@ -732,9 +738,10 @@ lemma ressafe_res_empty : "essafe n es s h \<Gamma> Q \<Longrightarrow> ressafe 
   apply (rule conjI, simp add: resaborts_equiv)
   apply (rule conjI, simp add: resaccesses_def, clarsimp)
   apply (subgoal_tac "a = []", simp)
-  apply (drule_tac a = "hJ" and b = "hF" and c = "b" and d = "aa" and e = "ba" in all5_impD)
-  apply (simp add: res_equiv2)
-   apply (drule imp2D, simp add: resllocked_def) apply blast
+   apply (drule_tac a = "hJ" and b = "hF" and c = "b" and d = "aa" and e = "ba" in all5_impD)
+  apply (meson res_equiv2)
+   apply (simp add: res_equiv2)
+  apply (drule impD, simp add: resllocked_def)
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp add: resllocked_def)
   using resred.simps by auto
 
@@ -743,7 +750,7 @@ lemma ressafe_res_empty' : "ressafe n ([], es) s h \<Gamma> Q \<Longrightarrow> 
   apply (rule conjI, simp add: resaborts_equiv)
   apply (rule conjI, simp add: resaccesses_def, clarsimp)
   apply (drule_tac a = "hJ" and b = "hF" and c = "[]" and d = "es'" and e = "a" and f = "b" in all6_impD)
-   apply (simp add: res_equiv1, clarsimp)
+  apply (metis res_equiv1)
   apply (drule impD, simp add: resllocked_def, clarsimp)
   apply (rule_tac x = "h'" and y = "hJ'" in ex2I, simp add: resllocked_def)
   done
@@ -798,8 +805,11 @@ lemma ressafe_frame:
   apply (rule conjI, erule order_trans, simp)
 (* step *)
   apply (clarify, frule resred_properties, clarsimp)
-  apply (drule_tac a="hJ" and b="hR ++ hF" in all4D, simp add: hsimps, drule (1) all2_impD, clarsimp)
-  apply (rule_tac y="hJ'" and x="h' ++ hR" in ex2I, clarsimp simp add: hsimps)
+  apply (drule_tac a="hJ" and b="hR ++ hF" and c = aa and d = ba and e = ab and f = bb in all6_impD)
+  apply (metis map_add_assoc map_add_commute)
+  apply (drule imp2D, simp)
+  apply auto[1]
+  apply (clarsimp, rule_tac y="hJ'" and x="h' ++ hR" in ex2I, clarsimp simp add: hsimps)
   apply (subst map_add_commute, simp add: hsimps)
   apply (drule mall5D, erule mimp4D, simp_all add: hsimps)
  apply (erule (1) disjoint_search)
@@ -818,8 +828,8 @@ primrec
   "pessafe 0 pes s h \<Gamma> Q = True"
 | "pessafe (Suc n) pes s h \<Gamma> Q =  (
  (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> pesaborts pes (s, h ++ hF))
-\<and> (\<forall>hJ hF pes' \<sigma>'. 
-      pesred pes (s, h ++ hJ ++ hF) pes' \<sigma>'
+\<and> (\<forall>hJ hF pes' \<sigma>' x x' actk. 
+        (pes, (s, h ++ hJ ++ hF), x) -pes-actk\<rightarrow> (pes', \<sigma>', x')
     \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (pesllocked pes') (pesllocked pes)
     \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
     \<longrightarrow> (\<exists>h' hJ'.
@@ -838,8 +848,8 @@ lemma pessafe_conseq : "\<lbrakk> pessafe n pes s h \<Gamma> Q; Q \<sqsubseteq> 
     apply (induct n arbitrary: pes s h, simp)
   apply (clarsimp, simp add : implies_def)
   apply (erule pesred.cases, simp_all, clarsimp)
-  apply (drule_tac a = "hJ" and b = "hF" and c = "pesa[k := (ac, bc)]" 
-          and d = "ad" and e = "bd" in all5_impD)
+  apply (drule_tac a = "hJ" and b = "hF" and c = "pesa[k := (ab, bb)]" 
+          and d = "a" and e = "b" in all5_impD)
   using pesred.red_Par apply blast
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp)
   done
@@ -899,8 +909,8 @@ lemma pessafe:
   apply (clarsimp, erule pesred.cases, simp)
   apply (frule_tac a = "k" in allD, clarsimp)
   apply (drule_tac a = "hJ" and b = "(hplus_list (hs[ k:= Map.empty]) ++ hF)"
-          and c = "ac" and d = "bc" and e = "ad" and f = "bd" in all6_impD)
-   apply (simp add: pessafe_hsimps2)
+          and c = "ab" and d = "bb" and e = "a" and f = "b" in all6_impD)
+  using pessafe_hsimps2 apply auto[1]
   apply (drule imp2D)
     apply (simp add: pessafe_pesllocked_cancel)
    apply (rule conjI, simp add: disjoint_hplus_list1)
@@ -917,10 +927,10 @@ lemma pessafe:
   apply (rule conjI)
   apply (simp add: pesllocked_cancel)
    apply (drule resred_properties)
-   apply (clarsimp, drule_tac a = "pesa[k := (ac, bc)]" and b = "ad"
+   apply (clarsimp, drule_tac a = "pesa[k := (ab, bb)]" and b = "a"
                               and c = "hs[k := h']" in mall3_impD)
    apply (clarsimp, case_tac "ka = k", simp, simp)
-   apply (rule_tac s = "ab" in ressafe_agrees)
+   apply (rule_tac s = "s" in ressafe_agrees)
     apply (rule_tac n = "Suc n" in ressafe_mon, simp, simp)
    apply (drule_tac a = "ka" and b = "k" in all2_impD, simp, simp)
    apply auto[1]
@@ -994,13 +1004,16 @@ lemma pessafe_frame:
    apply (drule_tac a="hR ++ hF" in all_impD, simp, simp add: hsimps)
 (* step *)
   apply (clarify, frule pesred_properties, clarsimp)
-  apply (drule_tac a="hJ" and b="hR ++ hF" in all3D, simp add: hsimps, drule (1) all2_impD, clarsimp)
-  apply (rule_tac y="hJ'" and x="h' ++ hR" in ex2I, clarsimp simp add: hsimps)
+  apply (drule_tac a = hJ and b = "hR ++ hF" and c = pes' and d = a and e = b in all5_impD)
+  apply (metis map_add_assoc map_add_commute)
+  apply (drule imp2D, simp)
+  apply force
+  apply (clarsimp, rule_tac y="hJ'" and x="h' ++ hR" in ex2I, clarsimp simp add: hsimps)
   apply (subst map_add_commute, simp add: hsimps)
   apply (drule mall4D, erule mimp4D, simp_all add: hsimps)
- apply (erule (1) disjoint_search)
+   apply (erule (1) disjoint_search)
   apply (subst assn_agrees, simp_all, fastforce)
-done
+  done
 
 theorem pesrule_frame:
  "\<lbrakk> \<Gamma> \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q} ; disjoint (fvA R) (wrPEsv pes) \<rbrakk>
@@ -1015,8 +1028,8 @@ primrec
   "rpessafe 0 rpes s h \<Gamma> Q = True"
 | "rpessafe (Suc n) rpes s h \<Gamma> Q =  (
  (\<forall>hF. disjoint (dom h) (dom hF) \<longrightarrow> \<not> rpesaborts rpes (s, h ++ hF))
-\<and> (\<forall>hJ hF rpes' \<sigma>'. 
-      rpesred rpes (s, h ++ hJ ++ hF) rpes' \<sigma>'
+\<and> (\<forall>hJ hF rpes' \<sigma>' x x' actk. 
+        (rpes, (s, h ++ hJ ++ hF), x) -rpes-actk\<rightarrow> (rpes', \<sigma>', x')
     \<longrightarrow> (s, hJ) \<Turnstile> envs \<Gamma> (rpesllocked rpes') (rpesllocked rpes)
     \<longrightarrow> (disjoint (dom h) (dom hJ) \<and> disjoint (dom h) (dom hF) \<and> disjoint (dom hJ) (dom hF))
     \<longrightarrow> (\<exists>h' hJ'.
@@ -1120,8 +1133,8 @@ lemma rpessafe_res_empty : "pessafe n pes s h \<Gamma> Q \<Longrightarrow> rpess
   apply (induct n arbitrary: pes s h, simp, clarsimp)
   apply (rule conjI, simp add: rpesaborts_equiv, clarsimp)
   apply (subgoal_tac "a = []", simp)
-  apply (drule_tac a = "hJ" and b = "hF" and c = "b" and d = "aa" and e = "ba" in all5_impD)
-  apply (simp add: rpes_equiv2)
+   apply (drule_tac a = "hJ" and b = "hF" and c = "b" and d = "aa" and e = "ba" in all5_impD)
+    apply (metis rpes_equiv2)
    apply (drule imp2D, simp add: rpesllocked_def) apply blast
    apply (clarsimp, rule_tac x = "h'" and y = "hJ'" in ex2I, simp add: rpesllocked_def)
   by (metis fst_conv rpes_invres)
@@ -1136,19 +1149,6 @@ lemma rule_rpes1 : "\<lbrakk> \<Gamma>(r := R) \<turnstile>\<^sub>r\<^sub>p\<^su
   apply (rule conjI, simp add: user_rpesys_def, clarsimp)
   apply (drule_tac a = n and b = s and c = h1 in all3_impD, simp)
   by (simp add: rpessafe_res user_rpesysD)
-
-(*
-theorem rule_rpes : 
-    "\<lbrakk>(update_list \<Gamma> \<G> rs) \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q} ;disjoint (fvA (Aistar (map \<G> rs))) (wrPEsv pes)
-    ; distinct rs\<rbrakk>  \<Longrightarrow> \<Gamma> \<turnstile>\<^sub>r\<^sub>p\<^sub>e\<^sub>s {P ** (Aistar (map \<G> rs))} (rs, pes) {Q ** (Aistar (map \<G> rs))}"
-  apply (induct rs arbitrary: \<Gamma>, simp, rule_tac P = P and Q = Q in rule_rpes_equiv)
-  apply (simp add: rule_rpes_empty, simp add: assn_equiv_def, simp add: assn_equiv_def)
-  apply (drule_tac a = "\<Gamma>(a := \<G> a)" in mall_impD, clarsimp)
-  apply (rule_tac P = "(P ** Aistar (map \<G> rs)) ** \<G> a" and Q = "(Q ** Aistar (map \<G> rs)) ** \<G> a"
-  in rule_rpes_equiv, rule rule_rpes1, simp, simp add: wrREsv_def, simp)
-   apply (meson Aistar_equiv assn_equiv_symmetry) apply (meson Aistar_equiv assn_equiv_symmetry)
-  done
-*)
 
 theorem rule_rpes : 
     "\<lbrakk>(update_list_env \<Gamma> upd) \<turnstile>\<^sub>p\<^sub>e\<^sub>s {P} pes {Q} ;disjoint (fvA (Aistar (map snd upd))) (wrPEsv pes)
@@ -1180,8 +1180,11 @@ lemma rpessafe_frame:
    apply (drule_tac a="hR ++ hF" in all_impD, simp, simp add: hsimps)
 (* step *)
   apply (clarify, frule rpesred_properties, clarsimp)
-  apply (drule_tac a="hJ" and b="hR ++ hF" in all4D, simp add: hsimps, drule (1) all2_impD, clarsimp)
-  apply (rule_tac y="hJ'" and x="h' ++ hR" in ex2I, clarsimp simp add: hsimps)
+  apply (drule_tac a = hJ and b = "hR ++ hF" and c = aa and d = ba and e = ab and f= bb in all6_impD)
+   apply (metis map_add_assoc map_add_commute)
+  apply (drule imp2D, simp)
+   apply force
+  apply (clarsimp, rule_tac y="hJ'" and x="h' ++ hR" in ex2I, clarsimp simp add: hsimps)
   apply (subst map_add_commute, simp add: hsimps)
   apply (drule mall5D, erule mimp4D, simp_all add: hsimps)
   using disjoint_search(4) apply blast

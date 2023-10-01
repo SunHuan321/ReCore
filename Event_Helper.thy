@@ -120,8 +120,10 @@ corollary user_event_wf[intro]: "user_event e \<Longrightarrow> wf_event e"
 corollary user_event_llocked[simp] : "user_event e \<Longrightarrow> ellocked e = []"
   by (drule user_eventD, simp add: elocked_eq)
 
-lemma red_wf_event : "ered e \<sigma> e' \<sigma>' \<Longrightarrow> wf_event e \<Longrightarrow> wf_event e'"
-  by (metis ered.simps red_wf_cmd snd_conv wf_event.simps(1) wf_event.simps(2))
+lemma red_wf_event : "(e, \<sigma>, x) -et-actk\<rightarrow> (e', \<sigma>', x') \<Longrightarrow> wf_event e \<Longrightarrow> wf_event e'"
+  apply (erule ered.cases, simp add: wf_event_def)
+  using red_wf_cmd apply blast
+  by (simp add: wf_event_def)
 
 lemma wf_event_distinct_locked: "wf_event e \<Longrightarrow> distinct (ellocked e)"
   by (induct e, simp_all add: wf_cmd_distinct_locked)
@@ -141,7 +143,7 @@ corollary user_revent_wf[intro]: "user_revent re \<Longrightarrow> wf_revent re"
 corollary user_revent_llocked[simp] : "user_revent re \<Longrightarrow> rellocked re = []"
   by (drule user_reventD, simp add: relocked_eq)
 
-lemma red_wf_revent : "rered re \<sigma> re' \<sigma>' \<Longrightarrow> wf_revent re \<Longrightarrow> wf_revent re'"
+lemma red_wf_revent : "(re, \<sigma>, x) -ret-actk\<rightarrow> (re', \<sigma>', x') \<Longrightarrow> wf_revent re \<Longrightarrow> wf_revent re'"
   apply (simp add: wf_revent_def)
   using red_wf_cmd rered.simps by auto
 
@@ -166,10 +168,12 @@ corollary user_esys_wf[intro]: "user_esys esys \<Longrightarrow> wf_esys esys"
 corollary user_esys_llocked[simp] : "user_esys esys \<Longrightarrow> esllocked esys = []"
   by (drule user_esysD, simp add: eslocked_eq)
 
-lemma red_wf_esys : "esred esys \<sigma> esys' \<sigma>' \<Longrightarrow> wf_esys esys \<Longrightarrow> wf_esys esys'"
-  apply (induct esys, erule esred.cases, simp_all add: red_wf_revent)
-  apply (erule esred.cases, simp_all)
-  by (simp add: red_wf_revent)
+lemma red_wf_esys : "(esys, \<sigma>, x) -es-actk\<rightarrow> (esys', \<sigma>', x') \<Longrightarrow> wf_esys esys \<Longrightarrow> wf_esys esys'"
+  apply (erule esred.cases, simp add: wf_esys_def)
+    apply (metis (no_types, lifting) prod.collapse re_equiv2 re_invres red_wf_event wf_revent_def)
+   apply simp
+  by (metis (no_types, lifting) Pair_inject prod.collapse re_equiv2 re_invres red_wf_event 
+      wf_esys.simps(1) wf_esys.simps(2) wf_revent_def)
 
 lemma wf_esys_distinct_locked: "wf_esys esys \<Longrightarrow> distinct (esllocked esys)"
   apply (induct esys, simp_all)
@@ -190,8 +194,8 @@ corollary user_resys_wf[intro]: "user_resys resys \<Longrightarrow> wf_resys res
 corollary user_resys_llocked[simp] : "user_resys resys \<Longrightarrow> resllocked resys = []"
   by (drule user_resysD, simp add: reslocked_eq)
 
-lemma red_wf_resys : "resred resys \<sigma> resys' \<sigma>' \<Longrightarrow> wf_resys resys \<Longrightarrow> wf_resys resys'"
-  by (metis prod.exhaust_sel red_wf_esys res_equiv2 res_invres wf_resys_def)
+lemma red_wf_resys : "(resys, \<sigma>, x) -res-actk\<rightarrow> (resys', \<sigma>', x') \<Longrightarrow> wf_resys resys \<Longrightarrow> wf_resys resys'"
+  by (metis (no_types, lifting) prod.collapse red_wf_esys res_equiv2 res_invres wf_resys_def)
 
 lemma wf_resys_distinct_locked : "wf_resys resys \<Longrightarrow> distinct (resllocked resys)"
   apply (simp add: wf_resys_def resllocked_def)
@@ -242,7 +246,7 @@ lemma user_pesysI[simp] : "\<forall>k < length pes. user_resys (pes ! k) \<Longr
   apply (induct pes, simp)
   by force
 
-lemma red_wf_pesys : "pesred pes \<sigma> pes' \<sigma>' \<Longrightarrow> wf_pesys pes \<Longrightarrow> wf_pesys pes'"
+lemma red_wf_pesys : "(pes, \<sigma>, x) -pes-actk\<rightarrow> (pes', \<sigma>', x') \<Longrightarrow> wf_pesys pes \<Longrightarrow> wf_pesys pes'"
   apply (erule pesred.cases, simp add: wf_pesys_equiv)
   apply (rule conjI)
    apply (metis insertE nth_mem red_wf_resys rev_subsetD set_update_subset_insert)
@@ -273,8 +277,8 @@ lemma user_rpesys_llocked[simp]: "user_rpesys rpes \<Longrightarrow> rpesllocked
   apply (simp add: user_rpesys_def rpesllocked_def)
   by (metis empty_Diff set_empty set_list_minus)
 
-lemma red_wf_rpesys : "rpesred rpes \<sigma> rpes' \<sigma>' \<Longrightarrow> wf_rpesys rpes \<Longrightarrow> wf_rpesys rpes'"
-  by (metis prod.collapse red_wf_pesys rpes_equiv2 rpes_invres wf_rpesys_def)
+lemma red_wf_rpesys : "(rpes, \<sigma>, x) -rpes-actk\<rightarrow> (rpes', \<sigma>', x') \<Longrightarrow> wf_rpesys rpes \<Longrightarrow> wf_rpesys rpes'"
+  by (metis (no_types, lifting) prod.collapse red_wf_pesys rpes_equiv2 rpes_invres wf_rpesys_def)
   
 lemma wf_rpesys_distinct_locked : "wf_rpesys rpes \<Longrightarrow> distinct (rpesllocked rpes)"
   apply (simp add: wf_rpesys_def rpesllocked_def)

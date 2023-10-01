@@ -5,71 +5,162 @@ begin
 
 subsection \<open>Operational Semantics for event\<close>
 
+datatype cmd = CMP
+
+datatype act = Cmd cmd
+  | EvtEnt event
+
+record actk = Act :: act
+                K :: nat
+
+definition get_actk :: "act \<Rightarrow> nat \<Rightarrow> actk" ("_\<sharp>_" [91,91] 90)
+  where "get_actk a k \<equiv> \<lparr>Act=a, K=k\<rparr>"
+
+type_synonym x = "nat \<Rightarrow> event"
+
+type_synonym econf = "event \<times> state \<times> x"
+
+definition getspc_e :: " econf \<Rightarrow>  event" where
+  "getspc_e conf \<equiv> fst conf"
+
+definition gets_e :: " econf \<Rightarrow> state" where
+  "gets_e conf \<equiv> fst (snd conf)"
+
+definition getx_e :: "econf \<Rightarrow>  x" where
+  "getx_e conf \<equiv> snd (snd conf)"
+
+
+type_synonym reconf = "revent \<times> state \<times> x"
+
+definition getspc_re :: " reconf \<Rightarrow> revent" where
+  "getspc_re conf \<equiv> fst conf"
+
+definition gets_re :: " reconf \<Rightarrow> state" where
+  "gets_re conf \<equiv> fst (snd conf)"
+
+definition getx_re :: "reconf \<Rightarrow>  x" where
+  "getx_re conf \<equiv> snd (snd conf)"
+
+type_synonym esconf = "esys \<times> state \<times> x"
+
+definition getspc_es :: " esconf \<Rightarrow>  esys" where
+  "getspc_es conf \<equiv> fst conf"
+
+definition gets_es :: "esconf \<Rightarrow> state" where
+  "gets_es conf \<equiv> fst (snd conf)"
+
+definition getx_es :: "esconf \<Rightarrow> x" where
+  "getx_es conf \<equiv> snd (snd conf)"
+
+type_synonym resconf = "resys \<times> state \<times> x"
+
+definition getspc_res :: " resconf \<Rightarrow>  resys" where
+  "getspc_res conf \<equiv> fst conf"
+
+definition gets_res :: "resconf \<Rightarrow> state" where
+  "gets_res conf \<equiv> fst (snd conf)"
+
+definition getx_res :: "resconf \<Rightarrow> x" where
+  "getx_res conf \<equiv> snd (snd conf)"
+
+type_synonym pesconf = "paresys \<times> state \<times> x"
+
+definition getspc_pes :: "pesconf \<Rightarrow> paresys" where
+  "getspc_pes conf \<equiv> fst conf"
+
+definition gets_pes :: "pesconf \<Rightarrow> state" where
+  "gets_pes conf \<equiv> fst (snd conf)"
+
+definition getx_pes :: " pesconf \<Rightarrow>  x" where
+  "getx_pes conf \<equiv> snd (snd conf)"
+
+
+type_synonym rpesconf = "rparesys \<times> state \<times> x"
+
+definition getspc :: "rpesconf \<Rightarrow> rparesys" where
+  "getspc conf \<equiv> fst conf"
+
+definition gets :: "rpesconf \<Rightarrow> state" where
+  "gets conf \<equiv> fst (snd conf)"
+
+definition getx :: "rpesconf \<Rightarrow>  x" where
+  "getx conf \<equiv> snd (snd conf)"
+
+definition getact :: " actk \<Rightarrow>  act" where
+  "getact a \<equiv> Act a"
+
+definition getk :: " actk \<Rightarrow> nat" where
+  "getk a \<equiv> K a"
+
 subsubsection \<open>Operational Semantics for event and resource event \<close>
 inductive
-  ered :: "event \<Rightarrow> state \<Rightarrow> event \<Rightarrow> state \<Rightarrow> bool"
-  where
-  red_AnonyEvt: "red C \<sigma> C' \<sigma>' \<Longrightarrow> ered (AnonyEvent C) \<sigma> (AnonyEvent C') \<sigma>'"
-| red_BasicEvt: "bdenot guard (fst \<sigma>) \<Longrightarrow> ered (BasicEvent (guard, C)) \<sigma> (AnonyEvent C) \<sigma>"
+  ered :: "econf \<Rightarrow> actk \<Rightarrow> econf \<Rightarrow> bool" ("_ -et-_\<rightarrow> _" [81,81,81] 80)
+  where               
+  red_AnonyEvt: "red C \<sigma> C' \<sigma>' \<Longrightarrow> (AnonyEvent C, \<sigma>, x) -et-(Cmd CMP)\<sharp>k\<rightarrow> (AnonyEvent C', \<sigma>', x)"
+| red_BasicEvt: "\<lbrakk>bdenot guard (fst \<sigma>); x' = x(k:= BasicEvent (guard, C))\<rbrakk> \<Longrightarrow> 
+                 (BasicEvent (guard, C), \<sigma>, x)-et-(EvtEnt (BasicEvent (guard, C)))\<sharp>k\<rightarrow> (AnonyEvent C, \<sigma>, x')"
 
 inductive 
-  rered :: "revent \<Rightarrow> state \<Rightarrow> revent \<Rightarrow> state \<Rightarrow> bool"
+  rered :: "reconf \<Rightarrow> actk \<Rightarrow> reconf  \<Rightarrow> bool" ("_ -ret-_\<rightarrow> _" [81,81,81] 80)
   where     
-  red_AnonyEvt: "red C \<sigma> C' \<sigma>' \<Longrightarrow> rered (rs,(AnonyEvent C)) \<sigma> (rs, (AnonyEvent C')) \<sigma>'"
-| red_BasicEvt: "bdenot guard (fst \<sigma>) 
-                 \<Longrightarrow> rered (rs ,(BasicEvent (guard, C))) \<sigma> (rs ,(AnonyEvent C)) \<sigma>"
+  red_AnonyEvt: "red C \<sigma> C' \<sigma>' \<Longrightarrow> ((rs,(AnonyEvent C)), \<sigma>, x) -ret-(Cmd CMP)\<sharp>k\<rightarrow> ((rs, (AnonyEvent C')), \<sigma>', x)"
+| red_BasicEvt: "\<lbrakk>bdenot guard (fst \<sigma>); x' = x(k:= BasicEvent (guard, C))\<rbrakk> 
+                 \<Longrightarrow> ((rs ,(BasicEvent (guard, C))), \<sigma>, x)-ret-(EvtEnt (BasicEvent (guard, C)))\<sharp>k\<rightarrow> 
+                     ((rs ,(AnonyEvent C)), \<sigma>, x')"
 
-lemma re_invres : "rered re \<sigma> re' \<sigma>' \<Longrightarrow> fst re = fst re'"
+lemma re_invres : "(re, \<sigma>, x) -ret-actk\<rightarrow> (re', \<sigma>', x') \<Longrightarrow> fst re = fst re'"
   by (erule rered.cases, simp_all)
 
-lemma re_equiv1 : "ered e \<sigma> e' \<sigma>' \<Longrightarrow> rered (r, e) \<sigma> (r, e') \<sigma>'"
+lemma re_equiv1 : "(e, \<sigma>, x) -et-actk\<rightarrow> (e', \<sigma>', x') \<Longrightarrow> ((r, e), \<sigma>, x) -ret-actk\<rightarrow> ((r, e'), \<sigma>', x')"
   apply (erule ered.cases, simp add: rered.red_AnonyEvt)
-   apply (simp add: rered.red_BasicEvt)
+  apply (simp add: rered.red_BasicEvt)
   done
 
-lemma re_equiv2 : "rered (r, e) \<sigma> (r, e') \<sigma>' \<Longrightarrow> ered e \<sigma> e' \<sigma>'"
+lemma re_equiv2 : "((r, e), \<sigma>, x) -ret-actk\<rightarrow> ((r, e'), \<sigma>', x') \<Longrightarrow> (e, \<sigma>, x) -et-actk\<rightarrow> (e', \<sigma>', x')"
   apply (erule rered.cases, simp add: ered.red_AnonyEvt)
    apply (simp add: ered.red_BasicEvt)
   done
 
-lemma re_equiv3 : "rered (rs, e) \<sigma> (rs, e') \<sigma>' \<Longrightarrow> rered (rs', e) \<sigma> (rs', e') \<sigma>'"
+lemma re_equiv3 : "((r, e), \<sigma>, x) -ret-actk\<rightarrow> ((r, e'), \<sigma>', x') \<Longrightarrow> ((r', e), \<sigma>, x) -ret-actk\<rightarrow> ((r', e'), \<sigma>', x')"
   by (simp add: rered.simps)
 
 subsubsection \<open>Operational Semantics for event systems and resource event systems\<close>
 inductive
-  esred :: "esys \<Rightarrow> state \<Rightarrow> esys \<Rightarrow> state \<Rightarrow> bool"
+  esred :: "esconf \<Rightarrow> actk \<Rightarrow> esconf \<Rightarrow> bool" ("_ -es-_\<rightarrow> _" [81,81,81] 80)
   where
-  red_EvtSeq1: "rered re \<sigma> re' \<sigma>' \<Longrightarrow> snd re' \<noteq> (AnonyEvent Cskip) 
-                \<Longrightarrow> esred (EvtSeq re res) \<sigma> (EvtSeq re' res) \<sigma>'"
-| red_EvtSeq2: "snd re = (AnonyEvent Cskip) \<Longrightarrow> esred (EvtSeq re res) \<sigma> res \<sigma>"
-| red_EvtSet: " re \<in> revts \<Longrightarrow> rered re \<sigma> re' \<sigma>'    
-              \<Longrightarrow> esred (EvtSys revts) \<sigma> (EvtSeq re' (EvtSys revts)) \<sigma>'"
+  red_EvtSeq1: "(re, \<sigma>, x)-ret-actk\<rightarrow> (re', \<sigma>', x) \<Longrightarrow> snd re' \<noteq> (AnonyEvent Cskip) 
+                \<Longrightarrow> ((EvtSeq re res), \<sigma>, x) -es-actk\<rightarrow> ((EvtSeq re' res), \<sigma>', x)"
+| red_EvtSeq2: "\<lbrakk>(re, \<sigma>, x)-ret-actk\<rightarrow>(re', \<sigma>', x); snd re' = (AnonyEvent Cskip)\<rbrakk> \<Longrightarrow>
+                ((EvtSeq re res), \<sigma>, x) -es-atck\<rightarrow> (res, \<sigma>', x)"
+| red_EvtSet: " \<lbrakk>re \<in> revts; (re, \<sigma>, x)-ret-(EvtEnt evt)\<sharp>k\<rightarrow>(re', \<sigma>', x')\<rbrakk>  
+              \<Longrightarrow> ((EvtSys revts), \<sigma>, x) -es-(EvtEnt evt)\<sharp>k\<rightarrow> ((EvtSeq re' (EvtSys revts)), \<sigma>', x')"
 
 inductive
-  resred :: "resys \<Rightarrow> state \<Rightarrow> resys \<Rightarrow> state \<Rightarrow> bool"
+  resred :: "resconf \<Rightarrow> actk \<Rightarrow> resconf \<Rightarrow> bool"("_ -res-_\<rightarrow> _" [81,81,81] 80)
   where
-  red_EvtSeq1: "rered re \<sigma> re' \<sigma>' \<Longrightarrow> snd re' \<noteq> (AnonyEvent Cskip) 
-           \<Longrightarrow> resred (rs, (EvtSeq re res)) \<sigma> (rs, (EvtSeq re' res)) \<sigma>'"
-| red_EvtSeq2: "snd re = (AnonyEvent Cskip) \<Longrightarrow> resred (rs, (EvtSeq re res)) \<sigma> (rs,  res) \<sigma>"
-| red_EvtSet: "re \<in> revts  \<Longrightarrow> rered re \<sigma> re' \<sigma>' \<Longrightarrow> 
-               resred (rs ,(EvtSys revts)) \<sigma> (rs, (EvtSeq re' (EvtSys revts))) \<sigma>'"
+  red_EvtSeq1: "(re, \<sigma>, x)-ret-actk\<rightarrow> (re', \<sigma>', x) \<Longrightarrow> snd re' \<noteq> (AnonyEvent Cskip)
+           \<Longrightarrow> ((rs, (EvtSeq re res)), \<sigma>, x) -res-actk\<rightarrow> ((rs, (EvtSeq re' res)), \<sigma>', x)"
+| red_EvtSeq2: "\<lbrakk>(re, \<sigma>, x)-ret-actk\<rightarrow>(re', \<sigma>', x); snd re' = (AnonyEvent Cskip)\<rbrakk> \<Longrightarrow> 
+               ((rs, (EvtSeq re res)), \<sigma>, x) -res-atck\<rightarrow> ((rs, res), \<sigma>', x)"
+| red_EvtSet: "\<lbrakk>re \<in> revts; (re, \<sigma>, x)-ret-(EvtEnt evt)\<sharp>k\<rightarrow>(re', \<sigma>', x')\<rbrakk>  \<Longrightarrow> 
+               ((rs, (EvtSys revts)), \<sigma>, x) -res-(EvtEnt evt)\<sharp>k\<rightarrow> ((rs, (EvtSeq re' (EvtSys revts))), \<sigma>', x')"
 
-lemma res_invres : "resred res \<sigma> res' \<sigma>' \<Longrightarrow> fst res = fst res'"
+lemma res_invres : "(res, \<sigma>, x) -res-actk\<rightarrow> (res', \<sigma>', x') \<Longrightarrow> fst res = fst res'"
   by (erule resred.cases, simp_all)
 
-lemma res_equiv1 : "esred es \<sigma> es' \<sigma>' \<Longrightarrow> resred (r, es) \<sigma> (r, es') \<sigma>'"
+lemma res_equiv1 : "(es, \<sigma>, x) -es-actk\<rightarrow>(es', \<sigma>', x') \<Longrightarrow> ((r,es), \<sigma>, x) -res-actk\<rightarrow>((r, es'), \<sigma>', x')"
   apply (erule esred.cases, simp add: resred.red_EvtSeq1)
    apply (simp add: resred.red_EvtSeq2)
   apply (simp add: resred.red_EvtSet)
   done
 
-lemma res_equiv2 : "resred (r, es) \<sigma> (r, es') \<sigma>' \<Longrightarrow> esred es \<sigma> es' \<sigma>'"
+lemma res_equiv2 : "((r,es), \<sigma>, x) -res-actk\<rightarrow>((r, es'), \<sigma>', x') \<Longrightarrow> (es, \<sigma>, x) -es-actk\<rightarrow>(es', \<sigma>', x')"
   apply (erule resred.cases, simp add: esred.red_EvtSeq1)
    apply (simp add: esred.red_EvtSeq2)
   apply (simp add: esred.red_EvtSet)
   done
 
-lemma res_equiv3 : "resred (rs, es) \<sigma> (rs, es') \<sigma>' \<Longrightarrow> resred (rs', es) \<sigma> (rs', es') \<sigma>'"
+lemma res_equiv3 : "((r,es), \<sigma>, x) -res-actk\<rightarrow>((r, es'), \<sigma>', x') \<Longrightarrow> ((r',es), \<sigma>, x) -res-actk\<rightarrow>((r', es'), \<sigma>', x')"
   by (simp add: resred.simps)
 
 subsubsection \<open>Operational Semantics for parallel event systems and resource parallel event systems\<close>
@@ -136,8 +227,8 @@ lemma ewrites_accesses : "ewrite e s \<subseteq> eaccesses e s"
   by (induct e arbitrary: s, auto)
 
 lemma ered_properties:
-  " ered e \<sigma> e' \<sigma>' \<Longrightarrow> fvEv e' \<subseteq> fvEv e \<and> wrEv e' \<subseteq> wrEv e \<and> agrees (- wrEv e) (fst \<sigma>') (fst \<sigma>)"
-  apply (erule ered.induct, simp_all)
+  "(e, \<sigma>, x) -et-actk\<rightarrow> (e', \<sigma>', x') \<Longrightarrow> fvEv e' \<subseteq> fvEv e \<and> wrEv e' \<subseteq> wrEv e \<and> agrees (- wrEv e) (fst \<sigma>') (fst \<sigma>)"
+  apply (erule ered.cases, simp_all)
    apply (simp add: red_properties)
   by (simp add: agrees_refl)
 
@@ -152,14 +243,14 @@ lemma ewrites_agrees:
   by (simp add: accesses_agrees)
 
 lemma ered_agrees[rule_format]:
-  "ered e \<sigma> e' \<sigma>' \<Longrightarrow> \<forall>X s. agrees X (fst \<sigma>) s \<longrightarrow> snd \<sigma> = h \<longrightarrow> fvEv e \<subseteq> X \<longrightarrow>
-    (\<exists>s' h'. ered e (s, h) e' (s', h') \<and> agrees X (fst \<sigma>') s' \<and> snd \<sigma>' = h')"
+  "(e, \<sigma>, x) -et-actk\<rightarrow> (e', \<sigma>', x') \<Longrightarrow> \<forall>X s. agrees X (fst \<sigma>) s \<longrightarrow> snd \<sigma> = h \<longrightarrow> fvEv e \<subseteq> X \<longrightarrow>
+    (\<exists>s' h'. (e, (s, h), x) -et-actk\<rightarrow> (e', (s', h'), x') \<and> agrees X (fst \<sigma>') s' \<and> snd \<sigma>' = h')"
   apply (induct e, simp_all)
    apply (erule ered.cases, simp_all, clarify)
    apply (meson ered.red_AnonyEvt red_agrees)
   apply (erule ered.cases, simp_all, clarify)
   apply (rule_tac x = "s" in exI, simp_all)
-  apply (subgoal_tac "agrees (fvB guard) aa s")
+  apply (subgoal_tac "agrees (fvB guard) (fst \<sigma>) s")
    apply (simp add: bexp_agrees ered.red_BasicEvt)
   by auto
 
@@ -231,8 +322,8 @@ lemma rewrites_accesses : "rewrite re s \<subseteq> reaccesses re s"
   by (simp add: rewrite_def reaccesses_def ewrites_accesses)
 
 lemma rered_properties:
-  " rered re \<sigma> re' \<sigma>' \<Longrightarrow> fvREv re' \<subseteq> fvREv re \<and> wrREv re' \<subseteq> wrREv re \<and> agrees (- wrREv re) (fst \<sigma>') (fst \<sigma>)"
-  apply (erule rered.induct, simp_all add: fvREv_def wrREv_def)
+  " (re, \<sigma>, x) -ret-actk\<rightarrow> (re', \<sigma>', x') \<Longrightarrow> fvREv re' \<subseteq> fvREv re \<and> wrREv re' \<subseteq> wrREv re \<and> agrees (- wrREv re) (fst \<sigma>') (fst \<sigma>)"
+  apply (erule rered.cases, simp_all add: fvREv_def wrREv_def)
    apply (simp add: red_properties)
   by (simp add: agrees_refl)
 
@@ -247,13 +338,13 @@ lemma rewrites_agrees:
   by (simp add: ewrites_agrees)
 
 lemma rered_agrees[rule_format]:
-  "rered re \<sigma> re' \<sigma>' \<Longrightarrow> \<forall>X s. agrees X (fst \<sigma>) s \<longrightarrow> snd \<sigma> = h \<longrightarrow> fvREv re \<subseteq> X \<longrightarrow>
-    (\<exists>s' h'. rered re (s, h) re' (s', h') \<and> agrees X (fst \<sigma>') s' \<and> snd \<sigma>' = h')"
+  "(re, \<sigma>, x) -ret-actk\<rightarrow> (re', \<sigma>', x') \<Longrightarrow> \<forall>X s. agrees X (fst \<sigma>) s \<longrightarrow> snd \<sigma> = h \<longrightarrow> fvREv re \<subseteq> X \<longrightarrow>
+    (\<exists>s' h'. (re, (s, h), x) -ret-actk\<rightarrow> (re', (s', h'), x') \<and> agrees X (fst \<sigma>') s' \<and> snd \<sigma>' = h')"
     apply (induct re, simp_all)
   apply (erule rered.cases, simp_all, clarsimp)
    apply (metis fst_conv fvEv.simps(1) fvREv_def red_agrees rered.red_AnonyEvt snd_conv)
   apply (clarsimp, rule_tac x = "s" in exI, simp)
-  apply (subgoal_tac "agrees (fvB guard) aa s")
+  apply (subgoal_tac "agrees (fvB guard) (fst \<sigma>) s")
    apply (simp add: bexp_agrees rered.red_BasicEvt)
   using fvREv_def by auto
 
@@ -331,12 +422,12 @@ lemma eswrites_accesses : "eswrite es s \<subseteq> esaccesses es s"
   by (induct es arbitrary: s, simp_all add : rewrites_accesses)
 
 lemma esred_properties :
-"esred esys \<sigma> esys' \<sigma>' \<Longrightarrow> fvEsv esys' \<subseteq> fvEsv esys 
+"(esys, \<sigma>, x) -es-actk\<rightarrow> (esys', \<sigma>', x') \<Longrightarrow> fvEsv esys' \<subseteq> fvEsv esys 
                          \<and> wrEsv esys' \<subseteq> wrEsv esys \<and> agrees (- wrEsv esys) (fst \<sigma>) (fst \<sigma>')"
-  apply (erule esred.induct, simp_all)
+  apply (erule esred.cases, simp_all)
     apply (simp add: le_supI1 rered_properties agrees_def)
     apply (metis (mono_tags, lifting) IntD1 agrees_def rered_properties)
-   apply (simp add: agrees_refl)
+  apply (meson Int_lower1 agreesC agrees_search(2) rered_properties)
   apply (rule conjI, clarsimp)
    apply (meson contra_subsetD rered_properties)
   apply (rule conjI, clarsimp)
@@ -354,12 +445,12 @@ lemma eswrites_agrees:
   by (simp add: rewrites_agrees)
 
 lemma esred_agrees[rule_format] : 
-"esred esys \<sigma> esys' \<sigma>' \<Longrightarrow> \<forall>X s. agrees X (fst \<sigma>) s \<longrightarrow> snd \<sigma> = h \<longrightarrow> fvEsv esys \<subseteq> X \<longrightarrow>
-   (\<exists>s' h'. esred esys (s, h) esys' (s', h') \<and> agrees X (fst \<sigma>') s' \<and> snd \<sigma>' = h')"
-  apply (erule esred.induct, simp_all, clarsimp)
-  apply (drule_tac X = "X" and s = "s" in rered_agrees, simp_all)
+"(esys, \<sigma>, x) -es-actk\<rightarrow> (esys', \<sigma>', x') \<Longrightarrow> \<forall>X s. agrees X (fst \<sigma>) s \<longrightarrow> snd \<sigma> = h \<longrightarrow> fvEsv esys \<subseteq> X \<longrightarrow>
+   (\<exists>s' h'. (esys, (s, h), x) -es-actk\<rightarrow> (esys', (s', h'), x') \<and> agrees X (fst \<sigma>') s' \<and> snd \<sigma>' = h')"
+  apply (erule esred.cases, simp_all, clarsimp)
+    apply (drule_tac X = "X" and s = "s" in rered_agrees, simp_all)
     apply (clarsimp, rule_tac x = "s'" in exI, simp add: esred.red_EvtSeq1)
-   apply (clarsimp, rule_tac x = "s" in exI, simp add: esred.red_EvtSeq2)
+  apply (meson esred.red_EvtSeq2 rered_agrees snd_conv)
   apply (clarsimp, drule rered_agrees, simp_all)
    apply blast
   using esred.red_EvtSet by blast
@@ -442,17 +533,20 @@ lemma reswrites_accesses : "reswrite res s \<subseteq> resaccesses res s"
   by (simp add: reswrite_def resaccesses_def eswrites_accesses)
 
 lemma resred_properties :
-"resred resys \<sigma> resys' \<sigma>' \<Longrightarrow> fvREsv resys' \<subseteq> fvREsv resys 
+"(resys, \<sigma>, x) -res-actk\<rightarrow> (resys', \<sigma>', x') \<Longrightarrow> fvREsv resys' \<subseteq> fvREsv resys 
                          \<and> wrREsv resys' \<subseteq> wrREsv resys \<and> agrees (- wrREsv resys) (fst \<sigma>) (fst \<sigma>')"
-  apply (erule resred.induct, simp_all add: fvREsv_def wrREsv_def)
+  apply (erule resred.cases, simp_all add: fvREsv_def wrREsv_def)
     apply (metis agrees_search(1) agrees_simps(4) le_supI1 rered_properties sup_inf_absorb)
    apply (simp add: wrREv_def agrees_refl)
-  apply (simp add: wrREv_def fvREv_def)
+  apply (metis boolean_algebra.de_Morgan_disj esred.red_EvtSeq2 esred_properties wrEsv.simps(1) wrREv_def)
   apply (rule conjI, clarsimp)
-  using fvREv_def rered_properties  apply fastforce
+  using fvREv_def rered_properties 
+  apply (metis snd_conv subsetD)
   apply (rule conjI, clarsimp)
-  using rered_properties  wrREv_def apply fastforce
-  using mem_Collect_eq rered_properties snd_conv wrREv_def by fastforce
+  using rered_properties  wrREv_def 
+  apply (metis snd_conv subsetD)
+  using mem_Collect_eq rered_properties snd_conv wrREv_def 
+  by (simp add: agrees_def)
 
 lemma resaccesses_agrees: 
 "agrees (fvREsv resys) s s' \<Longrightarrow> resaccesses resys s = resaccesses resys s'"
@@ -465,12 +559,12 @@ lemma reswrites_agrees:
   by (simp add: eswrites_agrees)
 
 lemma resred_agrees[rule_format] : 
-"resred resys \<sigma> resys' \<sigma>' \<Longrightarrow> \<forall>X s. agrees X (fst \<sigma>) s \<longrightarrow> snd \<sigma> = h \<longrightarrow> fvREsv resys \<subseteq> X \<longrightarrow>
-   (\<exists>s' h'. resred resys (s, h) resys' (s', h') \<and> agrees X (fst \<sigma>') s' \<and> snd \<sigma>' = h')"
-  apply (erule resred.induct, simp_all add: fvREsv_def wrREsv_def, clarsimp)
+"(resys, \<sigma>, x) -res-actk\<rightarrow> (resys', \<sigma>', x') \<Longrightarrow> \<forall>X s. agrees X (fst \<sigma>) s \<longrightarrow> snd \<sigma> = h \<longrightarrow> fvREsv resys \<subseteq> X \<longrightarrow>
+   (\<exists>s' h'. (resys, (s, h), x) -res-actk\<rightarrow> (resys', (s', h'), x') \<and> agrees X (fst \<sigma>') s' \<and> snd \<sigma>' = h')"
+  apply (erule resred.cases, simp_all add: fvREsv_def wrREsv_def, clarsimp)
   apply (drule_tac X = "X" and s = "s" in rered_agrees, simp_all)
     apply (clarsimp, rule_tac x = "s'" in exI, simp add: resred.red_EvtSeq1)
-   apply (clarsimp, rule_tac x = "s" in exI, simp add: resred.red_EvtSeq2)
+  apply (meson rered_agrees resred.red_EvtSeq2 snd_conv)
   apply (clarsimp, drule rered_agrees, simp_all add: fvREv_def)
   using mem_Collect_eq subset_iff apply fastforce
   using resred.red_EvtSet by blast
@@ -535,11 +629,11 @@ proof-
 qed
 
 inductive
-  pesred :: "paresys \<Rightarrow> state \<Rightarrow> paresys \<Rightarrow> state \<Rightarrow> bool"
+  pesred :: "pesconf \<Rightarrow> actk \<Rightarrow> pesconf \<Rightarrow> bool" ("_ -pes-_\<rightarrow> _" [81,81,81] 80)
   where
-  red_Par : "\<lbrakk>k < length pes;  pes ! k = res ; resred res \<sigma> res' \<sigma>';
+  red_Par : "\<lbrakk>k < length pes;  pes ! k = res ; (res, \<sigma>, x) -res-(a\<sharp>k)\<rightarrow> (res', \<sigma>', x');
              \<forall>k'. k' < length pes \<and> k \<noteq> k' \<longrightarrow> disjoint (reslocked res') (reslocked (pes ! k'))\<rbrakk> 
-             \<Longrightarrow> pesred pes \<sigma> (pes[k := res']) \<sigma>'"
+             \<Longrightarrow> (pes, \<sigma>, x) -pes-a\<sharp>k\<rightarrow> ((pes[k := res']), \<sigma>', x')"
 
 subsubsection \<open>A parallel system aborts in a given state\<close>
 
@@ -598,7 +692,7 @@ lemma wrPEsv_equiv : "wrPEsv pes = {x. \<exists>res \<in> set pes. x \<in> wrREs
   by (induct pes, simp, simp add: Collect_disj_eq)
 
 lemma pesred_properties:
-  "pesred pes \<sigma> pes' \<sigma>' \<Longrightarrow> fvPEsv pes' \<subseteq> fvPEsv pes \<and> wrPEsv pes' \<subseteq> wrPEsv pes 
+  "(pes, \<sigma>, x) -pes-actk\<rightarrow> (pes', \<sigma>', x') \<Longrightarrow> fvPEsv pes' \<subseteq> fvPEsv pes \<and> wrPEsv pes' \<subseteq> wrPEsv pes 
           \<and> agrees (- wrPEsv pes) (fst \<sigma>') (fst \<sigma>)"
   apply (erule pesred.cases, simp_all)
   apply (simp add: le_supI1 resred_properties agrees_def fvPEsv_equiv wrPEsv_equiv)
@@ -642,22 +736,22 @@ lemma rpeslocked_eq : "set (rpesllocked rpes) = rpeslocked rpes"
   by (simp add: peslocked_def rpesllocked_def rpeslocked_def)
 
 inductive
-  rpesred :: "rparesys \<Rightarrow> state \<Rightarrow> rparesys \<Rightarrow> state \<Rightarrow> bool"
+  rpesred :: "rpesconf \<Rightarrow> actk \<Rightarrow> rpesconf \<Rightarrow> bool" ("_ -rpes-_\<rightarrow> _" [81,81,81] 80)
   where
-  red_Par: "\<lbrakk> k < length pes ;  pes ! k = res ; resred res \<sigma> res' \<sigma>';
+  red_Par: "\<lbrakk>k < length pes;  pes ! k = res ; (res, \<sigma>, x) -res-(a\<sharp>k)\<rightarrow> (res', \<sigma>', x');
              \<forall>k'. k' < length pes \<and> k \<noteq> k' \<longrightarrow> disjoint (reslocked res') (reslocked (pes ! k'))\<rbrakk> 
-          \<Longrightarrow> rpesred (r, pes)  \<sigma> (r, pes[k := res']) \<sigma>'"
+          \<Longrightarrow> ((r, pes), \<sigma>, x) -rpes-a\<sharp>k\<rightarrow> ((r, pes[k := res']), \<sigma>', x')"
 
-lemma rpes_invres : "rpesred rpes \<sigma> rpes' \<sigma>' \<Longrightarrow> fst rpes = fst rpes'"
+lemma rpes_invres : "(rpes, \<sigma>, x)-rpes-actk\<rightarrow> (rpes', \<sigma>', x') \<Longrightarrow> fst rpes = fst rpes'"
   by (erule rpesred.cases, simp_all)
 
-lemma rpes_equiv1 : "pesred pes \<sigma> pes' \<sigma>' \<Longrightarrow> rpesred (r, pes) \<sigma> (r, pes') \<sigma>'"
+lemma rpes_equiv1 : "(pes, \<sigma>, x) -pes-actk\<rightarrow> (pes', \<sigma>', x') \<Longrightarrow> ((r, pes), \<sigma>, x)-rpes-actk\<rightarrow> ((r, pes'), \<sigma>', x')"
   by (erule pesred.cases, simp add: rpesred.red_Par)
 
-lemma rpes_equiv2 : "rpesred (r, pes) \<sigma> (r, pes') \<sigma>' \<Longrightarrow> pesred pes \<sigma> pes' \<sigma>'"
+lemma rpes_equiv2 : "((r, pes), \<sigma>, x)-rpes-actk\<rightarrow> ((r, pes'), \<sigma>', x') \<Longrightarrow> (pes, \<sigma>, x) -pes-actk\<rightarrow> (pes', \<sigma>', x')"
   by (erule rpesred.cases, simp add: pesred.red_Par)
 
-lemma rpes_equiv3 : "rpesred (rs, pes) \<sigma> (rs, pes') \<sigma>' \<Longrightarrow> rpesred (rs', pes) \<sigma> (rs', pes') \<sigma>'"
+lemma rpes_equiv3 : "((r, pes), \<sigma>, x)-rpes-actk\<rightarrow> ((r, pes'), \<sigma>', x') \<Longrightarrow> ((r', pes), \<sigma>, x)-rpes-actk\<rightarrow> ((r', pes'), \<sigma>', x')"
   by (simp add: rpes_equiv1 rpes_equiv2)
 
 subsubsection \<open>A resource parallel system aborts in a given state\<close>
@@ -717,9 +811,9 @@ lemma rpeswrites_accesses : "rpeswrite rpes s \<subseteq> rpesaccesses rpes s"
   by (simp add: rpeswrite_def rpesaccesses_def peswrites_accesses)
 
 lemma rpesred_properties:
-  "rpesred rpes \<sigma> rpes' \<sigma>' \<Longrightarrow> fvRPEsv rpes' \<subseteq> fvRPEsv rpes \<and> wrRPEsv rpes' \<subseteq> wrRPEsv rpes 
+  "(rpes, \<sigma>, x) -rpes-actk\<rightarrow> (rpes', \<sigma>', x') \<Longrightarrow> fvRPEsv rpes' \<subseteq> fvRPEsv rpes \<and> wrRPEsv rpes' \<subseteq> wrRPEsv rpes 
           \<and> agrees (- wrRPEsv rpes) (fst \<sigma>') (fst \<sigma>)"
-  by (metis fvRPEsv.simps pesred_properties prod.collapse rpes_equiv2 rpes_invres wrRPEsv.simps)
+  by (metis (no_types, lifting) fvRPEsv.elims pesred_properties prod.collapse rpes_equiv2 rpes_invres wrRPEsv.elims)
 
 lemma rpesaccesses_agrees:
   "agrees (fvRPEsv rpes) s s' \<Longrightarrow> rpesaccesses rpes s = rpesaccesses rpes s'"
