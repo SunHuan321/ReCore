@@ -6,7 +6,6 @@ text \<open> This file defines the syntax and semantics of the programming langu
   used by O'Hearn and Brookes. For simplicity, we do not allow resource-owned
   variables. \<close>
 
-text \<open> (Adapted to Isabelle 2016-1 by Qin Yu and James Brotherston) \<close>
 
 subsection \<open> Language syntax and semantics \<close>
 

@@ -7,8 +7,6 @@ text \<open> This file contains a soundness proof for CSL (with multiple resourc
   of CSL.  For simplicity, there is a slight difference regarding variable
   side-conditions: we do not allow resource-owned variables. \<close>
 
-text \<open> (Adapted to Isabelle 2016-1 by Qin Yu and James Brotherston) \<close>
-
 subsection \<open> Separation logic assertions \<close>          
 
 text \<open> A deep embedding of separation logic assertions. \<close>

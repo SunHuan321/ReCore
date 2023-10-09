@@ -1,12 +1,11 @@
 theory VHelper imports Main begin
 
-section \<open> Viktor's basic lemmas \<close>
+section \<open>  basic lemmas \<close>
 
 text  \<open> 
   This section contains many trivial theorems mostly for doing
   unification-based forward reasoning.\<close>
 
-text  \<open>  (Adapted to Isabelle 2016-1 by Qin Yu and James Brotherston)\<close>
 
 lemma allD: " \<lbrakk> \<forall>a. P a \<rbrakk> \<Longrightarrow> P a" by (erule allE)+
 lemma all2D: " \<lbrakk> \<forall>a b. P a b \<rbrakk> \<Longrightarrow> P a b" by (erule allE)+
