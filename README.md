@@ -16,7 +16,7 @@ The project is developed by Isabelle/HOL 2022, older version may need some sligh
 * Aux_for_CSL, Aux_for_RGSep : useful proof rules of CSL and RGSep
 * Event_Helper, AuxillaryLemma : auxiliary lemmas for CRS
 * Event_Lang, Event_Computation : semantics for CRS
-* Event_Safe, Event_RGsafe : CSL and RGSep reasoning frameworks and soundness proof for CRS
+* Event_Safe: CSL reasoning frameworks and soundness proof for CRS
 * CSL_Syntax : Syntax definition
 ### Case Study
 * Stack_Spec : specification for stack at code level
