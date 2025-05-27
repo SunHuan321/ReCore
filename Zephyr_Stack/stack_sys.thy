@@ -8,14 +8,14 @@ definition Empty_Env :: "rname \<Rightarrow> assn" ("\<Gamma>\<^sub>e\<^sub>m\<^
   where "Empty_Env = (\<lambda>x. Aemp)"
 
 
-definition Scheduler_Sys :: "resys"
-  where "Scheduler_Sys = ([], EvtSys {([], (BasicEvent ([True]\<^sub>b, scheduler)))})"
+definition Scheduler_Sys :: "esys"
+  where "Scheduler_Sys = EvtSys {BasicEvent ([True]\<^sub>b, scheduler)}"
 
-definition Thread_Sys :: "tid \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> resys"
-  where "Thread_Sys t d time = ([], EvtSys {([], (BasicEvent ([t \<noteq> NULL]\<^sub>b, stack_push t d))), 
-                     ([], (BasicEvent ([t \<noteq> NULL]\<^sub>b, stack_pop t time)))})"
+definition Thread_Sys :: "tid \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> esys"
+  where "Thread_Sys t d time = EvtSys {BasicEvent ([t \<noteq> NULL]\<^sub>b, stack_push t d), 
+        BasicEvent ([t \<noteq> NULL]\<^sub>b, stack_pop t time)}"
 
-definition mk_Thread_Sys :: " Thread_Sys_Param \<Rightarrow> resys"
+definition mk_Thread_Sys :: "Thread_Sys_Param \<Rightarrow> esys"
   where "mk_Thread_Sys p = Thread_Sys (fst p) (fst (snd p)) (snd (snd p))"
 
 definition Thread_Sys_List :: "Thread_Sys_Param list \<Rightarrow> paresys"
@@ -26,17 +26,16 @@ definition Stack_Pes :: "Thread_Sys_Param list \<Rightarrow> paresys"
 
 
 lemma safe_Scheduler_Sys : "fvAs \<Gamma> = {} \<Longrightarrow> \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) 
-      \<turnstile>\<^sub>r\<^sub>e\<^sub>s {Aemp} Scheduler_Sys {Aemp}"
-  apply (simp add: Scheduler_Sys_def, rule rule_res_empty)
-  apply (rule rule_EvtSys', simp, rule rule_re_empty)
+      \<turnstile>\<^sub>e\<^sub>s {Aemp} Scheduler_Sys {Aemp}"
+  apply (simp add: Scheduler_Sys_def, rule rule_EvtSys', simp)
   by (rule rule_BasicEvt_true, drule safe_scheduler, simp)
 
 lemma safe_Thread_Sys : "fvAs \<Gamma> = {} \<Longrightarrow> \<Gamma>(Cur := inv_cur, Readyq := inv_readyq, Stack := inv_stack) 
-      \<turnstile>\<^sub>r\<^sub>e\<^sub>s  {Aemp} Thread_Sys t d time {Aemp}"
+      \<turnstile>\<^sub>e\<^sub>s  {Aemp} Thread_Sys t d time {Aemp}"
   apply (simp add: Thread_Sys_def)
-  apply (rule rule_res_empty, rule rule_EvtSys', simp, rule conjI)
-   apply (rule rule_re_empty, rule rule_BasicEvt, drule_tac t = t and d = d in safe_push, simp)
-  apply (rule rule_re_empty, rule rule_BasicEvt, drule_tac t = t and timeout = time in safe_pop, simp)
+  apply (rule rule_EvtSys', simp, rule conjI)
+   apply (rule rule_BasicEvt, drule_tac t = t and d = d in safe_push, simp)
+  apply (rule rule_BasicEvt, drule_tac t = t and timeout = time in safe_pop, simp)
   done
 
 lemma safe_stack_rpes_aux : 
@@ -58,18 +57,18 @@ lemma wrC_stack_push : "wrC (stack_push t d) = {}"
   apply (simp add: stack_push_def wrC_Locals stm_def)
   by auto
 
-lemma wrREsv_Scheduler_Sys : "wrREsv Scheduler_Sys = {}"
-  by (simp add: wrREsv_def wrEsv_def Scheduler_Sys_def wrREv_def)
+lemma wrEsv_Scheduler_Sys : "wrEsv Scheduler_Sys = {}"
+  by (simp add: wrEsv_def Scheduler_Sys_def )
 
-lemma wrREsv_Thread_Sys : "wrREsv (Thread_Sys t d time) = {}"
-  apply (simp add: wrREsv_def wrEsv_def Thread_Sys_def wrREv_def)
+lemma wrEsv_Thread_Sys : "wrEsv (Thread_Sys t d time) = {}"
+  apply (simp add: wrEsv_def Thread_Sys_def)
   using wrC_stack_push wrC_stack_pop by auto
 
 lemma wrPEsv_Stack_Sys : "wrPEsv (Stack_Pes l) = {}"
   apply (simp add: Stack_Pes_def)
-  apply (rule conjI, simp add: wrREsv_Scheduler_Sys)
+  apply (rule conjI, simp add: wrEsv_Scheduler_Sys)
   apply (simp add: Thread_Sys_List_def, induct l, simp)
-  apply (simp add: mk_Thread_Sys_def, simp add: wrREsv_Thread_Sys)
+  apply (simp add: mk_Thread_Sys_def, simp add: wrEsv_Thread_Sys)
   done
 
 lemma safe_stack_pes : "\<lbrakk>distinct (map fst l); fvAs \<Gamma> = {}; pes = Stack_Pes l \<rbrakk> \<Longrightarrow>
@@ -80,16 +79,16 @@ lemma safe_stack_pes : "\<lbrakk>distinct (map fst l); fvAs \<Gamma> = {}; pes =
     apply (simp add: Stack_Pes_def Thread_Sys_List_def mk_Thread_Sys_def safe_Thread_Sys)
    apply (clarsimp, rule conjI)
     apply (case_tac k1, case_tac k2, simp, simp add: Stack_Pes_def)
-     apply (simp add: Thread_Sys_List_def mk_Thread_Sys_def wrREsv_Thread_Sys)
+     apply (simp add: Thread_Sys_List_def mk_Thread_Sys_def wrEsv_Thread_Sys)
     apply (case_tac k2, simp add: Stack_Pes_def)
-     apply (simp add: Thread_Sys_List_def mk_Thread_Sys_def wrREsv_Scheduler_Sys)
+     apply (simp add: Thread_Sys_List_def mk_Thread_Sys_def wrEsv_Scheduler_Sys)
     apply (simp add: Stack_Pes_def  Thread_Sys_List_def mk_Thread_Sys_def)
-    apply (simp add: wrREsv_Thread_Sys)
+    apply (simp add: wrEsv_Thread_Sys)
    apply (case_tac k2, simp add: Stack_Pes_def fvA_Gamma2 fvA_inv_stack fvA_inv_readyq fvA_inv_cur)
-  apply (simp add: wrREsv_Scheduler_Sys)
+  apply (simp add: wrEsv_Scheduler_Sys)
    apply (simp add: Stack_Pes_def Thread_Sys_List_def mk_Thread_Sys_def)
    apply (simp add: fvA_Gamma2 fvA_inv_stack fvA_inv_readyq fvA_inv_cur)
-   apply (simp add: wrREsv_Thread_Sys)
+   apply (simp add: wrEsv_Thread_Sys)
   apply (simp add: wrPEsv_Stack_Sys)
   done
 
