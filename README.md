@@ -18,6 +18,8 @@ The project is developed by Isabelle/HOL 2023, older version may need some sligh
 * Event_Lang, Event_Computation : semantics for CRS
 * Event_Safe: CSL reasoning frameworks and soundness proof for CRS
 * CSL_Syntax : Syntax definition
+* SecurityModel: General noninterference definition
+* ReCore_IFS: Noninterference definition for CRSs
 ### Case Study
 * Stack_Spec : specification for stack at code level
 * Invariant : definition of resource invariant
